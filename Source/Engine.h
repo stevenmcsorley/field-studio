@@ -40,6 +40,7 @@ struct Parameters {
     bool drumMode = false;
     bool monitorInput = false;
     bool metronome = false;
+    float metronomeLevel = 1;
     float sampleStart = 0, sampleLoopIn = 0, sampleLoopOut = 1, sampleEnd = 1;
     bool sampleLoop = false, sampleReverse = false, sampleOneShot = false;
     float sampleRootNote = 60;
@@ -176,6 +177,15 @@ public:
     void setFingerLength(int pattern,int length);
     int fingerLength(int pattern) const;
     int currentSequenceStep() const { return seqStep; }
+    // MIDI SPP: select the next sixteenth step; do not trigger a note or seek tape.
+    void setSongPosition(int sixteenthNotes);
+    struct MidiNoteEvent { int note=0; float velocity=0; bool on=false; int frame=0; };
+    // note=-1 is an all-notes-off panic after fixed-capacity queue overflow.
+    void beginMidiBlock();
+    const std::array<MidiNoteEvent,256>& midiEvents() const { return midiEventBuffer; }
+    size_t midiEventCount() const { return midiEventSize; }
+    bool midiEventOverflowed() const { return midiOverflow; }
+
     void setPitchBend(float semitones);
     void setModWheel(float value);
     void setMidiCC(int cc, float value);
@@ -236,6 +246,7 @@ private:
     std::array<float, 32> heldVelocities{};
     int heldCount = 0, seqStep = -1, seqLastNote = -1;
     int seqLength=16;
+    int seqPositionPending=-1;
     std::array<int, 999> steps{};
     std::array<float,999> stepVelocity{};
     struct FingerBank { std::array<int,32> note{};std::array<float,32> velocity{};int length=16; };
@@ -267,6 +278,12 @@ private:
     void trimHistory();
     Snapshot capture(unsigned mask = 0) const;
     void restore(Snapshot&&);
+    std::array<MidiNoteEvent,256> midiEventBuffer{}, pendingMidiEvents{};
+    size_t midiEventSize=0, pendingMidiSize=0;
+    bool midiOverflow=false, pendingMidiOverflow=false, midiProcessing=false;
+    int midiFrame=0, midiFrameCursor=0;
+    void emitSequenceMidi(int note,float velocity,bool on);
+    void clearSequenceGates();
     void tickSequence();
     void tickTombola();
     void addBall(int note,float velocity);

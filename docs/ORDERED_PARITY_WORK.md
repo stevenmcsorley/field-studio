@@ -5,8 +5,8 @@ User order (2026-10-30):
 1. Synth/effect sound and preset behaviour — evidence-supported control translation implemented and tested; exact sound remains unverified. Known control ranges/selectors can be translated from public preset research. Exact DSP cannot be certified: firmware inspection recovered no engine code, and available preset fixtures mostly contain identical preview audio rather than controlled rendered notes.
 2. Envelope curves and modulation routing — implemented and tested: 20 destinations, four signed MIDI routes, six LFO shapes, tempo sync/retrigger, Element sources and optional exponential ADSR. Hardware curves and routing equivalence remain unverified. DBox retains independent transient envelopes.
 3. Tape editing, count-in and performance controls — implemented and tested: masked copy/lift/drop, atomic group undo/redo, merge/bounce, join, slide, bar-to-eighth grid, record level/pan, optional count-in and momentary brake/reverse/chop. Exact hardware timing/gestures remain unverified; see TAPE_EDITING.md.
-4. MIDI/clock/controller support — active; tape implementation rebuilt and all five test suites passed first.
-5. Screen and animation matching — pending.
+4. MIDI/clock/controller support — implemented and tested: clock receive/send, routing/filter/channel controls, per-channel sustain, documented CC destinations, SPP sequencer positioning, controller output and timed sequencer MIDI output. All six local test suites pass. Hardware policy/curve parity remains unverified; see MIDI.md.
+5. Screen and animation matching — active; phase 4 rebuilt and all six test suites passed first.
 6. Continuous audio during heavy editing/loading/saving — pending.
 
 Each phase must leave passing tests and a rebuilt implementation before the next implementation phase starts. Where reference evidence is missing, report the specific unverified behaviour instead of declaring parity. Existing capabilities and limitations remain in PARITY.md; this file tracks the order of the present request.

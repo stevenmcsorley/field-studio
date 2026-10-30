@@ -78,6 +78,7 @@ void Engine::resetDboxPads(){
 }
 void Engine::setSelectedPad(int index){padSelected=std::clamp(index,0,23);}
 void Engine::prepare(double rate, int /* maxBlock */) {
+    clearSequenceGates();
     const double nextSr = std::clamp(std::isfinite(rate)?rate:44100.0, 8000.0, 192000.0);
     if (nextSr != sr) {
         const double ratio = nextSr / sr;
@@ -99,7 +100,7 @@ void Engine::prepare(double rate, int /* maxBlock */) {
     phaserL.fill(0); phaserR.fill(0);
     for (auto& v : voices) v.active = false;keyCount=0;
     isRecording=false; isPlaying=false;countInRemaining=0;countInElapsed=0;reverseHeld=false;brakeHeld=false;rollHeld=false;
-    seqPhase=0; seqStep=-1; seqLastNote=-1;
+    seqPhase=0; seqStep=-1;seqPositionPending=-1; seqLastNote=-1;
     peakValue=0;
     for(size_t i=0;i<vocoder.size();++i){
         const double frequency=std::min(sr*.42,100.0*std::pow(1.5,static_cast<double>(i)));
@@ -132,13 +133,14 @@ void Engine::setParameters(const Parameters& p) {
     params.volume=clamp(params.volume,0,2.f); params.tempo=clamp(params.tempo,30,300);
     params.lfoRate=clamp(params.lfoRate,.01f,30); params.lfoDepth=clamp(params.lfoDepth);
     params.tapeSpeed=clamp(params.tapeSpeed,-4,4);
+    params.metronomeLevel=clamp(params.metronomeLevel);
     params.tapeRecordLevel=clamp(params.tapeRecordLevel,0,2);params.tapeRecordPan=clamp(params.tapeRecordPan,-1,1);
     params.sampleRootNote=clamp(params.sampleRootNote,0,127);params.sampleStart=clamp(params.sampleStart);params.sampleEnd=clamp(params.sampleEnd,params.sampleStart,1);
     params.sampleLoopIn=clamp(params.sampleLoopIn,params.sampleStart,params.sampleEnd);
     params.sampleLoopOut=clamp(params.sampleLoopOut,params.sampleLoopIn,params.sampleEnd);
     if (sequenceWasOn!=params.sequenceOn || drumChanged || sequencerChanged || modeChanged) {
         for (auto& v : voices) if (v.active) { v.gate=false; v.stage=3; v.releaseStart=v.env;v.envelopeProgress=0; }
-        keyCount=0;heldCount=0; seqStep=-1; seqPhase=0; seqLastNote=-1;for(auto& g:noteGates)g={};
+        keyCount=0;heldCount=0; seqStep=-1;seqPositionPending=-1; seqPhase=0; seqLastNote=-1;clearSequenceGates();
     }
 }
 int Engine::activeVoiceCount()const {return static_cast<int>(std::count_if(voices.begin(),voices.end(),[](const Voice& v){return v.active;}));}
@@ -241,28 +243,45 @@ void Engine::noteOff(int note) {
         for (int k=j;k<heldCount-1;++k) { heldNotes[k]=heldNotes[k+1]; heldVelocities[k]=heldVelocities[k+1]; }
         --heldCount; break;
     }
-    if(heldCount==0){for(auto& gate:noteGates){if(gate.note>=0)releaseNote(gate.note);gate={};}seqLastNote=-1;}
+    if(heldCount==0){clearSequenceGates();seqLastNote=-1;}
 }
 void Engine::allNotesOff() {
     keyCount=0;
     for (auto& v : voices) { v.gate=false; v.stage=3; v.releaseStart=v.env;v.envelopeProgress=0;v.forcedRelease=.005f; }
-    heldCount=0; seqLastNote=-1; seqStep=-1; seqPhase=0;
+    heldCount=0; seqLastNote=-1; seqStep=-1;seqPositionPending=-1; seqPhase=0;
     for(auto& ball:balls)ball.active=false;
-    for(auto& gate:noteGates)gate={};
+    clearSequenceGates();
     ballClock=0;
 }
+void Engine::beginMidiBlock(){
+    midiEventSize=0;midiOverflow=false;midiFrame=0;midiFrameCursor=0;
+    if(pendingMidiOverflow){midiEventBuffer[0]={-1,0,false,0};midiEventSize=1;midiOverflow=true;}
+    else for(size_t i=0;i<pendingMidiSize;++i)midiEventBuffer[midiEventSize++]=pendingMidiEvents[i];
+    pendingMidiSize=0;pendingMidiOverflow=false;
+}
+void Engine::emitSequenceMidi(int note,float velocity,bool on){
+    auto& events=midiProcessing?midiEventBuffer:pendingMidiEvents;
+    auto& size=midiProcessing?midiEventSize:pendingMidiSize;
+    auto& overflow=midiProcessing?midiOverflow:pendingMidiOverflow;
+    if(overflow)return;
+    const int frame=midiProcessing?midiFrame:0;
+    if(size==events.size()){size=1;events[0]={-1,0,false,frame};overflow=true;return;}
+    events[size++]={note,on?clamp(velocity):0,on,frame};
+}
+void Engine::clearSequenceGates(){for(auto& gate:noteGates){if(gate.note>=0){emitSequenceMidi(gate.note,0,false);releaseNote(gate.note);}gate={};}}
 void Engine::gatedTrigger(int note,float velocity,double seconds){
-    for(auto& gate:noteGates)if(gate.note==note){gate={};releaseNote(note);}
-    trigger(note,velocity);
+    for(auto& gate:noteGates)if(gate.note==note){emitSequenceMidi(note,0,false);gate={};releaseNote(note);}
+    trigger(note,velocity);emitSequenceMidi(note,velocity,true);
     auto* slot=&noteGates[0];for(auto& gate:noteGates)if(gate.note<0){slot=&gate;break;}
+    if(slot->note>=0){emitSequenceMidi(slot->note,0,false);releaseNote(slot->note);}
     slot->note=note;slot->remaining=std::max(1.0,seconds*sr);seqLastNote=note;
 }
 void Engine::tickGates(){
-    for(auto& gate:noteGates)if(gate.note>=0){gate.remaining-=1;if(gate.remaining<=0){releaseNote(gate.note);gate={};}}
+    for(auto& gate:noteGates)if(gate.note>=0){gate.remaining-=1;if(gate.remaining<=0){emitSequenceMidi(gate.note,0,false);releaseNote(gate.note);gate={};}}
 }
 void Engine::tickSequence() {
     const int clockLength=params.sequencer==3?32:seqLength;
-    seqStep=(seqStep+1)%clockLength;
+    seqStep=seqPositionPending>=0?seqPositionPending%clockLength:(seqStep+1)%clockLength;seqPositionPending=-1;
     if (heldCount<=0) { seqLastNote=-1; return; }
     int note=heldNotes[0];float velocity=heldVelocities[0];
     const double stepSeconds=60.0/(params.tempo*4.0)*(1+(seqStep%2==0?params.seqSwing:-params.seqSwing));
@@ -621,7 +640,12 @@ std::pair<float,float> Engine::effect(float l,float r) {
 void Engine::process(float* left,float* right,const float* inputLeft,const float* inputRight,int frames,float* const* stems) {
     if(!left || !right || frames<=0)return;
     const bool anySolo=std::any_of(tape.begin(),tape.end(),[](const Track& t){return t.solo;});
+    midiProcessing=true;midiFrame=midiFrameCursor;
+    if(pendingMidiOverflow){midiEventBuffer[0]={-1,0,false,midiFrame};midiEventSize=1;midiOverflow=true;}
+    else for(size_t i=0;i<pendingMidiSize;++i)emitSequenceMidi(pendingMidiEvents[i].note,pendingMidiEvents[i].velocity,pendingMidiEvents[i].on);
+    pendingMidiSize=0;pendingMidiOverflow=false;
     for(int i=0;i<frames;++i){
+        midiFrame=static_cast<int>(std::min<int64_t>(2147483647,static_cast<int64_t>(midiFrameCursor)+i));
         if(stems)for(int channel=0;channel<8;++channel)if(stems[channel])stems[channel][i]=0;
         const float rawL=inputLeft?inputLeft[i]:0,rawR=inputRight?inputRight[i]:rawL;
         const float inL=std::isfinite(rawL)?rawL:0,inR=std::isfinite(rawR)?rawR:0;
@@ -663,7 +687,7 @@ void Engine::process(float* left,float* right,const float* inputLeft,const float
         const auto processed=effect(synthL*params.patchGain*std::max(0.f,1+modulationRoutes[17]),synthR*params.patchGain*std::max(0.f,1+modulationRoutes[17]));synthL=processed.first;synthR=processed.second;
         float mixL=synthL,mixR=synthR;
         const bool counting=countInRemaining>0&&isPlaying&&isRecording;
-        if(counting){const double phase=countInElapsed-std::floor(countInElapsed);if(phase<.08){const double seconds=phase*60./params.tempo;const float click=static_cast<float>(std::sin(seconds*1900*tau)*std::exp(-seconds*80))*.13f;mixL+=click;mixR+=click;}const double step=params.tempo/(60.*sr);countInElapsed+=step;countInRemaining=std::max(0.,countInRemaining-step);if(countInRemaining<1e-9)countInRemaining=0;}
+        if(counting){const double phase=countInElapsed-std::floor(countInElapsed);if(phase<.08){const double seconds=phase*60./params.tempo;const float click=static_cast<float>(std::sin(seconds*1900*tau)*std::exp(-seconds*80))*.13f*params.metronomeLevel;mixL+=click;mixR+=click;}const double step=params.tempo/(60.*sr);countInElapsed+=step;countInRemaining=std::max(0.,countInRemaining-step);if(countInRemaining<1e-9)countInRemaining=0;}
         if(isPlaying&&!counting){
             if(rollHeld){const double length=std::min(rollLength,static_cast<double>(maxFrames())-rollBegin);if(length>0&&(position<rollBegin||position>=rollBegin+length))position=rollBegin+std::fmod(std::fmod(position-rollBegin,length)+length,length);}
             if(!rollHeld && params.loop && loopFinish>loopBegin+1){
@@ -690,7 +714,7 @@ void Engine::process(float* left,float* right,const float* inputLeft,const float
                         t.right[at]=std::clamp(t.right[at]+synthR*params.tapeRecordLevel*(params.tapeRecordPan<0?1+params.tapeRecordPan:1),-4.0f,4.0f);
                     } else {isRecording=false;}
                 }
-                if(params.metronome&&!brakeHeld){const double beat=position/sr*params.tempo/60.0;const double phase=beat-std::floor(beat);if(phase<.045){float click=static_cast<float>(std::sin(phase*sr/params.tempo*60*1900*tau))*static_cast<float>(std::exp(-phase*130))*.08f;mixL+=click;mixR+=click;}}
+                if(params.metronome&&!brakeHeld){const double beat=position/sr*params.tempo/60.0;const double phase=beat-std::floor(beat);if(phase<.045){float click=static_cast<float>(std::sin(phase*sr/params.tempo*60*1900*tau))*static_cast<float>(std::exp(-phase*130))*.08f*params.metronomeLevel;mixL+=click;mixR+=click;}}
                 if(!brakeHeld)position+=params.tapeSpeed*std::pow(2.f,modulationRoutes[18])*(reverseHeld?-1.:1.);
             }
         }
@@ -707,6 +731,7 @@ void Engine::process(float* left,float* right,const float* inputLeft,const float
         previousOutputEnvelope=std::max(std::abs(left[i]),std::abs(right[i]));
         peakValue=std::max(previousOutputEnvelope,peakValue*.9997f);
     }
+    midiProcessing=false;midiFrameCursor=static_cast<int>(std::min<int64_t>(2147483647,static_cast<int64_t>(midiFrameCursor)+frames));
 }
 void Engine::loadSample(const std::vector<float>& l,const std::vector<float>& r,double rate) {
     allNotesOff();
@@ -728,7 +753,7 @@ float Engine::trackLevel(int i)const{return tape[std::clamp(i,0,3)].level;}
 float Engine::trackPan(int i)const{return tape[std::clamp(i,0,3)].pan;}
 bool Engine::trackMute(int i)const{return tape[std::clamp(i,0,3)].mute;}
 bool Engine::trackSolo(int i)const{return tape[std::clamp(i,0,3)].solo;}
-void Engine::setPlaying(bool v){isPlaying=v;if(!v){isRecording=false;countInRemaining=0;reverseHeld=false;brakeHeld=false;rollHeld=false;}}
+void Engine::setPlaying(bool v){isPlaying=v;if(!v){clearSequenceGates();isRecording=false;countInRemaining=0;reverseHeld=false;brakeHeld=false;rollHeld=false;}}
 Engine::Snapshot Engine::capture(unsigned mask)const{Snapshot s;s.track=selected;s.head=position;s.mask=mask?mask&15u:1u<<selected;for(int i=0;i<4;++i)if(s.mask&(1u<<i))s.audio[i]=tape[i];return s;}
 void Engine::trimHistory(){
     constexpr size_t limit=256u*1024u*1024u;
@@ -743,7 +768,7 @@ void Engine::setRecording(bool v){
     if(v&&!isRecording){snapshot();tape[selected].left.reserve(maxFrames());tape[selected].right.reserve(maxFrames());isPlaying=true;countInRemaining=countInSetting;countInElapsed=0;}
     isRecording=v;if(!v)countInRemaining=0;
 }
-void Engine::rewind(){position=params.loop?loopBegin:0;seqPhase=0;seqStep=-1;}
+void Engine::rewind(){position=params.loop?loopBegin:0;seqPhase=0;seqStep=-1;seqPositionPending=-1;}
 void Engine::seek(double seconds){position=std::clamp(std::isfinite(seconds)?seconds:0.0,0.0,359.999)*sr;}
 void Engine::setLoop(double start,double end){start=std::isfinite(start)?start:0;end=std::isfinite(end)?end:2;loopBegin=std::clamp(start,0.0,359.999)*sr;loopFinish=std::clamp(end,loopBegin/sr+1.0/sr,360.0)*sr;}
 double Engine::recordedSeconds()const{size_t n=0;for(const auto&t:tape)n=std::max(n,t.left.size());return n/sr;}
@@ -855,7 +880,13 @@ void Engine::restoredTape(){
 void Engine::setSequenceStep(int step,int note,float velocity){if(step>=0&&step<999){steps[step]=std::clamp(note,-1,127);stepVelocity[step]=clamp(velocity);}}
 int Engine::sequenceStep(int step)const{return step>=0&&step<999?steps[step]:-1;}
 float Engine::sequenceVelocity(int step)const{return step>=0&&step<999?stepVelocity[step]:0;}
-void Engine::setSequenceLength(int count){seqLength=std::clamp(count,1,999);if(seqStep>=seqLength){seqStep=-1;seqPhase=0;}}
+void Engine::setSongPosition(int sixteenthNotes){
+    const int length=params.sequencer==3?32:seqLength;
+    seqStep=std::clamp(sixteenthNotes,0,16383)%length;
+    seqPositionPending=seqStep;seqPhase=0;seqLastNote=-1;
+    clearSequenceGates();
+}
+void Engine::setSequenceLength(int count){seqLength=std::clamp(count,1,999);if(seqStep>=seqLength){seqStep=-1;seqPositionPending=-1;seqPhase=0;}}
 void Engine::clearHeldNotes(){allNotesOff();}
 void Engine::setSketchPoint(int index,float x,float y){if(index>=0&&index<256)sketch[static_cast<size_t>(index)]={clamp(x),clamp(y)};}
 std::pair<float,float> Engine::sketchPoint(int index)const{const auto& p=sketch[static_cast<size_t>(std::clamp(index,0,255))];return {p.x,p.y};}

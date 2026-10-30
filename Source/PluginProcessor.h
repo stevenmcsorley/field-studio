@@ -1,6 +1,7 @@
 #pragma once
 #include <juce_audio_utils/juce_audio_utils.h>
 #include "Engine.h"
+#include "MidiSupport.h"
 
 class FieldProcessor final : public juce::AudioProcessor, private juce::Timer {
 public:
@@ -14,7 +15,7 @@ public:
     bool hasEditor() const override { return true; }
     const juce::String getName() const override { return "Field Studio"; }
     bool acceptsMidi() const override { return true; }
-    bool producesMidi() const override { return false; }
+    bool producesMidi() const override { return true; }
     double getTailLengthSeconds() const override { return 4; }
     int getNumPrograms() override { return 16; }
     int getCurrentProgram() override { return currentProgram+(drumMode?8:0); }
@@ -72,9 +73,12 @@ public:
     std::atomic<bool> inputMonitor{false};
     std::atomic<bool> drumMode{false};
     double selectionStart=0, selectionEnd=4;
-    int octave=0;
+    std::atomic<int> octave{0};
+    int keyboardMidiChannel() const {int channel=(int)value("midiInputChannel");return channel==0?1:channel;}
+    std::atomic<uint64_t> midiReceived{0};
+    std::atomic<int> midiLastStatus{0},midiLastData1{0},midiLastData2{0};
 private:
-    enum ParamKey {P_engine,P_macro1,P_macro2,P_macro3,P_macro4,P_attack,P_decay,P_sustain,P_release,P_sampleStart,P_sampleLoopIn,P_sampleLoopOut,P_sampleEnd,P_sampleLoop,P_sampleReverse,P_sampleOneShot,P_fx1,P_fx2,P_fx3,P_fx4,P_seq1,P_seq2,P_seq3,P_seq4,P_lfoTarget,P_effect,P_effectMix,P_masterLow,P_masterMid,P_masterHigh,P_masterDrive,P_compressor,P_masterEffect,P_masterMix,P_volume,P_tempo,P_lfo,P_lfoRate,P_lfoDepth,P_sequencer,P_sequenceOn,P_tapeStyle,P_tapeSpeed,P_loop,P_masterFx1,P_masterFx2,P_masterFx3,P_masterFx4,P_seqSwing,P_seqGate,P_seqHold,P_sampleRootNote,P_voiceMode,P_glideTime,P_bendRange,P_patchGain,P_lfoWaveform,P_lfoRetrigger,P_lfoSync,P_lfoDivision,P_elementSource,P_elementManual,P_envelopeCurve,P_midiTarget1,P_midiTarget2,P_midiTarget3,P_midiTarget4,P_midiDepth1,P_midiDepth2,P_midiDepth3,P_midiDepth4,P_countInBeats,P_tapeRecordLevel,P_tapeRecordPan,P_count};
+    enum ParamKey {P_engine,P_macro1,P_macro2,P_macro3,P_macro4,P_attack,P_decay,P_sustain,P_release,P_sampleStart,P_sampleLoopIn,P_sampleLoopOut,P_sampleEnd,P_sampleLoop,P_sampleReverse,P_sampleOneShot,P_fx1,P_fx2,P_fx3,P_fx4,P_seq1,P_seq2,P_seq3,P_seq4,P_lfoTarget,P_effect,P_effectMix,P_masterLow,P_masterMid,P_masterHigh,P_masterDrive,P_compressor,P_masterEffect,P_masterMix,P_volume,P_tempo,P_lfo,P_lfoRate,P_lfoDepth,P_sequencer,P_sequenceOn,P_tapeStyle,P_tapeSpeed,P_loop,P_masterFx1,P_masterFx2,P_masterFx3,P_masterFx4,P_seqSwing,P_seqGate,P_seqHold,P_sampleRootNote,P_voiceMode,P_glideTime,P_bendRange,P_patchGain,P_lfoWaveform,P_lfoRetrigger,P_lfoSync,P_lfoDivision,P_elementSource,P_elementManual,P_envelopeCurve,P_midiTarget1,P_midiTarget2,P_midiTarget3,P_midiTarget4,P_midiDepth1,P_midiDepth2,P_midiDepth3,P_midiDepth4,P_countInBeats,P_tapeRecordLevel,P_tapeRecordPan,P_metronomeLevel,P_midiInputChannel,P_midiOutputChannel,P_midiClockMode,P_midiThru,P_midiSendControls,P_midiRelativeControls,P_midiNotesIn,P_midiOtherIn,P_midiTransportIn,P_midiNotesOut,P_midiOtherOut,P_midiSppOrigin,P_masterLeft,P_masterRight,P_compressorRelease,P_count};
     std::array<std::atomic<float>*,P_count> rawValues{};
     std::array<juce::RangedAudioParameter*,P_count> rawTargets{};
     float cached(int key) const { return rawValues[(size_t)key]->load(); }
@@ -83,7 +87,8 @@ private:
     static juce::AudioProcessorValueTreeState::ParameterLayout makeLayout();
     void timerCallback() override;
     void resetSampleParameters();
-    std::atomic<int> pendingProgram{-1};
+    std::atomic<int> pendingProgram{-1},pendingPatchAction{0};
+    void applyPatchAction(int);
     int currentProgram=0,currentTape=0;
     std::array<juce::ValueTree,16> patchSlots;
     std::array<juce::ValueTree,2> memos;
@@ -107,8 +112,16 @@ private:
     bool previousHostPlaying=false,hostPositionValid=false;
     double previousHostSeconds=0;
     int previousHostFrames=0;
-    bool sustainPedal=false;
-    std::array<bool,128> keysDown{},sustained{};
+    field::midi::NoteState midiNotes;
+    field::midi::ClockFollower midiClockFollower;
+    field::midi::ClockGenerator midiClockGenerator;
+    juce::MidiBuffer midiOutput;
+    int64_t midiSampleClock=0;
+    double midiTransportPpq=0,midiExpectedTapeSeconds=0,lastSppOrigin=0;
+    bool midiPositionValid=false;
+    int lastInputChannel=0,lastOutputChannel=1,lastClockMode=0;
+    bool lastNotesIn=true,lastNotesOut=true;
+    std::array<int,4> controllerValues{{-1,-1,-1,-1}};
     void midiController(int channel,int cc,int amount);
     juce::ValueTree makeState();
     void restoreState(const juce::ValueTree&);

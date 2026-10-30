@@ -31,7 +31,7 @@ The VST3 bundle is `build/FieldStudio_artefacts/Release/VST3/Field Studio.vst3`.
 - **COM → Album** records the live processed output to side A or B, listens back, clears or exports either side. Each side keeps its capture rate and is embedded in the project.
 - **COM → Store/Recall patch** accesses eight synth and eight drum slots. **Save** embeds samples, all tape banks, pad settings, sequences, patch slots, memories and parameters in a `.field` project. **Export WAV** renders the current tape's stereo mix, including tape colour, EQ and master processing.
 
-The plugin can follow DAW tempo, play/stop and seek through **COM → Follow DAW transport and tempo**. Local tape speed still controls varispeed between host timeline jumps. Incoming MIDI supports notes, velocity, pitch bend, sustain, selected documented CC controls and transport messages; the complete hardware MIDI implementation is not yet replicated. Program changes are applied on the message thread to avoid loading sample data on the audio thread.
+The plugin can follow DAW tempo, play/stop and seek through **COM → Follow DAW transport and tempo**. Local tape speed still controls varispeed between host timeline jumps. MIDI routing offers channel and message filters, per-channel sustain, clock receive/send, controller output, thru and sample-timed sequencer output. Documented CC destinations and SPP sequencer positioning are supported; exact hardware policies remain unverified. See [MIDI controls and limits](docs/MIDI.md). Program changes are applied on the message thread to avoid loading sample data on the audio thread.
 
 ## Build
 
@@ -56,7 +56,7 @@ Windows: configure with Visual Studio2022 and build `--config Release`. macOS: c
 
 ## Verification
 
-`ctest --test-dir build --output-on-failure` runs audio-core, plugin/project/UI, preset-format and Linux native VST3-host tests. Use `xvfb-run -a` on headless Linux. Core tests also pass AddressSanitizer and UndefinedBehaviorSanitizer and check that rendering does not allocate. Native VST3 tests instantiate the actual module with optional stems disabled and enabled; they are not a substitute for testing every DAW. Public preset metadata was independently checked against 167 research fixtures; its raw hardware knob values are preserved, not guessed into identical sounds.
+`ctest --test-dir build --output-on-failure` runs audio-core, plugin/project/UI, MIDI clock/routing, preset-format, parameter translation and Linux native VST3-host tests. Use `xvfb-run -a` on headless Linux. Core tests also pass AddressSanitizer and UndefinedBehaviorSanitizer and check that rendering does not allocate. Native VST3 tests instantiate the actual module with optional stems disabled and enabled; they are not a substitute for testing every DAW. Public preset metadata was independently checked against 167 research fixtures; its raw hardware knob values are preserved, not guessed into identical sounds.
 
 ```sh
 xvfb-run -a build/field_plugin_tests_artefacts/Release/field_plugin_tests docs/screenshots

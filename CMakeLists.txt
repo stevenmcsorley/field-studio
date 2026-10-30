@@ -38,12 +38,12 @@ if(FIELD_BUILD_PLUGIN)
     FORMATS ${FIELD_FORMATS}
     IS_SYNTH TRUE
     NEEDS_MIDI_INPUT TRUE
-    NEEDS_MIDI_OUTPUT FALSE
+    NEEDS_MIDI_OUTPUT TRUE
     EDITOR_WANTS_KEYBOARD_FOCUS TRUE
     COPY_PLUGIN_AFTER_BUILD FALSE
     VST3_CATEGORIES Instrument Synth Sampler
     NEEDS_WEB_BROWSER FALSE NEEDS_CURL FALSE)
-  target_sources(FieldStudio PRIVATE Source/PluginProcessor.cpp Source/PluginEditor.cpp Source/PresetFormat.cpp Source/PresetMapping.cpp Source/PresetParameters.cpp)
+  target_sources(FieldStudio PRIVATE Source/PluginProcessor.cpp Source/PluginEditor.cpp Source/MidiSupport.cpp Source/PresetFormat.cpp Source/PresetMapping.cpp Source/PresetParameters.cpp)
   target_include_directories(FieldStudio PUBLIC Source)
   target_compile_definitions(FieldStudio PUBLIC JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_VST3_CAN_REPLACE_VST2=0 JUCE_DISPLAY_SPLASH_SCREEN=0)
   target_link_libraries(FieldStudio PRIVATE field_engine juce::juce_audio_utils PUBLIC juce::juce_recommended_config_flags)
@@ -54,6 +54,12 @@ if(FIELD_BUILD_PLUGIN)
     target_include_directories(field_plugin_tests PRIVATE $<TARGET_PROPERTY:juce::juce_core,INTERFACE_INCLUDE_DIRECTORIES>)
     target_compile_definitions(field_plugin_tests PRIVATE JUCE_GLOBAL_MODULE_SETTINGS_INCLUDED=1)
     add_test(NAME plugin COMMAND field_plugin_tests)
+    juce_add_console_app(field_midi_tests PRODUCT_NAME "MIDI routing and clock tests")
+    target_sources(field_midi_tests PRIVATE tests/midi_tests.cpp)
+    target_link_libraries(field_midi_tests PRIVATE FieldStudio)
+    target_include_directories(field_midi_tests PRIVATE $<TARGET_PROPERTY:juce::juce_core,INTERFACE_INCLUDE_DIRECTORIES>)
+    target_compile_definitions(field_midi_tests PRIVATE JUCE_GLOBAL_MODULE_SETTINGS_INCLUDED=1)
+    add_test(NAME midi COMMAND field_midi_tests)
     juce_add_console_app(field_preset_tests PRODUCT_NAME "Preset format tests")
     target_sources(field_preset_tests PRIVATE tests/preset_tests.cpp Source/PresetFormat.cpp Source/PresetMapping.cpp Source/PresetParameters.cpp)
     target_include_directories(field_preset_tests PRIVATE Source)

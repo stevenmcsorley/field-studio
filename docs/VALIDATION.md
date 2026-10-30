@@ -50,3 +50,7 @@ Removed the fixed 0.19 melodic / 0.42 drum voice attenuation for the sampler onl
 ### Tape phase (2026-10-30)
 
 All five local CTest suites pass after the tape extension. Core tests cover grouped masked edits/history, overlapping slides, mixer-aware merge/bounce, count-in timing/clicks, control cancellation and recording level/pan; callback allocation checks remain enabled. Wrapper tests check group-copy/lift/drop destinations, atomic undo, beat/eighth/bar grids, countdown hold/cancel and project persistence of record/edit settings. The native tape screenshot was regenerated and visually checked. Hardware timing/gesture/curve matching and drop-free live edits remain unverified.
+
+### MIDI phase (2026-10-30)
+
+All six local CTest suites pass after enabling plugin MIDI output. MIDI helper tests verify24PPQN timing, jitter/tempo change/timeout handling, transport/SPP, fractional and segmented clock timestamps, no output echo in external-clock mode, per-channel sustain/shared-pitch ownership and allocation-free preallocated helpers. Helper/test code passes ASan+UBSan. Core tests cover SPP step playback without tape seek, click level and bounded timestamped sequencer events including note releases, unison/manual-note deduplication and overflow panic. Processor tests verify channel filtering, timed thru/remapping, filter note release, CC destinations, persistent routing state, clock receive/send and sequencer note output. Physical MIDI devices, real DAW routing and hardware timing/policy matching remain unverified.

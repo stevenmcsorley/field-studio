@@ -251,5 +251,30 @@ int main(){
         const auto original=e.tracks()[0].left;e.liftTracks(0,std::numeric_limits<double>::quiet_NaN(),1);e.slideTracks(0,0,1,std::numeric_limits<double>::infinity());check(e.tracks()[0].left==original,"malformed edit bounds leave tape intact");
         e.setCountInBeats(2);e.setRecording(true);e.setTapeBrake(true);e.prepare(8000,64);check(!e.recording()&&e.countInRemainingBeats()==0,"prepare clears armed recording state");e.setRecording(true);e.restoredTape();check(!e.recording()&&e.countInRemainingBeats()==0,"tape restore clears armed recording state");
     }
+
+    {
+        auto owner=std::make_unique<Engine>();auto& e=*owner;e.prepare(8000,64);Parameters p;p.sequenceOn=true;p.sequencer=2;p.tempo=120;p.attack=.001f;p.release=.001f;p.seqGate=1;e.setParameters(p);e.setSequenceLength(8);for(int i=0;i<8;++i)e.setSequenceStep(i,60+i,1);e.seek(.75);e.noteOn(60,1);render(e,l,r,200);
+        check(e.currentSequenceStep()==0&&e.currentVoicePitch()==60,"held sequence begins at step zero");e.setSongPosition(13);check(e.currentSequenceStep()==5&&e.positionSeconds()==.75&&e.heldNoteCount()==1,"MIDI song position changes sequencer without tape seek or held-key loss");
+        render(e,l,r,999);check(e.activeVoiceCount()==0&&e.currentSequenceStep()==5,"song position itself creates no new note and clears prior sequence gates");render(e,l,r,1);check(e.currentSequenceStep()==5&&e.currentVoicePitch()==65,"next natural sixteenth plays the requested song-position step");render(e,l,r,1000);check(e.currentSequenceStep()==6,"sequencer advances normally after positioned step");render(e,l,r,50);check(e.currentVoicePitch()==66,"next step note follows positioned step after prior release");
+        e.allNotesOff();e.setSongPosition(-20);check(e.currentSequenceStep()==0,"negative song position clamps safely");e.setSongPosition(20000);check(e.currentSequenceStep()==7,"song position clamps to MIDI fourteen-bit domain");e.rewind();e.noteOn(60,1);check(e.currentSequenceStep()==0,"rewind clears pending song position");
+        p.sequencer=3;e.setParameters(p);e.setSongPosition(63);check(e.currentSequenceStep()==31,"Finger song position uses fixed thirty-two-step clock");
+    }
+    {
+        auto owner=std::make_unique<Engine>();auto& e=*owner;e.prepare(8000,64);Parameters p;p.volume=1;p.metronome=true;p.tempo=120;e.setParameters(p);e.setOutputGainImmediately(1);e.setPlaying(true);render(e,l,r,1000);const float full=energy(l);check(full>0,"tape metronome produces reference clicks");
+        p.metronomeLevel=.25f;e.setParameters(p);e.seek(0);e.setOutputGainImmediately(1);render(e,l,r,1000);check(std::abs(energy(l)/full-.0625f)<1e-5,"metronome level scales tape clicks");
+        e.setPlaying(false);p.metronome=false;p.metronomeLevel=1;e.setParameters(p);e.setCountInBeats(1);e.setRecording(true);render(e,l,r,1000);const float countFull=energy(l);e.setPlaying(false);p.metronomeLevel=.25f;e.setParameters(p);e.setRecording(true);render(e,l,r,1000);check(std::abs(energy(l)/countFull-.0625f)<1e-5,"metronome level also scales count-in clicks");
+        p.metronomeLevel=0;e.setParameters(p);render(e,l,r,1000);check(energy(l)==0,"zero metronome level mutes count-in");p.metronomeLevel=2;e.setParameters(p);check(e.parameters().metronomeLevel==1,"metronome level clamps to unity");
+    }
+
+    {
+        auto owner=std::make_unique<Engine>();auto& e=*owner;e.prepare(8000,64);Parameters p;p.sequenceOn=true;p.sequencer=1;p.tempo=120;p.seqGate=.5f;p.voiceMode=3;e.setParameters(p);e.noteOn(60,.8f);e.beginMidiBlock();check(e.midiEventCount()==1&&e.midiEvents()[0].on&&e.midiEvents()[0].note==60&&e.midiEvents()[0].frame==0,"outside-block sequencer trigger emits one MIDI note independent of unison voices");
+        render(e,l,r,500);check(e.midiEventCount()==2&&!e.midiEvents()[1].on&&e.midiEvents()[1].frame==499,"sequencer gate off has sample-accurate block offset");render(e,l,r,500);check(e.midiEventCount()==3&&e.midiEvents()[2].on&&e.midiEvents()[2].frame==999,"MIDI frame offsets accumulate across process chunks");
+        e.allNotesOff();e.beginMidiBlock();check(e.midiEventCount()==1&&!e.midiEvents()[0].on&&e.midiEvents()[0].note==60&&e.midiEvents()[0].frame==0,"all-notes-off schedules active sequencer note release next block");
+        p.sequenceOn=false;e.setParameters(p);e.beginMidiBlock();e.noteOn(64,1);render(e,l,r,64);check(e.midiEventCount()==0,"manual incoming notes are not duplicated by sequencer MIDI output");e.allNotesOff();
+        p.sequenceOn=true;e.setParameters(p);e.beginMidiBlock();for(int i=0;i<150;++i){e.noteOn(60,1);e.allNotesOff();}e.beginMidiBlock();check(e.midiEventOverflowed()&&e.midiEventCount()==1&&e.midiEvents()[0].note==-1&&!e.midiEvents()[0].on,"pending queue overflow emits explicit panic instead of dropping note offs");
+        e.beginMidiBlock();e.noteOn(60,1);e.beginMidiBlock();render(e,l,r,300000);check(e.midiEventOverflowed()&&e.midiEventCount()==1&&e.midiEvents()[0].note==-1,"render queue overflow emits panic without allocation");e.allNotesOff();e.beginMidiBlock();e.beginMidiBlock();check(!e.midiEventOverflowed()&&e.midiEventCount()==0,"next MIDI block recovers from overflow");
+        e.beginMidiBlock();render(e,l,r,25);e.noteOn(60,1);render(e,l,r,1);check(e.midiEventCount()==1&&e.midiEvents()[0].on&&e.midiEvents()[0].frame==25,"control-thread trigger between chunks emits at next process offset");e.allNotesOff();e.beginMidiBlock();
+        e.noteOn(60,1);e.beginMidiBlock();e.setSongPosition(3);e.beginMidiBlock();check(e.midiEventCount()==1&&!e.midiEvents()[0].on,"song-position change emits previous gate release without new note");e.noteOn(64,1);render(e,l,r,1000);e.setPlaying(false);e.beginMidiBlock();check(e.midiEventCount()>0&&!e.midiEvents()[0].on,"transport stop releases active sequencer MIDI gates");
+    }
     std::cout<<"PASS: tuning, release, recording, stereo, overdub, undo/redo, lift/drop, splice, resampling, forward/reverse loops, export, mute/solo, sampler slices, engines/effects, sequencer\n";
 }
