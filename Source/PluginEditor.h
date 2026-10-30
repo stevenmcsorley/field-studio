@@ -21,7 +21,11 @@ public:
     void mouseDown(const juce::MouseEvent&) override;
     void mouseDrag(const juce::MouseEvent&) override;
     void mouseUp(const juce::MouseEvent&) override;
+    void mouseDoubleClick(const juce::MouseEvent&) override;
     void showPageForTesting(int mode,int page);
+    void refreshForTesting() { timerCallback(); }
+    bool macroEnabledForTesting(int i) const { return i>=0&&i<4&&macros[(size_t)i].isEnabled(); }
+    void setShiftForTesting(bool value) { shiftLatched=value;setShift(value); }
 private:
     FieldProcessor& processor;
     FieldLookAndFeel look;
@@ -43,6 +47,17 @@ private:
     juce::StringArray macroLabels;
     int mode=0,page=0,tick=0,mouseNote=-1,lastElementSource=-1,lastLfoSync=-1,lastLfo=-1,lastVoiceMode=-1,lastEngine=-1,lastEffect=-1,lastMasterEffect=-1,lastSynthEngine=0;
     bool shifted=false,shiftLatched=false,draggingSelection=false,drawingSketch=false;
+    int draggingSampleMarker=-1;
+    double sampleViewStart=0,sampleViewEnd=1;
+    struct SampleBin { float low=0,high=0; };
+    std::array<std::array<SampleBin,256>,2> samplePreview{};
+    size_t sampleFrames=0;
+    double sampleSeconds=0;
+    bool samplePreviewReady=false;
+    float lfoPhaseSnapshot=0,modulationSnapshot=0;
+    std::array<float,96> modulationHistory{};
+    size_t modulationWrite=0;
+    std::array<double,2> albumDurations{};
     std::map<int,int> typingNotes;
     std::array<bool,128> held{};
     std::array<bool,128> sequencerHeld{};
@@ -69,6 +84,7 @@ private:
     void setMode(int);
     void setPage(int);
     void configureMacros();
+    void updateControlAvailability();
     void setShift(bool);
     void functionAction(int);
     void transportAction(int);
@@ -83,6 +99,12 @@ private:
     void drawCap(juce::Graphics&,juce::Rectangle<float>,bool,bool=false);
     void drawScreen(juce::Graphics&);
     void drawEngine(juce::Graphics&,juce::Rectangle<float>);
+    void drawSampler(juce::Graphics&,juce::Rectangle<float>);
+    void drawEffect(juce::Graphics&,juce::Rectangle<float>,bool master);
+    void drawModulation(juce::Graphics&,juce::Rectangle<float>);
+    juce::Rectangle<float> samplePlotBounds() const;
+    void moveSampleMarker(float x);
+    bool padIsHeld(int pad) const;
     void drawTape(juce::Graphics&,juce::Rectangle<float>);
     void drawMixer(juce::Graphics&,juce::Rectangle<float>);
     void drawSequence(juce::Graphics&,juce::Rectangle<float>);

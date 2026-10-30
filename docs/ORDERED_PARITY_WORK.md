@@ -6,9 +6,9 @@ User order (2026-10-30):
 2. Envelope curves and modulation routing — implemented and tested: 20 destinations, four signed MIDI routes, six LFO shapes, tempo sync/retrigger, Element sources and optional exponential ADSR. Hardware curves and routing equivalence remain unverified. DBox retains independent transient envelopes.
 3. Tape editing, count-in and performance controls — implemented and tested: masked copy/lift/drop, atomic group undo/redo, merge/bounce, join, slide, bar-to-eighth grid, record level/pan, optional count-in and momentary brake/reverse/chop. Exact hardware timing/gestures remain unverified; see TAPE_EDITING.md.
 4. MIDI/clock/controller support — implemented and tested: clock receive/send, routing/filter/channel controls, per-channel sustain, documented CC destinations, SPP sequencer positioning, controller output and timed sequencer MIDI output. All six local test suites pass. Hardware policy/curve parity remains unverified; see MIDI.md.
-5. Screen and animation matching — active; phase 4 rebuilt and all six test suites passed first.
-6. Continuous audio during heavy editing/loading/saving — pending.
+5. Screen and animation matching — state-driven screen pass implemented and tested: persistent availability, stereo sampler markers/zoom, patch/master FX previews, LFO matrix/waveforms/history and clearer activity states. All six local suites pass; native default/minimum-size images inspected. Exact hardware visual parity remains unverified; see SCREENS.md.
+6. Continuous audio during heavy editing/loading/saving — next; ownership/storage migration remains unimplemented. Additional callback-lock and host-state constraints recorded in LIVE_AUDIO_DESIGN.md.
 
 Each phase must leave passing tests and a rebuilt implementation before the next implementation phase starts. Where reference evidence is missing, report the specific unverified behaviour instead of declaring parity. Existing capabilities and limitations remain in PARITY.md; this file tracks the order of the present request.
 
-Current checkpoint: user resumed parity after the build. Phase 3 is implemented and locally validated. The CI dependency fix passed all three platforms in run41116464808; each later implementation commit needs its own CI result.
+Current checkpoint: phases3–5 have implementation passes with stated hardware-equivalence limits. The CI fix, tape commit58ff589 and MIDI commitab6f133 passed all three platforms. Later UI commits need their own CI result. The shared-lock audio dropout problem remains unresolved.

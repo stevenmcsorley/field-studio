@@ -1,5 +1,6 @@
 #include "PluginEditor.h"
 #include <cmath>
+#include <algorithm>
 
 namespace {
 const juce::Colour ink{0xff303638}, metal{0xffc9cbca}, paper{0xffe5e7e5}, screenBlack{0xff11191c};
@@ -21,7 +22,7 @@ juce::StringArray effectLabels(int index,bool shifted,bool master){
     static const std::array<std::array<const char*,4>,11> labels{{
         {{"COLOUR","TIME","FEEDBACK","CHARACTER"}},{{"RANGE","SPEED","FEEDBACK","LEVEL"}},
         {{"TONE","TURNS","DAMPING","MIX"}},{{"X SIZE","Y SIZE","Z FEEDBACK","MIX"}},
-        {{"LOW FREQUENCY","FILTER FOLLOW","FEEDBACK","HIGH FREQUENCY"}},{{"TONE","GSM","BAUD","TELEMATIC"}},
+        {{"LOW FREQUENCY","FILTER FOLLOW","FEEDBACK","HIGH FREQUENCY"}},{{"TONE","GSM","BAUD","TELEMETRY"}},
         {{"FREQUENCY","PUNCH","ROUNDS","POWER"}},{{"FREQUENCY","DELAY","FEEDBACK","SIDEBAND"}},
         {{"RATE","BITS","MODEL","MIX"}},{{"DISTANCE","GATE","COLOUR","MIX"}},{{"DEPTH","RATE","FEEDBACK","MIX"}}
     }};
@@ -53,12 +54,14 @@ void FieldLookAndFeel::drawButtonBackground(juce::Graphics& g,juce::Button& b,co
     }
 }
 void FieldLookAndFeel::drawRotarySlider(juce::Graphics& g,int x,int y,int w,int h,float pos,float start,float end,juce::Slider& s){
+    if(!s.isEnabled())g.beginTransparencyLayer(.28f);
     const auto r=juce::Rectangle<float>((float)x,(float)y,(float)w,(float)h).reduced((float)juce::jmin(w,h)*.12f);const float d=juce::jmin(r.getWidth(),r.getHeight());auto circle=juce::Rectangle<float>(d,d).withCentre(r.getCentre());
     g.setColour(juce::Colour(0xff89918e));g.fillEllipse(circle.expanded(1));g.setGradientFill(juce::ColourGradient(juce::Colour(0xfff7f8f2),circle.getX(),circle.getY(),juce::Colour(0xff969f9a),circle.getRight(),circle.getBottom(),false));g.fillEllipse(circle);
     g.setColour(juce::Colours::black.withAlpha(.18f));g.drawEllipse(circle.reduced(d*.12f),1.5f);auto core=circle.reduced(d*.26f);
     const auto c=s.findColour(juce::Slider::thumbColourId);g.setGradientFill(juce::ColourGradient(c.darker(.48f),core.getX(),core.getY(),c,core.getRight(),core.getBottom(),false));g.fillEllipse(core);
     g.setColour(juce::Colours::white.withAlpha(.6f));g.drawEllipse(core,1);
     const float angle=start+pos*(end-start);juce::Path pointer;pointer.addRoundedRectangle(-1.4f,-d*.42f,2.8f,d*.15f,1);g.setColour(ink.withAlpha(.8f));g.fillPath(pointer,juce::AffineTransform::rotation(angle).translated(circle.getCentreX(),circle.getCentreY()));
+    if(!s.isEnabled())g.endTransparencyLayer();
 }
 
 FieldEditor::FieldEditor(FieldProcessor& p):AudioProcessorEditor(p),processor(p){
@@ -142,9 +145,29 @@ void FieldEditor::configureMacros(){
         else{ids={"macro1","macro2","macro3","macro4"};int e=juce::jlimit(0,14,(int)processor.value("engine"));for(auto n:names[(size_t)e])macroLabels.add(n);if(mode==1)macroLabels={"TONE","DECAY","NOISE / BODY","DRIVE"};else if(e==11&&processor.parameters.getParameter("sampleStart"))ids={"sampleStart","sampleLoopIn","sampleLoopOut","sampleEnd"};}
         for(size_t i=0;i<4;++i){attachments[i]=std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(processor.parameters,ids[(int)i],macros[i]);auto* p=processor.parameters.getParameter(ids[(int)i]);macros[i].setDoubleClickReturnValue(true,p?p->convertFrom0to1(p->getDefaultValue()):.5f);}
     }
-    for(int i=0;i<4;++i){bool external=(processor.hostSync||processor.value("midiClockMode")==1)&&macroLabels[i].contains("TEMPO");bool unavailableManual=page==3&&macroLabels[i]=="MANUAL INPUT"&&processor.value("elementSource")!=3;bool unavailableRate=page==3&&macroLabels[i]=="LFO RATE"&&processor.value("lfoSync")>.5f;bool continuousAmp=mode==0&&page==1&&processor.value("engine")==13;bool inactive=unavailableManual||unavailableRate||(continuousAmp&&(!shifted||i<3))||(mode==4&&processor.value("sequencer")==0)||(macroLabels[i].contains("GLIDE")&&(processor.value("voiceMode")==0||processor.value("voiceMode")==3));macros[(size_t)i].setEnabled(!external&&!inactive);macros[(size_t)i].setTooltip(inactive?(unavailableManual?"Select the manual Element source first":unavailableRate?"Cycle rate follows tempo and the selected sync division":continuousAmp?"Amp processes continuous input; Shift exposes patch level":mode==4?"Choose a sequencer first":"Portamento applies to overlapping mono/legato notes"):external?"External DAW tempo":macroLabels[i]+(macroLabels[i]=="MASTER LEVEL"?juce::String::fromUTF8(" · 1 = unity, 2 = +6 dB boost"):juce::String::fromUTF8(" · drag vertically, double click to reset")));}
+    updateControlAvailability();
     lastVoiceMode=(int)processor.value("voiceMode");lastEngine=(int)processor.value("engine");lastEffect=(int)processor.value("effect");lastMasterEffect=(int)processor.value("masterEffect");lastLfo=(int)processor.value("lfo");lastElementSource=(int)processor.value("elementSource");lastLfoSync=(int)processor.value("lfoSync");
 }
+
+void FieldEditor::updateControlAvailability(){
+    const bool external=processor.hostSync||processor.value("midiClockMode")==1;
+    tempo.setEnabled(!external);
+    tempo.setTooltip(processor.hostSync?"External DAW tempo":external?"External MIDI clock tempo":"Tempo - beats per minute");
+    for(int i=0;i<4;++i){
+        const auto label=macroLabels.size()>i?macroLabels[i]:juce::String();
+        juce::String reason;
+        if(external&&label.contains("TEMPO"))reason="Tempo follows the selected external clock";
+        else if(page==3&&label=="MANUAL INPUT"&&processor.value("elementSource")!=3)reason="Choose Manual as the Element source first";
+        else if(page==3&&label=="LFO RATE"&&processor.value("lfoSync")>.5f)reason="Rate follows the tempo sync division";
+        else if(mode==0&&page==1&&processor.value("engine")==13&&(!shifted||i<3))reason="Amp processes continuous input; Shift exposes patch level";
+        else if(mode==4&&processor.value("sequencer")==0)reason="Choose a sequencer first";
+        else if(label.contains("GLIDE")&&(processor.value("voiceMode")==0||processor.value("voiceMode")==3))reason="Glide applies to overlapping Mono or Legato notes";
+        else if(page==2&&mode!=2&&mode!=4&&processor.value(mode==3?"masterEffect":"effect")==0)reason="Effect is bypassed; choose an effect to use these controls";
+        macros[(size_t)i].setEnabled(reason.isEmpty());
+        macros[(size_t)i].setTooltip(reason.isNotEmpty()?reason:label+" - drag vertically; double-click resets");
+    }
+}
+
 juce::Rectangle<int> FieldEditor::boundsFor(float x,float y,float w,float h) const {return juce::Rectangle<float>(hardware.getX()+x*scale,hardware.getY()+y*scale,w*scale,h*scale).toNearestInt();}
 void FieldEditor::resized(){
     float w=(float)getWidth();int bx=20;engineBox.setBounds(bx,31,178,28);effectBox.setBounds(208,31,146,28);sequenceBox.setBounds(364,31,148,28);
@@ -181,7 +204,7 @@ void FieldEditor::paint(juce::Graphics& g){
         g.setColour(juce::Colour(0xff818985));g.fillRoundedRectangle({30,36,1160,412},4);
         drawCap(g,{32,38,135,134},false);for(int row=0;row<13;++row)for(int col=0;col<13;++col){float dx=(float)(col-6),dy=(float)(row-6);if(dx*dx+dy*dy<43){g.setColour(juce::Colour(0xff48504b));g.fillEllipse(58+col*7.f,62+row*7.f,3.6f,3.6f);}}
         drawCap(g,{169,38,132,66},false);text(g,"VOL",{173,95,60,8},7);text(g,processor.hostSync?"HOST":"BPM",{236,95,60,8},7);
-        for(int i=0;i<4;++i){bool externalTempo=(processor.hostSync||processor.value("midiClockMode")==1)&&macroLabels[i].contains("TEMPO");drawCap(g,{577+i*135.f,38,134,134},false);text(g,externalTempo?"HOST TEMPO":macroLabels[i],{581+i*135.f,43,126,12},9,ink);text(g,juce::String(externalTempo?processor.effectiveTempo.load():macros[(size_t)i].getValue(),macroLabels[i].contains("TEMPO")?0:(macroLabels[i].contains("ATTACK")||macroLabels[i].contains("RELEASE")||macroLabels[i].contains("ENVELOPE"))?3:2),{581+i*135.f,154,126,12},10,ink);}
+        for(int i=0;i<4;++i){bool externalTempo=(processor.hostSync||processor.value("midiClockMode")==1)&&macroLabels[i].contains("TEMPO");drawCap(g,{577+i*135.f,38,134,134},false);text(g,externalTempo?"HOST TEMPO":macroLabels[i],{581+i*135.f,43,126,12},9,ink.withAlpha(macros[(size_t)i].isEnabled()?1.f:.35f));text(g,juce::String(externalTempo?processor.effectiveTempo.load():macros[(size_t)i].getValue(),macroLabels[i].contains("TEMPO")?0:(macroLabels[i].contains("ATTACK")||macroLabels[i].contains("RELEASE")||macroLabels[i].contains("ENVELOPE"))?3:2),{581+i*135.f,154,126,12},10,ink.withAlpha(macros[(size_t)i].isEnabled()?1.f:.35f));}
         drawCap(g,{1122,38,67,66},false);g.setColour(juce::Colour(0xffdc6b49));g.fillEllipse(1151,59,9,9);g.drawLine(1154,67,1144,79,2);
         // Separate square chromatic keys match the field instrument's layout.
         for(int i=0;i<14;++i){drawCap(g,{236+i*68.f,244,67,66},false);int note=53+whiteOffsets[(size_t)i]+processor.octave*12;drawCap(g,whiteKeys[(size_t)i],note>=0&&note<128&&held[(size_t)note]);}
@@ -192,60 +215,185 @@ void FieldEditor::paint(juce::Graphics& g){
         g.setColour(juce::Colour(0xff8c9790));g.fillRoundedRectangle({1227,80,3,100},1.5f);g.setColour(colours[3]);float peak=juce::jlimit(0.f,1.f,processor.outputPeak.load());g.fillRoundedRectangle({1227,180-peak*100,3,peak*100},1.5f);
         for(auto pt:{juce::Point<float>(21,23),juce::Point<float>(1258,23),juce::Point<float>(21,450),juce::Point<float>(1258,450)}){g.setColour(juce::Colour(0xff929b94));g.fillEllipse(pt.x-2,pt.y-2,4,4);g.setColour(juce::Colour(0xff6b756d));g.drawLine(pt.x-1,pt.y,pt.x+1,pt.y,.7f);}
     }
-    juce::String displayStatus=status;int albumRec=processor.albumRecording.load(),albumPlay=processor.albumPlaying.load();if(albumRec>=0)displayStatus="ALBUM "+juce::String(albumRec==0?"A":"B")+" REC";else if(albumPlay>=0)displayStatus="ALBUM "+juce::String(albumPlay==0?"A":"B")+" LISTEN";
+    juce::String displayStatus=status;int albumRec=processor.albumRecording.load(),albumPlay=processor.albumPlaying.load();
+    if(countInRemaining>0)displayStatus="TAPE ARMED / COUNT-IN "+juce::String((int)std::ceil(countInRemaining))+" beats / TRACK "+juce::String(selectedTrack+1);
+    else if(recording)displayStatus="TAPE RECORDING / TRACK "+juce::String(selectedTrack+1);
+    if(processor.sampling)displayStatus="SAMPLE CAPTURE / "+processor.sampleName;
+    if(albumRec>=0)displayStatus="ALBUM "+juce::String(albumRec==0?"A":"B")+" RECORDING / "+seconds(albumDurations[(size_t)albumRec])+" / 06:00"+(processor.sampling?" / SAMPLE CAPTURE":"");
+    else if(albumPlay>=0)displayStatus="ALBUM "+juce::String(albumPlay==0?"A":"B")+" LISTEN / "+seconds(albumDurations[(size_t)albumPlay]);
     auto bottom=(float)getHeight()-31;text(g,processor.sampling?juce::String::fromUTF8("● ")+displayStatus:displayStatus,{22,bottom,(float)getWidth()-540,21},11,processor.sampling?colours[3]:juce::Colour(0xffacbbc0),juce::Justification::centredLeft);
     text(g,"TAPE "+juce::String(processor.tapeNumber()+1)+" / 8     "+seconds(processor.playhead.load())+"     "+(processor.hostSync?"HOST "+juce::String(processor.effectiveTempo.load(),0):processor.value("midiClockMode")==1?"MIDI "+juce::String(processor.effectiveTempo.load(),0):juce::String(processor.value("tempo"),0))+" BPM     OCT "+juce::String(processor.octave.load()),{(float)getWidth()-515,bottom,490,21},11,juce::Colour(0xffa2b7b9),juce::Justification::centredRight);
 }
 void FieldEditor::drawScreen(juce::Graphics& g){
     juce::Rectangle<float> r(304,38,271,134);g.setColour(juce::Colour(0xff3d4949));g.fillRoundedRectangle(r.expanded(1),3);g.setColour(screenBlack);g.fillRoundedRectangle(r,2);g.saveState();g.reduceClipRegion(r.toNearestInt());
     auto content=r.reduced(12,9);if(mode==2){drawTape(g,content);g.restoreState();return;}if(mode==3){drawMixer(g,content);g.restoreState();return;}if(mode==4){drawSequence(g,content);g.restoreState();return;}
-    juce::String title=mode==1?juce::String::fromUTF8("DRUM · PAD ")+juce::String(selectedPad+1):FieldProcessor::engineNames[juce::jlimit(0,14,(int)processor.value("engine"))].toUpperCase();
-    if(page==1)title=mode==1&&(int)processor.value("engine")==14?"DYNAMIC ENVELOPE":"ENVELOPE";else if(page==2)title=FieldProcessor::effectNames[juce::jlimit(0,FieldProcessor::effectNames.size()-1,(int)processor.value("effect"))].toUpperCase();else if(page==3)title=FieldProcessor::lfoNames[juce::jlimit(0,5,(int)processor.value("lfo"))].toUpperCase()+" LFO";
-    text(g,title,content.withHeight(16),11,colours[(size_t)page],juce::Justification::centredLeft);text(g,"T"+juce::String(page+1),content.withHeight(16),9,juce::Colour(0xff748c90),juce::Justification::centredRight);
+    const int engine=(int)processor.value("engine");
+    juce::String title=mode==1?"DRUM / PAD "+juce::String(selectedPad+1):FieldProcessor::engineNames[juce::jlimit(0,14,engine)].toUpperCase();
+    if(page==1)title=mode==1&&engine==14?"DYNAMIC ENVELOPE":"ENVELOPE";
+    else if(page==2)title=FieldProcessor::effectNames[juce::jlimit(0,FieldProcessor::effectNames.size()-1,(int)processor.value("effect"))].toUpperCase();
+    else if(page==3)title=FieldProcessor::lfoNames[juce::jlimit(0,5,(int)processor.value("lfo"))].toUpperCase()+" LFO";
+    text(g,title,content.withHeight(16),11,colours[(size_t)page],juce::Justification::centredLeft);
+    text(g,"T"+juce::String(page+1),content.withHeight(16),9,juce::Colour(0xff748c90),juce::Justification::centredRight);
     auto area=content.withTrimmedTop(22).withTrimmedBottom(16);
-    if(page==1&&mode==0&&processor.value("engine")==13){text(g,"CONTINUOUS INPUT ENGINE",area.withTrimmedTop(10).withTrimmedBottom(20),13,colours[1]);text(g,"SHIFT: PATCH LEVEL",area.withY(area.getBottom()-12).withHeight(12),8,colours[2]);}
-    else if(page==1&&shifted&&mode==0){text(g,"PLAY SETTINGS",area.withHeight(15),10,colours[0]);text(g,juce::StringArray{"POLY","MONO","LEGATO","UNISON"}[(int)processor.value("voiceMode")],area.withTrimmedTop(17).withTrimmedBottom(16),22,colours[1]);text(g,"GLIDE "+juce::String(processor.value("glideTime"),2)+"s    BEND +/-"+juce::String(processor.value("bendRange"),0)+"st",area.withY(area.getBottom()-12).withHeight(12),8,colours[2]);}
-    else if(page==0)drawEngine(g,area);
-    else if(page==1){
-        float a=processor.value("attack"),d=processor.value("decay"),s=processor.value("sustain"),rr=processor.value("release");if(mode==1&&(int)processor.value("engine")==14){a=dboxState.attack;d=dboxState.release;s=.15f;rr=dboxState.release;}float x=area.getX(),y=area.getBottom(),w=area.getWidth(),h=area.getHeight();float ax=w*(.07f+.14f*a/4),dx=w*(.1f+.13f*d/4),rx=w*(.12f+.14f*rr/8);std::array<juce::Point<float>,5> pts{{{x,y},{x+ax,y-h},{x+ax+dx,y-h*s},{x+w-rx,y-h*s},{x+w,y}}};
-        juce::Path path;path.startNewSubPath(pts[0]);for(size_t i=1;i<pts.size();++i){for(int step=1;step<=24;++step){float t=step/24.f;float shaped=processor.value("envelopeCurve")>.5f&&!(mode==1&&processor.value("engine")==14)?(1-std::exp(-5*t))/(1-std::exp(-5.f)):t;path.lineTo(pts[i-1].x+(pts[i].x-pts[i-1].x)*t,pts[i-1].y+(pts[i].y-pts[i-1].y)*shaped);}}g.setColour(colours[1]);g.strokePath(path,juce::PathStrokeType(1.5));for(int i=0;i<4;++i){g.setColour(colours[(size_t)i]);g.fillEllipse(pts[(size_t)i+1].x-3,pts[(size_t)i+1].y-3,6,6);}
-    }else if(page==2){
-        int effect=(int)processor.value("effect");
-        if(effect==7){
-            // An original geometric CWO cow illustration, drawn without source assets.
-            float x=area.getX()+61,y=area.getY()+8;g.setColour(colours[2]);g.drawRoundedRectangle({x+19,y+10,99,37},13,1.2f);g.drawEllipse(x,y,36,29,1.2f);g.drawLine(x+6,y+2,x+1,y-6,1.2f);g.drawLine(x+27,y+1,x+32,y-6,1.2f);g.drawLine(x+117,y+16,x+131,y+2,1.2f);
-            for(int i=0;i<4;++i){float lx=x+34+i*23;g.drawLine(lx,y+45,lx-3,y+62,1.2f);g.drawLine(lx-3,y+62,lx+2,y+62,1.2f);}g.setColour(colours[0]);g.fillEllipse(x+8,y+11,3,3);g.fillEllipse(x+25,y+11,3,3);g.setColour(colours[3]);g.drawEllipse(x+8,y+20,19,8,1);
-            for(int i=0;i<3;++i){g.setColour(colours[(size_t)i].withAlpha(.7f));g.drawEllipse(x+40+i*23,y+17,14+std::sin(tick*.03f+i)*4,21,1.2f);}g.setColour(colours[1]);g.drawLine(area.getX(),area.getBottom(),area.getRight(),area.getBottom(),.5f);
-        }else for(int i=0;i<4;++i){auto col=colours[(size_t)i];g.setColour(col.withAlpha(.8f));juce::Path path;float x0=area.getX()+i*18.f;for(int j=0;j<140;++j){float u=j/139.f;float y=area.getCentreY()+std::sin(u*(effect==2?60:effect==3?24:12)+i*.7f+tick*.035f)*area.getHeight()*.35f*(1-u*.65f);float x=x0+u*(area.getWidth()-60);if(j==0)path.startNewSubPath(x,y);else path.lineTo(x,y);}g.strokePath(path,juce::PathStrokeType(1.1f));}
-        if(effect==0)text(g,"INSERT OFF",area,12,colours[2]);
-    }else{
-        int l=(int)processor.value("lfo");juce::Path path;for(int i=0;i<180;++i){float u=i/179.f,phase=u*juce::MathConstants<float>::twoPi*2+tick*.025f;float v=l==0?std::sin(std::floor(u*12)*13.71f):l==5?u*.85f:l==1?std::sin(phase)*std::sin(phase*.29f):std::sin(phase);float x=area.getX()+u*area.getWidth(),y=area.getCentreY()-v*area.getHeight()*.4f;if(i==0)path.startNewSubPath(x,y);else path.lineTo(x,y);}g.setColour(colours[3]);g.strokePath(path,juce::PathStrokeType(1.4f));
-    }
-    text(g,page==0?(mode==1?juce::String::fromUTF8("24 VOICES · CHROMATIC PADS"):juce::String::fromUTF8("STEREO · ")+juce::String(processor.value("macro1")*100,0)+" / "+juce::String(processor.value("macro2")*100,0)):page==1?(mode==1&&(int)processor.value("engine")==14?"ATTACK / GAIN / RELEASE / SMOOTH":"A   /   D   /   S   /   R"):page==2?"MIX "+juce::String(processor.value("effectMix")*100,0)+"%":"RATE "+juce::String(processor.value("lfoRate"),2)+" Hz     DEPTH "+juce::String(processor.value("lfoDepth")*100,0)+"%",content.withY(content.getBottom()-13).withHeight(13),8,juce::Colour(0xff829a9c),juce::Justification::centredLeft);
+    juce::String footer;
+    if(page==0){
+        drawEngine(g,area);
+        if(engine==11)footer=samplePreviewReady?juce::String(sampleSeconds,2)+"s / "+(mode==1?"PAD "+juce::String(selectedPad+1):"ROOT "+juce::MidiMessage::getMidiNoteName((int)processor.value("sampleRootNote"),true,false,3))+" / DOUBLE-CLICK: ZOOM":"IMPORT OR RECORD A SAMPLE";
+        else if(mode==1)footer="PAD "+juce::String(selectedPad+1)+(padIsHeld(selectedPad)?" / KEY HELD":" / SELECTED")+" / ORIGINAL SYNTHESIS";
+        else footer=engine==13||engine==12?"PARAMETER PREVIEW / OUTPUT METER":"CONTROL PREVIEW / ORIGINAL SYNTHESIS";
+    }else if(page==1&&mode==0&&engine==13){
+        text(g,"CONTINUOUS INPUT ENGINE",area.withTrimmedTop(9).withTrimmedBottom(24),12,colours[1]);
+        text(g,"ADSR DOES NOT GATE INPUT",area.withY(area.getBottom()-25).withHeight(12),8,colours[2]);
+        footer="SHIFT: PATCH LEVEL "+juce::String(processor.value("patchGain"),2);
+    }else if(page==1&&shifted&&mode==0){
+        text(g,juce::StringArray{"POLY","MONO","LEGATO","UNISON"}[juce::jlimit(0,3,(int)processor.value("voiceMode"))],area.withHeight(30),23,colours[0]);
+        text(g,"GLIDE "+juce::String(processor.value("glideTime"),2)+" s / BEND "+juce::String(processor.value("bendRange"),0)+" st",area.withTrimmedTop(35).withHeight(13),8,colours[1]);
+        footer="PATCH LEVEL "+juce::String(processor.value("patchGain"),2);
+    }else if(page==1){
+        juce::Path path;
+        if(mode==1&&engine==14){
+            const float attackFraction=.04f+.22f*std::sqrt(dboxState.attack),releaseFraction=.15f+.65f*dboxState.release/4.f;
+            for(int i=0;i<200;++i){float u=i/199.f;float v=u<attackFraction?u/attackFraction:std::exp(-(u-attackFraction)*5.f/releaseFraction);v=std::pow(juce::jlimit(0.f,1.f,v),1.f+dboxState.smooth*2.f)*juce::jlimit(0.f,1.f,dboxState.gain/2.f);float x=area.getX()+u*area.getWidth(),y=area.getBottom()-v*area.getHeight();if(i==0)path.startNewSubPath(x,y);else path.lineTo(x,y);}
+            g.setColour(colours[1]);g.strokePath(path,juce::PathStrokeType(1.8f));footer="ATTACK / GAIN / RELEASE / SMOOTH";
+        }else{
+            const float attack=processor.value("attack"),decay=processor.value("decay"),sustain=processor.value("sustain"),release=processor.value("release");
+            const float at=.05f+.18f*std::sqrt(attack/4.f),dt=.08f+.17f*std::sqrt(decay/4.f),rt=.12f+.2f*std::sqrt(release/8.f);
+            const std::array<juce::Point<float>,5> points{{{area.getX(),area.getBottom()},{area.getX()+at*area.getWidth(),area.getY()},{area.getX()+(at+dt)*area.getWidth(),area.getBottom()-sustain*area.getHeight()},{area.getRight()-rt*area.getWidth(),area.getBottom()-sustain*area.getHeight()},{area.getRight(),area.getBottom()}}};
+            for(int stage=0;stage<4;++stage){juce::Path segment;segment.startNewSubPath(points[(size_t)stage]);for(int j=1;j<=32;++j){float t=j/32.f;if(processor.value("envelopeCurve")>.5f)t=(1-std::exp(-5*t))/(1-std::exp(-5.f));segment.lineTo(points[(size_t)stage].x+(points[(size_t)stage+1].x-points[(size_t)stage].x)*t,points[(size_t)stage].y+(points[(size_t)stage+1].y-points[(size_t)stage].y)*t);}g.setColour(colours[(size_t)stage]);g.strokePath(segment,juce::PathStrokeType(1.6f));g.fillEllipse(points[(size_t)stage+1].x-2,points[(size_t)stage+1].y-2,4,4);}
+            footer="A "+juce::String(attack,2)+"s  D "+juce::String(decay,2)+"s  S "+juce::String(sustain,2)+"  R "+juce::String(release,2)+"s";
+        }
+    }else if(page==2)drawEffect(g,content.withTrimmedTop(22),false);
+    else drawModulation(g,content.withTrimmedTop(22));
+    if(footer.isNotEmpty())text(g,footer,content.withY(content.getBottom()-13).withHeight(13),7.2f,juce::Colour(0xff829a9c),juce::Justification::centredLeft);
     g.restoreState();
 }
+
+bool FieldEditor::padIsHeld(int pad) const {
+    for(int n=0;n<128;++n)if(held[(size_t)n]&&((n-53)%24+24)%24==pad)return true;
+    return false;
+}
+juce::Rectangle<float> FieldEditor::samplePlotBounds() const {return {316,73,247,mode==1?48.f:57.f};}
+void FieldEditor::drawSampler(juce::Graphics& g,juce::Rectangle<float> area){
+    const auto plot=samplePlotBounds();
+    if(!samplePreviewReady){text(g,"IMPORT OR RECORD AUDIO",plot,11,colours[2]);return;}
+    const float start=mode==1?padState.start:processor.value("sampleStart"),end=mode==1?padState.end:processor.value("sampleEnd");
+    const float loopIn=processor.value("sampleLoopIn"),loopOut=processor.value("sampleLoopOut");
+    const auto xpos=[&](double value){return plot.getX()+(float)((value-sampleViewStart)/(sampleViewEnd-sampleViewStart))*plot.getWidth();};
+    {juce::Graphics::ScopedSaveState save(g);g.reduceClipRegion(plot.toNearestInt());
+        g.setColour(colours[0].withAlpha(.09f));g.fillRect(juce::Rectangle<float>(xpos(start),plot.getY(),juce::jmax(0.f,xpos(end)-xpos(start)),plot.getHeight()));
+        if(mode==0&&processor.value("sampleLoop")>.5f){g.setColour(colours[1].withAlpha(.12f));g.fillRect(juce::Rectangle<float>(xpos(loopIn),plot.getY(),juce::jmax(0.f,xpos(loopOut)-xpos(loopIn)),plot.getHeight()));}
+        for(size_t channel=0;channel<2;++channel){float centre=plot.getY()+plot.getHeight()*(channel==0?.25f:.75f),height=plot.getHeight()*.22f;g.setColour(colours[2].withAlpha(.2f));g.drawLine(plot.getX(),centre,plot.getRight(),centre,.5f);
+            g.setColour(colours[channel==0?0:2]);for(size_t bin=0;bin<256;++bin){const auto value=samplePreview[channel][bin];float x=plot.getX()+bin/255.f*plot.getWidth();g.drawLine(x,centre-juce::jlimit(-1.f,1.f,value.high)*height,x,centre-juce::jlimit(-1.f,1.f,value.low)*height,.8f);}
+            text(g,channel==0?"L":"R",{plot.getX()+2,centre-height,10,9},7,colours[2],juce::Justification::centredLeft);
+        }
+        const std::array<float,4> markers{{start,loopIn,loopOut,end}};
+        for(int i=0;i<4;++i){if(mode==1&&(i==1||i==2))continue;float x=juce::jlimit(plot.getX()+.7f,plot.getRight()-.7f,xpos(markers[(size_t)i]));if(xpos(markers[(size_t)i])<plot.getX()||xpos(markers[(size_t)i])>plot.getRight())continue;g.setColour(colours[(size_t)i]);g.drawLine(x,plot.getY(),x,plot.getBottom(),draggingSampleMarker==i?1.9f:1.f);g.fillRect(x-2,(i==1||i==2)?plot.getBottom()-6:plot.getY(),4.f,6.f);}
+    }
+    const bool reverse=mode==1?padState.reverse:processor.value("sampleReverse")>.5f;
+    const juce::String playMode=mode==1?juce::StringArray{"ONE SHOT","GATED","LOOP"}[juce::jlimit(0,2,padState.mode)]:processor.value("sampleOneShot")>.5f?"ONE SHOT":processor.value("sampleLoop")>.5f?"LOOP":"GATED";
+    text(g,(reverse?"REV":"FWD")+juce::String(" / ")+playMode+" / "+juce::String(start*sampleSeconds,2)+"-"+juce::String(end*sampleSeconds,2)+"s",{area.getX(),plot.getBottom()+2,area.getWidth(),10},7,colours[2],juce::Justification::centredLeft);
+    if(mode==1){for(int i=0;i<24;++i){auto box=juce::Rectangle<float>(area.getX()+i*area.getWidth()/24,area.getBottom()-11,area.getWidth()/24-1,10);g.setColour((padIsHeld(i)?colours[3]:colours[0]).withAlpha(padIsHeld(i)?.8f:i==selectedPad?.32f:.07f));g.fillRect(box);g.setColour(i==selectedPad?colours[2]:colours[0].withAlpha(.3f));g.drawRect(box,i==selectedPad?1.f:.5f);}}
+    else{const std::array<float,4> markers{{start,loopIn,loopOut,end}};const char* labels[]{"S ","LI ","LO ","E "};for(int i=0;i<4;++i)text(g,juce::String(labels[i])+juce::String(markers[(size_t)i]*sampleSeconds,2),{area.getX()+i*61.5f,area.getBottom()-10,61.5f,10},7,colours[(size_t)i]);}
+}
+void FieldEditor::moveSampleMarker(float x){
+    if(draggingSampleMarker<0)return;
+    const auto plot=samplePlotBounds();const float value=(float)juce::jlimit(0.,1.,sampleViewStart+(x-plot.getX())/plot.getWidth()*(sampleViewEnd-sampleViewStart));
+    if(mode==1){const juce::ScopedLock lock(processor.engineLock);auto pad=processor.engine.drumPad(selectedPad);if(draggingSampleMarker==0)pad.start=juce::jlimit(0.f,pad.end,value);else pad.end=juce::jlimit(pad.start,1.f,value);processor.engine.setDrumPad(selectedPad,pad);padState=pad;}
+    else{
+        float start=juce::jlimit(0.f,1.f,processor.value("sampleStart")),end=juce::jlimit(start,1.f,processor.value("sampleEnd"));
+        float loopIn=juce::jlimit(start,end,processor.value("sampleLoopIn")),loopOut=juce::jlimit(loopIn,end,processor.value("sampleLoopOut"));
+        if(draggingSampleMarker==0)start=juce::jmin(value,end);
+        else if(draggingSampleMarker==3)end=juce::jmax(value,start);
+        else if(draggingSampleMarker==1)loopIn=value;
+        else loopOut=value;
+        loopIn=juce::jlimit(start,end,loopIn);loopOut=juce::jlimit(loopIn,end,loopOut);
+        const float values[]{start,loopIn,loopOut,end};const char* ids[]{"sampleStart","sampleLoopIn","sampleLoopOut","sampleEnd"};
+        for(int i=0;i<4;++i)if(processor.value(ids[i])!=values[i])processor.setValue(ids[i],values[i]);
+    }
+    status="Sample boundary "+juce::String(value*sampleSeconds,3)+" s";repaint();
+}
+void FieldEditor::drawEffect(juce::Graphics& g,juce::Rectangle<float> area,bool master){
+    const int effect=juce::jlimit(0,10,(int)processor.value(master?"masterEffect":"effect"));
+    std::array<float,4> v{};for(int i=0;i<4;++i)v[(size_t)i]=juce::jlimit(0.f,1.f,processor.value((master?"masterFx":"fx")+juce::String(i+1)));
+    const float mix=processor.value(master?"masterMix":"effectMix");
+    const auto body=area.withTrimmedBottom(16).reduced(3,3);const float x=v[0],y=v[1],z=v[2],w=v[3];
+    if(effect==0){g.setColour(colours[2].withAlpha(.25f));g.drawLine(body.getX()+8,body.getCentreY(),body.getRight()-8,body.getCentreY(),1);text(g,"BYPASS",body.withHeight(body.getHeight()-8),17,colours[2]);text(g,"CHOOSE AN EFFECT ABOVE",area.withY(area.getBottom()-12).withHeight(12),8,colours[2]);return;}
+    auto curve=[&](auto fn,juce::Colour colour,float thickness=1.3f){juce::Path path;for(int i=0;i<180;++i){float u=i/179.f,value=juce::jlimit(-1.2f,1.2f,fn(u));float px=body.getX()+u*body.getWidth(),py=body.getCentreY()-value*body.getHeight()*.4f;if(i==0)path.startNewSubPath(px,py);else path.lineTo(px,py);}g.setColour(colour);g.strokePath(path,juce::PathStrokeType(thickness));};
+    if(effect==1){int taps=3+(int)(z*8);for(int i=0;i<taps;++i){float u=(i+1.f)/(taps+1),height=body.getHeight()*.8f*std::pow(.15f+z*.8f,(float)i);float at=body.getX()+u*body.getWidth()*(.45f+x*.55f);g.setColour(colours[(size_t)(i%4)].withAlpha(.25f+.7f*w));g.drawLine(at,body.getCentreY()-height*.5f,at,body.getCentreY()+height*.5f,1.5f);g.drawLine(body.getX(),body.getCentreY(),at,body.getCentreY(),.5f);}text(g,"DELAY TAPS",body.withHeight(10),7,colours[0],juce::Justification::centredLeft);g.setColour(colours[1]);g.fillEllipse(body.getRight()-9,body.getY()+y*(body.getHeight()-8),6,6);}
+    else if(effect==2){curve([&](float u){return std::sin(u*(4+y*16)*juce::MathConstants<float>::twoPi)*std::exp(-u*(.3f+z*3))*(.4f+x*.6f);},colours[1].withAlpha(.35f+w*.65f),1.5f);}
+    else if(effect==3){float width=body.getWidth()*(.35f+x*.45f),height=body.getHeight()*(.3f+y*.55f),cx=body.getCentreX(),cy=body.getCentreY();for(int i=0;i<4;++i){float offset=i*(3+z*5);g.setColour(colours[(size_t)i].withAlpha(.2f+w*.7f));g.drawRect(cx-width*.5f+offset,cy-height*.5f-offset,width,height,1.f);if(i>0){g.drawLine(cx-width*.5f+offset-3-z*5,cy-height*.5f-offset+3+z*5,cx-width*.5f+offset,cy-height*.5f-offset,.8f);}}}
+    else if(effect==4){float low=std::min(x,w),high=std::max(x,w);curve([&](float u){float lo=1/(1+std::exp(-(u-low)*20)),hi=1/(1+std::exp((u-high)*20));return lo*hi*(1+z*.8f)-.5f;},colours[0]);g.setColour(colours[1]);g.drawLine(body.getX()+y*body.getWidth(),body.getY(),body.getX()+y*body.getWidth(),body.getBottom(),.7f);}
+    else if(effect==5){const float steps=4+std::round(z*22),levels=2+std::round(x*10);curve([&](float u){float t=std::floor(u*steps)/steps;return std::round(std::sin(t*(10+y*20))*(levels))/levels*(.4f+w*.6f);},colours[2]);}
+    else if(effect==6){curve([&](float u){float input=u*2-1;return std::tanh(input*(1+x*12+z*8))*std::pow(.4f+w*.6f,1+y);},colours[3],1.7f);g.setColour(colours[2].withAlpha(.25f));g.drawLine(body.getX(),body.getBottom(),body.getRight(),body.getY(),.7f);}
+    else if(effect==7){float cx=body.getCentreX()-45,cy=body.getCentreY()-15;g.setColour(colours[2]);g.drawRoundedRectangle({cx,cy,88,31},10,1.1f);g.drawEllipse(cx-24,cy-7,27,25,1.1f);g.drawLine(cx-20,cy-6,cx-24-x*8,cy-13,1.1f);g.drawLine(cx-5,cy-6,cx+x*8,cy-13,1.1f);for(int i=0;i<4;++i)g.drawLine(cx+9+i*20,cy+30,cx+9+i*20+y*5,cy+42,1.1f);g.drawLine(cx+87,cy+6,cx+98+w*9,cy-7,1.1f);for(int i=0;i<3;++i){g.setColour(colours[(size_t)i]);g.drawEllipse(cx+10+i*23,cy+6,11+z*7,15,1);}g.setColour(colours[0]);g.fillEllipse(cx-18,cy+1,3,3);}
+    else if(effect==8){const float steps=5+std::round(x*38),levels=2+std::round(y*12);curve([&](float u){float phase=std::floor(u*steps)/steps;return std::round(std::sin(phase*(8+z*16))*levels)/levels*(.35f+w*.65f);},colours[3]);}
+    else if(effect==9){for(int i=0;i<5;++i){float inset=i*(4+x*5);auto box=body.reduced(inset,juce::jmin(body.getHeight()*.45f,inset*.45f));if(box.getWidth()<3||box.getHeight()<3)continue;g.setColour(colours[(size_t)(i%4)].interpolatedWith(colours[2],z).withAlpha((.18f+w*.6f)*(1-i*.12f)));g.drawRoundedRectangle(box,2+y*7,1);}g.setColour(colours[3]);g.drawLine(body.getX()+body.getWidth()*y,body.getY(),body.getX()+body.getWidth()*y,body.getBottom(),1);}
+    else{for(int i=0;i<4;++i){float px=body.getX()+22+i*60,py=body.getCentreY()+std::sin(i+y*6)*x*17;g.setColour(colours[(size_t)i].withAlpha(.35f+w*.65f));g.drawEllipse(px-13,py-13,26,26,1.2f);if(i<3)g.drawLine(px+13,py,px+47,body.getCentreY()+std::sin(i+1+y*6)*x*17,1);if(z>.1f)g.drawEllipse(px-17,py-17,34,34,z);}}
+    // Small coloured rails expose all four stored macro positions without
+    // pretending these conceptual illustrations are measured audio responses.
+    for(int i=0;i<4;++i){float left=area.getX()+i*61.5f;g.setColour(colours[(size_t)i].withAlpha(.12f));g.fillRect(left,area.getBottom()-15,55.f,2.f);g.setColour(colours[(size_t)i]);g.fillRect(left,area.getBottom()-15,55.f*v[(size_t)i],2.f);}
+    text(g,"CONTROL PREVIEW / "+juce::String(master?"MASTER":"INSERT")+" MIX "+juce::String(mix*100,0)+"%",area.withY(area.getBottom()-11).withHeight(11),7,colours[2],juce::Justification::centredLeft);
+}
+void FieldEditor::drawModulation(juce::Graphics& g,juce::Rectangle<float> area){
+    const int type=juce::jlimit(0,5,(int)processor.value("lfo"));const int target=juce::jlimit(0,FieldProcessor::lfoTargetNames.size()-1,(int)processor.value("lfoTarget"));
+    const auto destination=FieldProcessor::lfoTargetNames[target];const float depth=processor.value("lfoDepth");
+    auto graph=area.withTrimmedBottom(23).reduced(1,2);
+    if(type==2){
+        for(int i=0;i<4;++i){const auto targetName=FieldProcessor::lfoTargetNames[juce::jlimit(0,FieldProcessor::lfoTargetNames.size()-1,(int)processor.value("midiTarget"+juce::String(i+1)))];float y=area.getY()+i*18;g.setColour(colours[(size_t)i].withAlpha(.09f));g.fillRoundedRectangle({area.getX(),y,area.getWidth(),16},2);text(g,"CC"+juce::String(i+1)+" > "+targetName,{area.getX()+4,y,area.getWidth()-55,16},8,colours[(size_t)i],juce::Justification::centredLeft);text(g,juce::String(processor.value("midiDepth"+juce::String(i+1)),2),{area.getRight()-48,y,44,16},8,colours[(size_t)i]);}
+        text(g,shifted?"SHIFT: DESTINATIONS / RELEASE: AMOUNTS":"FOUR INDEPENDENT CONTROLLER ROUTES",area.withY(area.getBottom()-13).withHeight(13),7,colours[2],juce::Justification::centredLeft);return;
+    }
+    if(type==4){float value=processor.value("macro4");g.setColour(colours[2].withAlpha(.2f));g.drawRect(graph.reduced(1),.7f);g.setColour(colours[3]);float x=graph.getX()+value*graph.getWidth();g.drawLine(x,graph.getY(),x,graph.getBottom(),2);text(g,"VALUE "+juce::String(value,2),graph,17,colours[1]);}
+    else if(type==5){g.setColour(colours[2].withAlpha(.2f));g.drawLine(graph.getX(),graph.getBottom(),graph.getRight(),graph.getBottom(),.7f);g.drawLine(graph.getX(),graph.getY(),graph.getX(),graph.getBottom(),.7f);g.setColour(colours[3]);g.drawLine(graph.getX(),graph.getCentreY()+graph.getHeight()*.4f*depth,graph.getRight(),graph.getCentreY()-graph.getHeight()*.4f*depth,1.7f);text(g,"BIPOLAR VELOCITY RESPONSE",graph.withHeight(12),8,colours[1],juce::Justification::centredLeft);text(g,"SOFT",graph.withY(graph.getBottom()-10).withHeight(10),7,colours[2],juce::Justification::centredLeft);text(g,"LOUD",graph.withY(graph.getBottom()-10).withHeight(10),7,colours[2],juce::Justification::centredRight);}
+    else if(type==3){
+        const int shape=juce::jlimit(0,5,(int)processor.value("lfoWaveform"));juce::Path full,scaled;
+        for(int i=0;i<180;++i){float u=i/179.f,p=u*2+lfoPhaseSnapshot;p-=std::floor(p);float value=0;switch(shape){case 0:value=std::sin(p*juce::MathConstants<float>::twoPi);break;case 1:value=1-4*std::abs(p-.5f);break;case 2:value=p*2-1;break;case 3:value=p<.5f?1:-1;break;case 4:value=2*(std::exp(4*p)-1)/(std::exp(4.f)-1)-1;break;default:value=p<.1f?1:-1;break;}float x=graph.getX()+u*graph.getWidth();if(i==0){full.startNewSubPath(x,graph.getCentreY()-value*graph.getHeight()*.4f);scaled.startNewSubPath(x,graph.getCentreY()-value*depth*graph.getHeight()*.4f);}else{full.lineTo(x,graph.getCentreY()-value*graph.getHeight()*.4f);scaled.lineTo(x,graph.getCentreY()-value*depth*graph.getHeight()*.4f);}}
+        g.setColour(colours[3].withAlpha(.2f));g.strokePath(full,juce::PathStrokeType(.8f));g.setColour(colours[3]);g.strokePath(scaled,juce::PathStrokeType(1.4f));
+    }else{
+        if(type==1){const juce::StringArray sources{"AUDIO INPUT","VOICE ENVELOPE","MAIN OUTPUT","MANUAL CONTROL"};text(g,sources[juce::jlimit(0,3,(int)processor.value("elementSource"))],graph.withHeight(13),8,colours[0],juce::Justification::centredLeft);graph=graph.withTrimmedTop(17);}
+        g.setColour(colours[2].withAlpha(.2f));g.drawLine(graph.getX(),graph.getCentreY(),graph.getRight(),graph.getCentreY(),.6f);juce::Path history;
+        for(size_t i=0;i<modulationHistory.size();++i){float value=juce::jlimit(-1.f,1.f,modulationHistory[(modulationWrite+i)%modulationHistory.size()]);float x=graph.getX()+i/(float)(modulationHistory.size()-1)*graph.getWidth(),y=graph.getCentreY()-value*graph.getHeight()*.42f;if(i==0)history.startNewSubPath(x,y);else history.lineTo(x,y);}g.setColour(colours[3]);g.strokePath(history,juce::PathStrokeType(1.4f));
+    }
+    juce::String timing;
+    if(type==0||type==3){if(processor.value("lfoSync")>.5f){const juce::StringArray divisions{"16 BEATS","8 BEATS","4 BEATS","2 BEATS","1 BEAT","3/4 BEAT","1/2 BEAT","3/8 BEAT","1/4 BEAT","3/16 BEAT","1/8 BEAT","1/16 BEAT"};timing="SYNC "+divisions[juce::jlimit(0,11,(int)processor.value("lfoDivision"))];}else timing=juce::String(processor.value("lfoRate"),2)+" Hz";if(type==3)timing=juce::StringArray{"SINE","TRIANGLE","SAW","SQUARE","EXP","BLIP"}[juce::jlimit(0,5,(int)processor.value("lfoWaveform"))]+" / "+timing;}
+    else if(type==1)timing="ROUTED MOD "+juce::String(modulationSnapshot,2);
+    else timing="AMOUNT "+juce::String(depth,2);
+    text(g,timing,area.withY(area.getBottom()-23).withHeight(11),7,colours[1],juce::Justification::centredLeft);
+    text(g,"> "+destination+(processor.value("lfoRetrigger")>.5f?" / KEY RESET":""),area.withY(area.getBottom()-11).withHeight(11),7,colours[2],juce::Justification::centredLeft);
+}
+
 void FieldEditor::drawEngine(juce::Graphics& g,juce::Rectangle<float> a){
-    const int e=(int)processor.value("engine");const float phase=tick*.025f,m=processor.value("macro1"),n=processor.value("macro2");
+    const int e=(int)processor.value("engine");const float phase=0,m=processor.value("macro1"),n=processor.value("macro2"),z=processor.value("macro3"),w=processor.value("macro4");
     if(mode==1&&e==14){
         for(int osc=0;osc<2;++osc){auto r=juce::Rectangle<float>(a.getX()+osc*126,a.getY()+3,115,43);auto c=colours[(size_t)osc];g.setColour(c.withAlpha(.45f));g.drawRoundedRectangle(r,2,.7f);float shape=osc==0?dboxState.wave1:dboxState.wave2;float envelope=osc==0?dboxState.envelope1:dboxState.envelope2;
             juce::Path line;for(int i=0;i<100;++i){float u=i/99.f,ph=u*3.f+phase*.1f;float sine=std::sin(ph*juce::MathConstants<float>::twoPi),saw=2*std::fmod(ph,1.f)-1;float v=sine*(1-shape)+saw*shape;float x=r.getX()+u*r.getWidth(),y=r.getCentreY()-v*13*std::exp(-u/(.1f+envelope));if(i==0)line.startNewSubPath(x,y);else line.lineTo(x,y);}g.setColour(c);g.strokePath(line,juce::PathStrokeType(1));text(g,"OSC "+juce::String(osc+1),{r.getX()+4,r.getY()+2,40,8},6,c,juce::Justification::centredLeft);
         }
-        for(int i=0;i<24;++i){auto r=juce::Rectangle<float>(a.getX()+i*10.25f,a.getBottom()-16,8.5f,13);auto c=colours[(size_t)((i/6)%4)];g.setColour(c.withAlpha(i==selectedPad?.8f:.15f));g.fillRoundedRectangle(r,1);g.setColour(c);g.drawRoundedRectangle(r,1,.5f);}return;
+        for(int i=0;i<24;++i){auto r=juce::Rectangle<float>(a.getX()+i*10.25f,a.getBottom()-16,8.5f,13);auto c=colours[(size_t)((i/6)%4)];g.setColour((padIsHeld(i)?colours[3]:c).withAlpha(padIsHeld(i)?.85f:i==selectedPad?.35f:.09f));g.fillRoundedRectangle(r,1);g.setColour(i==selectedPad?colours[2]:c);g.drawRoundedRectangle(r,1,i==selectedPad?1.f:.5f);}return;
     }
     if(mode==1){for(int i=0;i<24;++i){float x=a.getX()+(i%12)*20.f,y=a.getY()+(i/12)*32.f;auto c=colours[(size_t)(i%4)];g.setColour(c.withAlpha(i==selectedPad?.4f:.05f));g.fillRoundedRectangle({x,y,16,26},2);g.setColour(c.withAlpha(.6f));g.drawRoundedRectangle({x,y,16,26},2,1);text(g,juce::String(i+1),{x,y,16,26},8,c);}return;}
-    if(e==1){for(int i=0;i<4;++i){float x=a.getX()+25+i*61.f,y=a.getCentreY()+std::sin(i+phase)*9;g.setColour(colours[(size_t)i]);g.drawEllipse(x-17,y-17,34,34,1.3f);text(g,juce::String(i+1),{x-16,y-16,32,32},12,colours[(size_t)i]);if(i<3)g.drawLine(x+18,y,x+44,y+std::sin(i+1+phase)*9,1);}return;}
-    if(e==9){for(int i=0;i<52;++i){float u=i/51.f,x=a.getX()+u*a.getWidth(),v=std::sin(u*12+phase)*a.getHeight()*.4f;g.setColour(colours[0]);g.fillEllipse(x-1,a.getCentreY()+v-1,2,2);g.setColour(colours[3]);g.fillEllipse(x-1,a.getCentreY()-v-1,2,2);if(i%4==0){g.setColour(colours[2].withAlpha(.4f));g.drawLine(x,a.getCentreY()-v,x,a.getCentreY()+v,.8f);}}return;}
-    if(e==5){for(int i=0;i<5;++i){float rad=15+i*6.f;g.setColour(colours[(size_t)(i%4)].withAlpha(.7f));g.drawEllipse(a.getCentreX()-rad*2+std::sin(phase+i)*n*12,a.getCentreY()-rad*.7f,rad*4,rad*1.4f,1);}return;}
-    if(e==6){for(int k=0;k<6;++k){juce::Path string;for(int i=0;i<180;++i){float u=i/179.f,x=a.getX()+u*a.getWidth(),y=a.getY()+k*11+std::sin(u*juce::MathConstants<float>::pi)*std::sin(u*(8+k*3)+phase*2)*5*(.2f+m);if(i==0)string.startNewSubPath(x,y);else string.lineTo(x,y);}g.setColour(colours[(size_t)(k%4)]);g.strokePath(string,juce::PathStrokeType(.8f));}return;}
-    if(e==10){for(int k=0;k<2;++k){auto r=juce::Rectangle<float>(a.getX()+k*126,a.getY()+5,114,a.getHeight()-10);g.setColour(colours[(size_t)k].withAlpha(.5f));g.drawRoundedRectangle(r,3,.8f);juce::Path wave;for(int i=0;i<100;++i){float u=i/99.f,x=r.getX()+u*r.getWidth(),y=r.getCentreY()+std::sin(u*(10+k*6)+phase*(k+1))*r.getHeight()*.35f;if(i==0)wave.startNewSubPath(x,y);else wave.lineTo(x,y);}g.setColour(colours[(size_t)k]);g.strokePath(wave,juce::PathStrokeType(1.2f));}return;}
-    if(e==12||e==13){for(int i=0;i<22;++i){float h=(.2f+.8f*std::abs(std::sin(i*.73f+phase)*std::cos(i*.21f-phase)))*a.getHeight();g.setColour(colours[(size_t)(i%4)]);g.fillRoundedRectangle(a.getX()+i*11.f,a.getBottom()-h,7,h,1);}return;}
-    if(e==11){const juce::ScopedTryLock lock(processor.engineLock);if(lock.isLocked()){auto& sample=processor.engine.sampleLeft();if(!sample.empty()){juce::Path line;for(int i=0;i<230;++i){size_t s=juce::jmin(sample.size()-1,(size_t)(i*(sample.size()/230.)));float x=a.getX()+i/229.f*a.getWidth(),y=a.getCentreY()-sample[s]*a.getHeight()*.45f;if(i==0)line.startNewSubPath(x,y);else line.lineTo(x,y);}g.setColour(colours[0]);g.strokePath(line,juce::PathStrokeType(1));return;}}text(g,"IMPORT AUDIO TO BEGIN",a,11,colours[2]);return;}
-    const int count=e==2?7:e==6?5:e==10?2:1;
-    for(int k=0;k<count;++k){juce::Path path;for(int i=0;i<240;++i){float u=i/239.f,v=std::sin(u*(10+m*34)+phase+k*.35f);if(e==3)v=std::round(v*4)/4;else if(e==7)v=v>n?1.f:-1.f;else if(e==8)v=std::sin(u*20+std::sin(u*7+phase)*m*8);else if(e==4)v=std::round(std::sin(u*(12+m*45)+phase)*6)/6;else if(e==0)v=(2*std::fmod(u*(2+m*4)+phase*.1f,1.f)-1)*.7f;float x=a.getX()+u*a.getWidth(),y=a.getCentreY()-v*a.getHeight()*(count>1?.27f:.4f)+(k-(count-1)*.5f)*4;if(i==0)path.startNewSubPath(x,y);else path.lineTo(x,y);}g.setColour(colours[(size_t)(k%4)].withAlpha(count>1?.7f:1.f));g.strokePath(path,juce::PathStrokeType(1.3f));}
+    if(e==1){
+        std::array<juce::Point<float>,4> nodes;for(int i=0;i<4;++i)nodes[(size_t)i]={a.getX()+23+i*65.f,a.getCentreY()+(i%2?1:-1)*w*12};
+        int topology=juce::jlimit(0,3,(int)(z*3.999f));const int edges[4][6]={{0,1,1,2,2,3},{0,3,1,3,2,3},{0,1,2,3,1,3},{0,1,1,0,2,3}};
+        g.setColour(colours[1].withAlpha(.3f+m*.7f));for(int i=0;i<6;i+=2)g.drawLine(juce::Line<float>(nodes[(size_t)edges[topology][i]],nodes[(size_t)edges[topology][i+1]]),.6f+m*1.8f);
+        for(int i=0;i<4;++i){g.setColour(colours[(size_t)i].withAlpha(i==3?.2f:.07f));g.fillEllipse(nodes[(size_t)i].x-16,nodes[(size_t)i].y-16,32,32);g.setColour(colours[(size_t)i]);g.drawEllipse(nodes[(size_t)i].x-16,nodes[(size_t)i].y-16,32,32,1.2f);text(g,juce::String(i+1),{nodes[(size_t)i].x-15,nodes[(size_t)i].y-15,30,30},11,colours[(size_t)i]);}
+        text(g,"ROUTING "+juce::String(topology+1)+" / RATIO CONTROL "+juce::String(n,2),a.withY(a.getBottom()-9).withHeight(9),7,colours[2]);return;
+    }
+    if(e==9){int count=16+(int)(n*40);for(int i=0;i<count;++i){float u=i/(float)juce::jmax(1,count-1),x=a.getX()+u*a.getWidth(),noise=std::sin(i*12.17f+z*7)*w*5,v=std::sin(u*(8+z*12))*a.getHeight()*(.15f+m*.25f);g.setColour(colours[0]);g.fillEllipse(x-1,a.getCentreY()+v+noise-1,2,2);g.setColour(colours[3]);g.fillEllipse(x-1,a.getCentreY()-v-noise-1,2,2);if(i%3==0){g.setColour(colours[2].withAlpha(.25f+z*.4f));g.drawLine(x,a.getCentreY()-v,x,a.getCentreY()+v,.8f);}}return;}
+    if(e==5){for(int i=0;i<5;++i){float rad=12+i*(3+z*5.f);g.setColour(colours[(size_t)(i%4)].withAlpha(.7f));g.drawEllipse(a.getCentreX()-rad*2+std::sin(i+m*6)*n*17,a.getCentreY()-rad*.7f,rad*4,rad*(.8f+w*.8f),1);}return;}
+    if(e==6){for(int k=0;k<6;++k){juce::Path string;for(int i=0;i<180;++i){float u=i/179.f,x=a.getX()+u*a.getWidth(),y=a.getY()+k*11+std::sin(u*juce::MathConstants<float>::pi)*std::sin(u*(7+m*20+k*(.2f+z*2))+w*3)*8*(.2f+m)*std::exp(-u*(.1f+n*3));if(i==0)string.startNewSubPath(x,y);else string.lineTo(x,y);}g.setColour(colours[(size_t)(k%4)]);g.strokePath(string,juce::PathStrokeType(.8f));}return;}
+    if(e==10){for(int k=0;k<2;++k){auto r=juce::Rectangle<float>(a.getX()+k*126,a.getY()+5,114,a.getHeight()-10);g.setColour(colours[(size_t)k].withAlpha(.25f+(k==0?1-m:m)*.65f));g.drawRoundedRectangle(r,3,.8f);juce::Path wave;for(int i=0;i<100;++i){float u=i/99.f,ph=u*(2+n*5)+std::sin(u*15)*w,signal=std::sin(ph*juce::MathConstants<float>::twoPi)*std::exp(-u/(.1f+z*2));float x=r.getX()+u*r.getWidth(),y=r.getCentreY()+signal*r.getHeight()*.35f;if(i==0)wave.startNewSubPath(x,y);else wave.lineTo(x,y);}g.strokePath(wave,juce::PathStrokeType(1.3f));text(g,k==0?"SOURCE A":"SOURCE B",r.withHeight(11),7,colours[(size_t)k]);}return;}
+    if(e==12||e==13){
+        auto diagram=a.withTrimmedBottom(13);
+        if(e==12){for(int i=0;i<12;++i){float u=i/11.f,shape=std::exp(-std::pow((u-n)*(.8f+z*7),2))*(.35f+m*.65f),height=diagram.getHeight()*.8f*shape;g.setColour(colours[(size_t)(i%4)].withAlpha(.25f+w*.7f));g.fillRoundedRectangle(diagram.getX()+i*20.f,diagram.getBottom()-height,12,height,1);}text(g,"BAND SHAPE PREVIEW",diagram.withHeight(10),7,colours[2],juce::Justification::centredLeft);}
+        else{juce::Path transfer;for(int i=0;i<160;++i){float u=i/159.f,input=u*2-1,value=std::tanh(input*(1+m*3+w*10))/(1+n*1.5f);float x=diagram.getX()+u*diagram.getWidth(),y=diagram.getCentreY()-value*diagram.getHeight()*.38f*(.5f+z*.5f);if(i==0)transfer.startNewSubPath(x,y);else transfer.lineTo(x,y);}g.setColour(colours[3]);g.strokePath(transfer,juce::PathStrokeType(1.5f));text(g,"INPUT > TONE / DRIVE",diagram.withHeight(10),7,colours[2],juce::Justification::centredLeft);}
+        const float peak=juce::jlimit(0.f,1.f,processor.outputPeak.load());text(g,"OUT",{a.getX(),a.getBottom()-9,24,9},6,colours[2],juce::Justification::centredLeft);g.setColour(colours[2].withAlpha(.12f));g.fillRect(a.getX()+27,a.getBottom()-7,a.getWidth()-28,4.f);g.setColour(colours[0]);g.fillRect(a.getX()+27,a.getBottom()-7,(a.getWidth()-28)*peak,4.f);return;
+    }
+    if(e==11){drawSampler(g,a);return;}
+    const int count=e==2?1+(int)(m*6.99f):e==0?2:1;
+    for(int k=0;k<count;++k){juce::Path path;for(int i=0;i<240;++i){float u=i/239.f,v=std::sin(u*(10+m*34)+z*2+k*(.1f+w)*.65f);if(e==3){float steps=2+w*12;v=std::round(std::sin(u*(8+std::round(n*3)*8))*std::cos(u*z*23)*steps)/steps;}else if(e==7)v=((std::fmod(u*(2+m*3),1.f)<(.1f+z*.7f)?1.f:-1.f)+std::sin(u*30)*w*.3f)*n;else if(e==8)v=std::sin(u*(12+z*12)+std::sin(u*7+m*6)*n*8)+(u-.5f)*w*.5f;else if(e==4){float steps=2+n*10;v=std::round(std::sin(u*(12+m*45)+z*6+k*w)*steps)/steps;}else if(e==0)v=((2*std::fmod(u*(2+m*4)+k*w*.04f,1.f)-1)*(.3f+z*.5f)+std::sin(std::floor(u*90)*13.71f)*n*.16f);else if(e==2)v*=std::exp(-u*n*2)*(.4f+z*.6f);float x=a.getX()+u*a.getWidth(),y=a.getCentreY()-v*a.getHeight()*(count>1?.27f:.4f)+(k-(count-1)*.5f)*4;if(i==0)path.startNewSubPath(x,y);else path.lineTo(x,y);}g.setColour(colours[(size_t)(k%4)].withAlpha(count>1?.7f:1.f));g.strokePath(path,juce::PathStrokeType(1.3f));}
 }
 void FieldEditor::drawTape(juce::Graphics& g,juce::Rectangle<float> a){
     text(g,"TAPE "+juce::String(processor.tapeNumber()+1)+juce::String::fromUTF8(" · ")+juce::StringArray{"STUDIO","VINTAGE","PORTA","DISC MINI"}[(int)processor.value("tapeStyle")],a.withHeight(13),9,colours[1],juce::Justification::centredLeft);
-    text(g,countInRemaining>0?"COUNT "+juce::String((int)std::ceil(countInRemaining)):recording?juce::String::fromUTF8("● REC"):playing?juce::String::fromUTF8("▶ PLAY"):"STOP",a.withHeight(13),8,recording?colours[3]:colours[2],juce::Justification::centredRight);
+    text(g,countInRemaining>0?"ARM / COUNT "+juce::String((int)std::ceil(countInRemaining)):recording?"REC T"+juce::String(selectedTrack+1):playing?juce::String::fromUTF8("▶ PLAY"):"STOP",a.withHeight(13),8,recording?colours[3]:colours[2],juce::Justification::centredRight);
     auto waveArea=a.withTrimmedTop(19).withTrimmedBottom(13);float top=waveArea.getY(),row=waveArea.getHeight()/4;
     for(int i=0;i<4;++i){auto r=juce::Rectangle<float>(waveArea.getX()+15,top+i*row,waveArea.getWidth()-15,row-2);g.setColour(colours[(size_t)i].withAlpha(((processor.tapeEditMask.load()?processor.tapeEditMask.load():(1<<selectedTrack))&(1<<i))?.14f:.04f));g.fillRect(r);text(g,juce::String(i+1),{waveArea.getX(),r.getY(),12,row},8,colours[(size_t)i]);g.setColour(colours[(size_t)i].withAlpha(.7f));g.drawLine(r.getX(),r.getCentreY(),r.getRight(),r.getCentreY(),.4f);
         for(double cut:trackCuts[(size_t)i])if(cut>=0&&cut<=visibleSeconds){float cx=r.getX()+(float)(cut/visibleSeconds)*r.getWidth();g.setColour(colours[(size_t)i]);g.drawLine(cx,r.getY(),cx,r.getBottom(),.7f);}
@@ -262,7 +410,7 @@ void FieldEditor::drawMixer(juce::Graphics& g,juce::Rectangle<float> a){
         juce::Path line;for(int i=0;i<200;++i){float u=i/199.f;float gain=processor.value("masterLow")*std::exp(-u*u*18)+processor.value("masterMid")*std::exp(-std::pow((u-.5f)*5,2))+processor.value("masterHigh")*std::exp(-(1-u)*(1-u)*18);float x=a.getX()+u*a.getWidth(),y=a.getCentreY()-gain*1.2f;if(i==0)line.startNewSubPath(x,y);else line.lineTo(x,y);}g.setColour(colours[1]);g.strokePath(line,juce::PathStrokeType(1.6f));
         text(g,"LOW             MID             HIGH             DRIVE",a.withY(a.getBottom()-12).withHeight(12),7,colours[2]);return;
     }
-    if(page==2){text(g,"MASTER INSERT",a.withHeight(13),9,colours[3],juce::Justification::centredLeft);text(g,FieldProcessor::effectNames[(int)processor.value("masterEffect")].toUpperCase(),a.withTrimmedTop(25).withTrimmedBottom(30),23,colours[3]);text(g,"MIX "+juce::String(processor.value("masterMix")*100,0)+"%       COMP "+juce::String(processor.value("compressor")*100,0)+"%",a.withY(a.getBottom()-15).withHeight(15),8,colours[2]);return;}
+    if(page==2){text(g,"MASTER / "+FieldProcessor::effectNames[(int)processor.value("masterEffect")].toUpperCase(),a.withHeight(13),9,colours[3],juce::Justification::centredLeft);drawEffect(g,a.withTrimmedTop(18),true);return;}
     if(page==3){text(g,"MASTER DYNAMICS",a.withHeight(13),9,colours[0],juce::Justification::centredLeft);float peak=juce::jlimit(0.f,1.f,processor.outputPeak.load());g.setColour(colours[0].withAlpha(.15f));g.fillRect(a.getX(),a.getCentreY()-9,a.getWidth(),18.f);g.setColour(colours[0]);g.fillRect(a.getX(),a.getCentreY()-9,a.getWidth()*peak,18.f);text(g,"COMPRESSOR "+juce::String(processor.value("compressor")*100,0)+"%     "+(processor.hostSync?"HOST "+juce::String(processor.effectiveTempo.load(),0):processor.value("midiClockMode")==1?"MIDI "+juce::String(processor.effectiveTempo.load(),0):juce::String(processor.value("tempo"),0))+" BPM",a.withY(a.getBottom()-16).withHeight(16),8,colours[2]);return;}
     text(g,shifted?juce::String::fromUTF8("MIXER · PAN"):juce::String::fromUTF8("MIXER · LEVEL"),a.withHeight(13),9,colours[2],juce::Justification::centredLeft);text(g,"SHIFT: PAN",a.withHeight(13),7,juce::Colour(0xff72888c),juce::Justification::centredRight);
     for(int i=0;i<4;++i){float x=a.getX()+i*62.f;auto c=colours[(size_t)i];text(g,juce::String(i+1),{x,a.getY()+18,52,12},9,c);auto r=juce::Rectangle<float>(x+16,a.getY()+34,20,51);g.setColour(c.withAlpha(.09f));g.fillRect(r);g.setColour(c.withAlpha(mutes[(size_t)i]?.12f:.8f));float h=juce::jlimit(0.f,51.f,levels[(size_t)i]*31);g.fillRect(r.withY(r.getBottom()-h).withHeight(h));text(g,mutes[(size_t)i]?"MUTE":solos[(size_t)i]?"SOLO":juce::String((int)std::round(pans[(size_t)i]*100)),{x,a.getBottom()-22,52,12},8,c);text(g,"M     S",{x,a.getBottom()-10,52,10},7.5f,c);}
@@ -386,7 +534,7 @@ void FieldEditor::showMenu(){
         else if(id>=200&&id<208){safe->processor.selectTape(id-200);safe->status="Tape bank "+juce::String(id-199);}else if(id>=100&&id<120){safe->processor.setValue("lfoTarget",(float)(id-100));safe->setPage(3);}else if(id>=120&&id<128){safe->processor.savePatchSlot(id-120);safe->status="Stored patch in slot "+juce::String(id-119);}else if(id>=140&&id<148){safe->processor.recallPatchSlot(id-140);safe->configureMacros();safe->status="Recalled patch slot "+juce::String(id-139);}else if(id>=160&&id<167){const int lens[]{16,32,64,128,256,512,999};const juce::ScopedLock lock(safe->processor.engineLock);safe->processor.engine.setSequenceLength(lens[id-160]);}else if(id==170)safe->processor.setValue("sequenceOn",safe->processor.value("sequenceOn")>.5f?0:1);else if(id==171){const juce::ScopedLock lock(safe->processor.engineLock);safe->processor.engine.clearHeldNotes();}else if(id==172){const juce::ScopedLock lock(safe->processor.engineLock);auto pad=safe->processor.engine.drumPad(safe->selectedPad);pad.reverse=!pad.reverse;safe->processor.engine.setDrumPad(safe->selectedPad,pad);}else if(id>=10&&id<14)safe->processor.setValue("tapeStyle",(float)(id-10));else if(id>=60&&id<66){safe->processor.setValue("lfo",(float)(id-60));safe->setPage(3);}else if(id>=80&&id<96){safe->processor.setCurrentProgram(id-80);safe->setMode(safe->processor.drumMode?1:0);}else if(id>=50&&id<=52){const char* params[]{"sampleLoop","sampleReverse","sampleOneShot"};auto param=params[id-50];safe->processor.setValue(param,safe->processor.value(param)>.5f?0:1);}else if(id==53||id==54){if(safe->processor.sampling)safe->processor.stopSampleCapture();else safe->processor.startSampleCapture(id==54);safe->status=safe->processor.sampling?(id==54?juce::String::fromUTF8("Resampling output · Shift + record to finish"):juce::String::fromUTF8("Sampling input · Shift + record to finish")):"Sample captured";}else if(id==20)safe->processor.hostSync=!safe->processor.hostSync;else if(id==21)safe->processor.inputMonitor=!safe->processor.inputMonitor;else if(id==22)safe->processor.metronome=!safe->processor.metronome;else if(id==23)safe->processor.setValue("loop",safe->processor.value("loop")>.5f?0:1);else if(id==30)safe->processor.transport("undo");else if(id==31)safe->processor.transport("redo");else if(id==32)safe->processor.transport("rewind");else if(id==33)safe->panic();else if(id==40)safe->showHelp();safe->grabKeyboardFocus();});
 }
 void FieldEditor::keyboardNote(int n,float velocity,bool on){if(n<0||n>127)return;held[(size_t)n]=on;if(on)processor.keyboard.noteOn(processor.keyboardMidiChannel(),n,velocity);else for(int channel=1;channel<=16;++channel)if(processor.keyboard.isNoteOn(channel,n))processor.keyboard.noteOff(channel,n,0);repaint();}
-void FieldEditor::panic(){processor.releaseTapePerformance();drawingSketch=false;typingNotes.clear();held.fill(false);mouseNote=-1;processor.transport("panic");}
+void FieldEditor::panic(){processor.releaseTapePerformance();drawingSketch=false;draggingSampleMarker=-1;typingNotes.clear();held.fill(false);mouseNote=-1;processor.transport("panic");}
 bool FieldEditor::keyPressed(const juce::KeyPress& k){
     auto code=k.getKeyCode();if(code==juce::KeyPress::escapeKey){panic();return true;}if(code==juce::KeyPress::spaceKey){processor.transport("play");return true;}
     if(code=='-'||code=='='||code=='+'){panic();processor.octave=juce::jlimit(-3,3,processor.octave+(code=='-'?-1:1));status="Keyboard octave "+juce::String(processor.octave.load());return true;}
@@ -413,7 +561,10 @@ void FieldEditor::mouseDown(const juce::MouseEvent& e){
     juce::Rectangle<float> screen(316,47,247,116);if(!screen.contains(p))return;
     if(mode==2){const juce::ScopedLock lock(processor.engineLock);double pos=processor.snapTapeTime(juce::jlimit(0.,visibleSeconds,(double)((p.x-331)/232*visibleSeconds)));if(e.mods.isShiftDown()||shifted){draggingSelection=true;processor.selectionStart=juce::jmin(359.9,pos);processor.selectionEnd=processor.selectionStart+.1;}else processor.engine.seek(pos);}
     else if(mode==1&&page==0&&(int)processor.value("engine")==14&&p.y>screen.getBottom()-32){int pad=juce::jlimit(0,23,(int)((p.x-screen.getX())/10.25f));const juce::ScopedLock lock(processor.engineLock);processor.engine.setSelectedPad(pad);selectedPad=pad;configureMacros();}
-    else if(mode==1&&page==0&&(int)processor.value("engine")==11){int col=(int)((p.x-screen.getX())/20),row=(int)((p.y-screen.getY()-22)/32);if(col>=0&&col<12&&row>=0&&row<2){const juce::ScopedLock lock(processor.engineLock);processor.engine.setSelectedPad(row*12+col);selectedPad=row*12+col;padState=processor.engine.drumPad(selectedPad);configureMacros();}}
+    else if((mode==0||mode==1)&&page==0&&(int)processor.value("engine")==11){
+        if(mode==1&&p.y>=135&&p.y<=147){selectedPad=juce::jlimit(0,23,(int)((p.x-316)/(247.f/24)));{const juce::ScopedLock lock(processor.engineLock);processor.engine.setSelectedPad(selectedPad);padState=processor.engine.drumPad(selectedPad);}configureMacros();}
+        else if(samplePreviewReady&&samplePlotBounds().contains(p)){std::array<float,4> markers{{mode==1?padState.start:processor.value("sampleStart"),processor.value("sampleLoopIn"),processor.value("sampleLoopOut"),mode==1?padState.end:processor.value("sampleEnd")}};float distance=11;draggingSampleMarker=-1;for(int i=0;i<4;++i){if(mode==1&&(i==1||i==2))continue;float x=samplePlotBounds().getX()+(float)((markers[(size_t)i]-sampleViewStart)/(sampleViewEnd-sampleViewStart))*samplePlotBounds().getWidth();float delta=std::abs(x-p.x);if(delta<distance){distance=delta;draggingSampleMarker=i;}}if(draggingSampleMarker>=0)moveSampleMarker(p.x);else status="Drag a colour marker; double-click waveform to zoom";}
+    }
     else if(mode==3&&page==0&&p.y>screen.getBottom()-23){int ch=juce::jlimit(0,3,(int)((p.x-screen.getX())/62));const juce::ScopedLock lock(processor.engineLock);if(std::fmod(p.x-screen.getX(),62.f)<31)processor.engine.setTrackMute(ch,!processor.engine.trackMute(ch));else processor.engine.setTrackSolo(ch,!processor.engine.trackSolo(ch));}
     else if(mode==4){
         int seq=(int)processor.value("sequencer");
@@ -423,11 +574,20 @@ void FieldEditor::mouseDown(const juce::MouseEvent& e){
 
     timerCallback();repaint();
 }
-void FieldEditor::mouseDrag(const juce::MouseEvent& e){auto p=localPoint(e.position);if(drawingSketch){appendSketchPoint(p);return;}if(draggingSelection){processor.selectionEnd=juce::jlimit(processor.selectionStart+.1,360.,processor.snapTapeTime((double)((p.x-331)/232*visibleSeconds)));repaint();return;}int n=noteAt(p);if(n!=mouseNote){if(mouseNote>=0)keyboardNote(mouseNote,0,false);mouseNote=n;if(n>=0)keyboardNote(n,.8f,true);}}
-void FieldEditor::mouseUp(const juce::MouseEvent&){if(drawingSketch){drawingSketch=false;status="Sketch saved: "+juce::String(sketchCount)+" points";}if(mouseNote>=0)keyboardNote(mouseNote,0,false);mouseNote=-1;if(draggingSelection){const juce::ScopedLock lock(processor.engineLock);processor.engine.setLoop(processor.selectionStart,processor.selectionEnd);draggingSelection=false;}}
+void FieldEditor::mouseDrag(const juce::MouseEvent& e){auto p=localPoint(e.position);if(draggingSampleMarker>=0){moveSampleMarker(p.x);return;}if(drawingSketch){appendSketchPoint(p);return;}if(draggingSelection){processor.selectionEnd=juce::jlimit(processor.selectionStart+.1,360.,processor.snapTapeTime((double)((p.x-331)/232*visibleSeconds)));repaint();return;}int n=noteAt(p);if(n!=mouseNote){if(mouseNote>=0)keyboardNote(mouseNote,0,false);mouseNote=n;if(n>=0)keyboardNote(n,.8f,true);}}
+void FieldEditor::mouseUp(const juce::MouseEvent&){if(draggingSampleMarker>=0){draggingSampleMarker=-1;configureMacros();}if(drawingSketch){drawingSketch=false;status="Sketch saved: "+juce::String(sketchCount)+" points";}if(mouseNote>=0)keyboardNote(mouseNote,0,false);mouseNote=-1;if(draggingSelection){const juce::ScopedLock lock(processor.engineLock);processor.engine.setLoop(processor.selectionStart,processor.selectionEnd);draggingSelection=false;}}
+void FieldEditor::mouseDoubleClick(const juce::MouseEvent& event){
+    const auto point=localPoint(event.position);
+    if((mode==0||mode==1)&&page==0&&(int)processor.value("engine")==11&&samplePreviewReady&&samplePlotBounds().contains(point)){
+        draggingSampleMarker=-1;
+        if(sampleViewEnd-sampleViewStart<.5){sampleViewStart=0;sampleViewEnd=1;status="Sample overview";}
+        else{double centre=juce::jlimit(0.,1.,(double)((point.x-samplePlotBounds().getX())/samplePlotBounds().getWidth()));sampleViewStart=juce::jlimit(0.,.75,centre-.125);sampleViewEnd=sampleViewStart+.25;status="Sample detail x4 / double-click for overview";}
+        timerCallback();repaint();
+    }
+}
 void FieldEditor::timerCallback(){
     bool padChanged=false;
-    tempo.setEnabled(!processor.hostSync&&processor.value("midiClockMode")!=1);tempo.setTooltip(processor.hostSync?"External DAW tempo":processor.value("midiClockMode")==1?"External MIDI clock tempo":juce::String::fromUTF8("Tempo · beats per minute"));for(int i=0;i<4;++i)macros[(size_t)i].setEnabled(!((processor.hostSync||processor.value("midiClockMode")==1)&&macroLabels[i].contains("TEMPO"))&&!(mode==4&&processor.value("sequencer")==0));
+
     ++tick;keyStateChanged(false);for(int n=0;n<128;++n)held[(size_t)n]=processor.keyboard.isNoteOnForChannels(0xffff,n);
     engineBox.setSelectedId((int)processor.value("engine")+1,juce::dontSendNotification);effectBox.setSelectedId((int)processor.value(mode==3?"masterEffect":"effect")+1,juce::dontSendNotification);sequenceBox.setSelectedId((int)processor.value("sequencer")+1,juce::dontSendNotification);
     int currentEngine=(int)processor.value("engine");
@@ -436,10 +596,22 @@ void FieldEditor::timerCallback(){
     if(currentEngine<14&&!processor.drumMode)lastSynthEngine=currentEngine;
     if(lastSequencer!=(int)processor.value("sequencer")){lastSequencer=(int)processor.value("sequencer");sequenceOffset=0;configureMacros();}
     if(lastElementSource!=(int)processor.value("elementSource")||lastLfoSync!=(int)processor.value("lfoSync")||lastLfo!=(int)processor.value("lfo")||lastVoiceMode!=(int)processor.value("voiceMode")||lastEngine!=(int)processor.value("engine")||lastEffect!=(int)processor.value("effect")||lastMasterEffect!=(int)processor.value("masterEffect"))configureMacros();
-    {const juce::ScopedTryLock lock(processor.engineLock);if(lock.isLocked()){sequencerHeld.fill(false);for(int i=0;i<processor.engine.heldNoteCount();++i){int note=processor.engine.heldNote(i);if(note>=0&&note<128)sequencerHeld[(size_t)note]=true;}if(selectedPad!=processor.engine.selectedPad()){selectedPad=processor.engine.selectedPad();padChanged=true;}padState=processor.engine.drumPad(selectedPad);dboxState=processor.engine.dboxPad(selectedPad);playing=processor.engine.playing();recording=processor.engine.recording();countInRemaining=processor.engine.countInRemainingBeats();selectedTrack=processor.engine.selectedTrack();recorded=processor.engine.recordedSeconds();if((int)processor.value("sequencer")==3){int selected=processor.engine.fingerPattern();if(fingerBank!=selected)sequenceOffset=0;fingerBank=selected;sequenceLength=processor.engine.fingerLength(fingerBank);}else sequenceLength=processor.engine.sequenceLength();sequenceOffset=juce::jmin(sequenceOffset,(sequenceLength-1)/16*16);visibleSeconds=juce::jmax(16.,std::ceil(juce::jmax(recorded,processor.playhead.load()+2)/8)*8);sequenceStep=processor.engine.currentSequenceStep();for(int i=0;i<4;++i){trackDurations[(size_t)i]=processor.engine.tracks()[(size_t)i].left.size()/processor.engine.sampleRate();levels[(size_t)i]=processor.engine.trackLevel(i);pans[(size_t)i]=processor.engine.trackPan(i);mutes[(size_t)i]=processor.engine.trackMute(i);solos[(size_t)i]=processor.engine.trackSolo(i);if(mode==3&&page==0&&!macros[(size_t)i].isMouseButtonDown())macros[(size_t)i].setValue(shifted?pans[(size_t)i]:levels[(size_t)i],juce::dontSendNotification);if(tick%15==0||mode==2&&recording){waves[(size_t)i]=processor.engine.waveform(i,400);if(mode==2){const auto& cuts=processor.engine.tracks()[(size_t)i].cuts;trackCuts[(size_t)i].assign(cuts.begin(),cuts.begin()+std::min<size_t>(cuts.size(),4096));}}}for(int i=0;i<16;++i)steps[(size_t)i]=(int)processor.value("sequencer")==3?processor.engine.fingerStep(fingerBank,sequenceOffset+i):processor.engine.sequenceStep(sequenceOffset+i);if(mode==4){sketchCount=processor.engine.sketchLength();for(int i=0;i<sketchCount;++i)sketchPoints[(size_t)i]=processor.engine.sketchPoint(i);balls=processor.engine.tombolaBalls();tombolaRotation=(float)processor.engine.tombolaRotation();tombolaSides=processor.engine.tombolaSides();tombolaTriggers=processor.engine.tombolaTriggerCount();}}}
+    {const juce::ScopedTryLock lock(processor.engineLock);if(lock.isLocked()){
+        lfoPhaseSnapshot=(float)processor.engine.lfoPhasePosition();modulationSnapshot=processor.engine.modulationAt((int)processor.value("lfoTarget"));
+        modulationHistory[modulationWrite++%modulationHistory.size()]=modulationSnapshot;
+        if((int)processor.value("engine")==11){
+            const auto& left=processor.engine.sampleLeft();const auto& right=processor.engine.sampleRight();
+            if(sampleFrames!=left.size()){sampleViewStart=0;sampleViewEnd=1;sampleFrames=left.size();}
+            samplePreviewReady=!left.empty();sampleSeconds=left.size()/juce::jmax(1.,processor.engine.loadedSampleRate());
+            if(samplePreviewReady)for(size_t channel=0;channel<2;++channel){const auto& source=channel==1&&!right.empty()?right:left;for(size_t bin=0;bin<256;++bin){float low=0,high=0;for(int tap=0;tap<8;++tap){double u=sampleViewStart+(sampleViewEnd-sampleViewStart)*(bin+(tap+.5)/8.)/256.;size_t index=std::min(source.size()-1,(size_t)(juce::jlimit(0.,1.,u)*(source.size()-1)));low=std::min(low,source[index]);high=std::max(high,source[index]);}samplePreview[channel][bin]={low,high};}}
+        }
+        if(tick%15==0){albumDurations[0]=processor.albumDuration(0);albumDurations[1]=processor.albumDuration(1);}
+        sequencerHeld.fill(false);for(int i=0;i<processor.engine.heldNoteCount();++i){int note=processor.engine.heldNote(i);if(note>=0&&note<128)sequencerHeld[(size_t)note]=true;}if(selectedPad!=processor.engine.selectedPad()){selectedPad=processor.engine.selectedPad();padChanged=true;}padState=processor.engine.drumPad(selectedPad);dboxState=processor.engine.dboxPad(selectedPad);playing=processor.engine.playing();recording=processor.engine.recording();countInRemaining=processor.engine.countInRemainingBeats();selectedTrack=processor.engine.selectedTrack();recorded=processor.engine.recordedSeconds();if((int)processor.value("sequencer")==3){int selected=processor.engine.fingerPattern();if(fingerBank!=selected)sequenceOffset=0;fingerBank=selected;sequenceLength=processor.engine.fingerLength(fingerBank);}else sequenceLength=processor.engine.sequenceLength();sequenceOffset=juce::jmin(sequenceOffset,(sequenceLength-1)/16*16);visibleSeconds=juce::jmax(16.,std::ceil(juce::jmax(recorded,processor.playhead.load()+2)/8)*8);sequenceStep=processor.engine.currentSequenceStep();for(int i=0;i<4;++i){trackDurations[(size_t)i]=processor.engine.tracks()[(size_t)i].left.size()/processor.engine.sampleRate();levels[(size_t)i]=processor.engine.trackLevel(i);pans[(size_t)i]=processor.engine.trackPan(i);mutes[(size_t)i]=processor.engine.trackMute(i);solos[(size_t)i]=processor.engine.trackSolo(i);if(mode==3&&page==0&&!macros[(size_t)i].isMouseButtonDown())macros[(size_t)i].setValue(shifted?pans[(size_t)i]:levels[(size_t)i],juce::dontSendNotification);if(tick%15==0||mode==2&&recording){waves[(size_t)i]=processor.engine.waveform(i,400);if(mode==2){const auto& cuts=processor.engine.tracks()[(size_t)i].cuts;trackCuts[(size_t)i].assign(cuts.begin(),cuts.begin()+std::min<size_t>(cuts.size(),4096));}}}for(int i=0;i<16;++i)steps[(size_t)i]=(int)processor.value("sequencer")==3?processor.engine.fingerStep(fingerBank,sequenceOffset+i):processor.engine.sequenceStep(sequenceOffset+i);if(mode==4){sketchCount=processor.engine.sketchLength();for(int i=0;i<sketchCount;++i)sketchPoints[(size_t)i]=processor.engine.sketchPoint(i);balls=processor.engine.tombolaBalls();tombolaRotation=(float)processor.engine.tombolaRotation();tombolaSides=processor.engine.tombolaSides();tombolaTriggers=processor.engine.tombolaTriggerCount();}}}
     if(mode==2){if(!macros[0].isMouseButtonDown())macros[0].setValue(shifted?processor.selectionStart:processor.playhead.load(),juce::dontSendNotification);if(!macros[1].isMouseButtonDown())macros[1].setValue(shifted?processor.selectionStart:processor.selectionEnd,juce::dontSendNotification);if(!macros[2].isMouseButtonDown())macros[2].setValue(processor.value("tapeSpeed")*(shifted?100:1),juce::dontSendNotification);}
     if(padChanged&&mode==1&&(((int)processor.value("engine")==11&&page==0)||((int)processor.value("engine")==14&&page<2)))configureMacros();
     for(int i=0;i<4;++i)functionButtons[i]->setToggleState(mode==i,juce::dontSendNotification);for(int i=4;i<8;++i)functionButtons[i]->setToggleState(mode==2?selectedTrack==i-4:page==i-4,juce::dontSendNotification);
     functionButtons[10]->setToggleState(processor.value("loop")>.5f,juce::dontSendNotification);functionButtons[11]->setToggleState(mode==4,juce::dontSendNotification);functionButtons[13]->setToggleState(processor.metronome,juce::dontSendNotification);inputButton.setToggleState(processor.inputMonitor,juce::dontSendNotification);tempoButton.setToggleState(processor.metronome,juce::dontSendNotification);transportButtons[3]->setToggleState(recording,juce::dontSendNotification);transportButtons[4]->setToggleState(playing,juce::dontSendNotification);
+    transportButtons[3]->setButtonText(countInRemaining>0?"ARM":processor.sampling?"SAMPLE":juce::String::fromUTF8("●"));
+    updateControlAvailability();
     repaint();
 }

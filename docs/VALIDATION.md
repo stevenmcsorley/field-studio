@@ -54,3 +54,7 @@ All five local CTest suites pass after the tape extension. Core tests cover grou
 ### MIDI phase (2026-10-30)
 
 All six local CTest suites pass after enabling plugin MIDI output. MIDI helper tests verify24PPQN timing, jitter/tempo change/timeout handling, transport/SPP, fractional and segmented clock timestamps, no output echo in external-clock mode, per-channel sustain/shared-pitch ownership and allocation-free preallocated helpers. Helper/test code passes ASan+UBSan. Core tests cover SPP step playback without tape seek, click level and bounded timestamped sequencer events including note releases, unison/manual-note deduplication and overflow panic. Processor tests verify channel filtering, timed thru/remapping, filter note release, CC destinations, persistent routing state, clock receive/send and sequencer note output. Physical MIDI devices, real DAW routing and hardware timing/policy matching remain unverified.
+
+### Screen phase (2026-10-30)
+
+All six suites pass with the state-driven UI pass. The final native integration/screenshot run also passed after marker-ordering and capture-badge corrections. Availability tests repeatedly refresh synced LFO/manual Element/Amp/glide controls; render checks span all15engines×4pages, every patch/masterFX and6LFOsources×6shapes. Default and1000×520 screens were inspected, with representative artifacts in docs/screenshots. The latest tape/MIDI core also passes a fresh ASan+UBSan build. UI artwork and animation timing are not hardware-matched measurements; see SCREENS.md.
