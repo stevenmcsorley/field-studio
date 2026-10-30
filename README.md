@@ -35,7 +35,14 @@ The plugin can follow DAW tempo, play/stop and seek through **COM → Follow DAW
 
 ## Build
 
-Requirements: CMake3.22+, a C++17 toolchain and JUCE8.0.16-security (pinned commit). `scripts/build.sh` configures, builds and tests with two compiler jobs by default. CMake uses `vendor/JUCE` when present; otherwise it fetches the pinned official source. Linux prerequisites include ALSA, FreeType/fontconfig, X11/Xrandr/Xinerama/Xcursor and OpenGL development headers; `xvfb` permits offscreen GUI tests.
+Requirements: CMake3.22+, a C++17 toolchain and JUCE8.0.16-security (pinned commit). `scripts/build.sh` configures, builds and tests with two compiler jobs by default. CMake uses `vendor/JUCE` when present; otherwise it fetches the pinned official source. Linux prerequisites include ALSA, FreeType/fontconfig, X11/Xrandr/Xinerama/Xcursor and OpenGL development headers; `xvfb` permits offscreen GUI tests. On Ubuntu 24.04:
+
+```sh
+sudo apt-get update
+sudo apt-get install -y pkg-config libasound2-dev libfreetype-dev libfontconfig1-dev libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libgl1-mesa-dev xvfb
+```
+
+JUCE discovers FreeType and fontconfig together through pkg-config, so both development packages are required even when only FreeType appears in a compiler error.
 
 ```sh
 ./scripts/build.sh
