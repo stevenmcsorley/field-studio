@@ -2,6 +2,8 @@
 
 A native synthesizer, sampler and four-track stereo tape instrument inspired by the OP–1 field workflow. Builds a standalone application and VST3 from the same C++ audio engine; macOS also builds AU.
 
+![Field Studio running on Linux, showing the sampler waveform, four coloured encoders and two-octave keyboard](docs/screenshots/field-studio.png)
+
 This is an independently written recreation. **Exact feature, visual and sonic parity has not been established.** No manufacturer DSP, firmware, factory samples, fonts, logos or extracted artwork are bundled. See [the parity ledger](docs/PARITY.md) for concrete differences and [research findings](docs/research/FIRMWARE_FINDINGS.md) for what the firmware inspection actually established.
 
 ## Run the Linux build
