@@ -49,6 +49,11 @@ public:
     bool loadProject(const juce::File&, juce::String& error);
     void transport(const juce::String& action);
     void setTrack(int);
+    void setTapePerformance(int control,bool down);
+    void releaseTapePerformance();
+    double snapTapeTime(double seconds) const;
+    std::atomic<int> tapeEditMask{0}; // 0 follows selected track
+    std::atomic<bool> tapeSnap{false};
     void selectTape(int);
     int tapeNumber() const { return currentTape; }
     void newProject();
@@ -69,7 +74,7 @@ public:
     double selectionStart=0, selectionEnd=4;
     int octave=0;
 private:
-    enum ParamKey {P_engine,P_macro1,P_macro2,P_macro3,P_macro4,P_attack,P_decay,P_sustain,P_release,P_sampleStart,P_sampleLoopIn,P_sampleLoopOut,P_sampleEnd,P_sampleLoop,P_sampleReverse,P_sampleOneShot,P_fx1,P_fx2,P_fx3,P_fx4,P_seq1,P_seq2,P_seq3,P_seq4,P_lfoTarget,P_effect,P_effectMix,P_masterLow,P_masterMid,P_masterHigh,P_masterDrive,P_compressor,P_masterEffect,P_masterMix,P_volume,P_tempo,P_lfo,P_lfoRate,P_lfoDepth,P_sequencer,P_sequenceOn,P_tapeStyle,P_tapeSpeed,P_loop,P_masterFx1,P_masterFx2,P_masterFx3,P_masterFx4,P_seqSwing,P_seqGate,P_seqHold,P_sampleRootNote,P_voiceMode,P_glideTime,P_bendRange,P_patchGain,P_lfoWaveform,P_lfoRetrigger,P_lfoSync,P_lfoDivision,P_elementSource,P_elementManual,P_envelopeCurve,P_midiTarget1,P_midiTarget2,P_midiTarget3,P_midiTarget4,P_midiDepth1,P_midiDepth2,P_midiDepth3,P_midiDepth4,P_count};
+    enum ParamKey {P_engine,P_macro1,P_macro2,P_macro3,P_macro4,P_attack,P_decay,P_sustain,P_release,P_sampleStart,P_sampleLoopIn,P_sampleLoopOut,P_sampleEnd,P_sampleLoop,P_sampleReverse,P_sampleOneShot,P_fx1,P_fx2,P_fx3,P_fx4,P_seq1,P_seq2,P_seq3,P_seq4,P_lfoTarget,P_effect,P_effectMix,P_masterLow,P_masterMid,P_masterHigh,P_masterDrive,P_compressor,P_masterEffect,P_masterMix,P_volume,P_tempo,P_lfo,P_lfoRate,P_lfoDepth,P_sequencer,P_sequenceOn,P_tapeStyle,P_tapeSpeed,P_loop,P_masterFx1,P_masterFx2,P_masterFx3,P_masterFx4,P_seqSwing,P_seqGate,P_seqHold,P_sampleRootNote,P_voiceMode,P_glideTime,P_bendRange,P_patchGain,P_lfoWaveform,P_lfoRetrigger,P_lfoSync,P_lfoDivision,P_elementSource,P_elementManual,P_envelopeCurve,P_midiTarget1,P_midiTarget2,P_midiTarget3,P_midiTarget4,P_midiDepth1,P_midiDepth2,P_midiDepth3,P_midiDepth4,P_countInBeats,P_tapeRecordLevel,P_tapeRecordPan,P_count};
     std::array<std::atomic<float>*,P_count> rawValues{};
     std::array<juce::RangedAudioParameter*,P_count> rawTargets{};
     float cached(int key) const { return rawValues[(size_t)key]->load(); }

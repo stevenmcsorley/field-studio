@@ -98,7 +98,7 @@ void Engine::prepare(double rate, int /* maxBlock */) {
     delayWrite=0; fxLowL=fxLowR=fxBandL=fxBandR=wetLowL=wetLowR=0;
     phaserL.fill(0); phaserR.fill(0);
     for (auto& v : voices) v.active = false;keyCount=0;
-    isRecording=false; isPlaying=false;
+    isRecording=false; isPlaying=false;countInRemaining=0;countInElapsed=0;reverseHeld=false;brakeHeld=false;rollHeld=false;
     seqPhase=0; seqStep=-1; seqLastNote=-1;
     peakValue=0;
     for(size_t i=0;i<vocoder.size();++i){
@@ -132,6 +132,7 @@ void Engine::setParameters(const Parameters& p) {
     params.volume=clamp(params.volume,0,2.f); params.tempo=clamp(params.tempo,30,300);
     params.lfoRate=clamp(params.lfoRate,.01f,30); params.lfoDepth=clamp(params.lfoDepth);
     params.tapeSpeed=clamp(params.tapeSpeed,-4,4);
+    params.tapeRecordLevel=clamp(params.tapeRecordLevel,0,2);params.tapeRecordPan=clamp(params.tapeRecordPan,-1,1);
     params.sampleRootNote=clamp(params.sampleRootNote,0,127);params.sampleStart=clamp(params.sampleStart);params.sampleEnd=clamp(params.sampleEnd,params.sampleStart,1);
     params.sampleLoopIn=clamp(params.sampleLoopIn,params.sampleStart,params.sampleEnd);
     params.sampleLoopOut=clamp(params.sampleLoopOut,params.sampleLoopIn,params.sampleEnd);
@@ -661,8 +662,11 @@ void Engine::process(float* left,float* right,const float* inputLeft,const float
         if(params.monitorInput && params.engine!=13 && params.engine!=12){synthL+=inL;synthR+=inR;}
         const auto processed=effect(synthL*params.patchGain*std::max(0.f,1+modulationRoutes[17]),synthR*params.patchGain*std::max(0.f,1+modulationRoutes[17]));synthL=processed.first;synthR=processed.second;
         float mixL=synthL,mixR=synthR;
-        if(isPlaying){
-            if(params.loop && loopFinish>loopBegin+1){
+        const bool counting=countInRemaining>0&&isPlaying&&isRecording;
+        if(counting){const double phase=countInElapsed-std::floor(countInElapsed);if(phase<.08){const double seconds=phase*60./params.tempo;const float click=static_cast<float>(std::sin(seconds*1900*tau)*std::exp(-seconds*80))*.13f;mixL+=click;mixR+=click;}const double step=params.tempo/(60.*sr);countInElapsed+=step;countInRemaining=std::max(0.,countInRemaining-step);if(countInRemaining<1e-9)countInRemaining=0;}
+        if(isPlaying&&!counting){
+            if(rollHeld){const double length=std::min(rollLength,static_cast<double>(maxFrames())-rollBegin);if(length>0&&(position<rollBegin||position>=rollBegin+length))position=rollBegin+std::fmod(std::fmod(position-rollBegin,length)+length,length);}
+            if(!rollHeld && params.loop && loopFinish>loopBegin+1){
                 const double length=loopFinish-loopBegin;
                 if(position>=loopFinish || position<loopBegin){position=loopBegin+std::fmod(std::fmod(position-loopBegin,length)+length,length);}
             }
@@ -671,23 +675,23 @@ void Engine::process(float* left,float* right,const float* inputLeft,const float
                 for(size_t track=0;track<tape.size();++track){
                     const auto& t=tape[track];if(t.mute || (anySolo&&!t.solo))continue;
                     const float panL=t.pan>0?1-t.pan:1,panR=t.pan<0?1+t.pan:1;
-                    const float trackL=interpolate(t.left,position)*t.level*panL;
-                    const float trackR=interpolate(t.right,position)*t.level*panR;
+                    const float trackL=brakeHeld?0:interpolate(t.left,position)*t.level*panL;
+                    const float trackR=brakeHeld?0:interpolate(t.right,position)*t.level*panR;
                     mixL+=trackL;mixR+=trackR;
                     if(stems){if(stems[track*2])stems[track*2][i]=trackL;if(stems[track*2+1])stems[track*2+1][i]=trackR;}
                 }
-                if(isRecording){
+                if(isRecording&&!brakeHeld){
                     auto& t=tape[static_cast<size_t>(selected)];const auto at=static_cast<size_t>(position);
                     // Capacity was reserved in setRecording(). Never allocate in
                     // the audio callback, even after malformed restored state.
                     if(at<t.left.capacity() && at<t.right.capacity()){
                         if(at>=t.left.size()){t.left.resize(at+1,0);t.right.resize(at+1,0);}
-                        t.left[at]=std::clamp(t.left[at]+synthL,-4.0f,4.0f);
-                        t.right[at]=std::clamp(t.right[at]+synthR,-4.0f,4.0f);
+                        t.left[at]=std::clamp(t.left[at]+synthL*params.tapeRecordLevel*(params.tapeRecordPan>0?1-params.tapeRecordPan:1),-4.0f,4.0f);
+                        t.right[at]=std::clamp(t.right[at]+synthR*params.tapeRecordLevel*(params.tapeRecordPan<0?1+params.tapeRecordPan:1),-4.0f,4.0f);
                     } else {isRecording=false;}
                 }
-                if(params.metronome){const double beat=position/sr*params.tempo/60.0;const double phase=beat-std::floor(beat);if(phase<.045){float click=static_cast<float>(std::sin(phase*sr/params.tempo*60*1900*tau))*static_cast<float>(std::exp(-phase*130))*.08f;mixL+=click;mixR+=click;}}
-                position+=params.tapeSpeed*std::pow(2.f,modulationRoutes[18]);
+                if(params.metronome&&!brakeHeld){const double beat=position/sr*params.tempo/60.0;const double phase=beat-std::floor(beat);if(phase<.045){float click=static_cast<float>(std::sin(phase*sr/params.tempo*60*1900*tau))*static_cast<float>(std::exp(-phase*130))*.08f;mixL+=click;mixR+=click;}}
+                if(!brakeHeld)position+=params.tapeSpeed*std::pow(2.f,modulationRoutes[18])*(reverseHeld?-1.:1.);
             }
         }
         switch(params.tapeStyle){
@@ -724,51 +728,100 @@ float Engine::trackLevel(int i)const{return tape[std::clamp(i,0,3)].level;}
 float Engine::trackPan(int i)const{return tape[std::clamp(i,0,3)].pan;}
 bool Engine::trackMute(int i)const{return tape[std::clamp(i,0,3)].mute;}
 bool Engine::trackSolo(int i)const{return tape[std::clamp(i,0,3)].solo;}
-void Engine::setPlaying(bool v){isPlaying=v;if(!v)isRecording=false;}
-Engine::Snapshot Engine::capture()const{return {selected,tape[selected],position};}
+void Engine::setPlaying(bool v){isPlaying=v;if(!v){isRecording=false;countInRemaining=0;reverseHeld=false;brakeHeld=false;rollHeld=false;}}
+Engine::Snapshot Engine::capture(unsigned mask)const{Snapshot s;s.track=selected;s.head=position;s.mask=mask?mask&15u:1u<<selected;for(int i=0;i<4;++i)if(s.mask&(1u<<i))s.audio[i]=tape[i];return s;}
 void Engine::trimHistory(){
     constexpr size_t limit=256u*1024u*1024u;
-    auto bytes=[](const std::deque<Snapshot>& q){size_t total=0;for(const auto& s:q)total+=snapshotBytes(s.audio);return total;};
+    auto bytes=[](const std::deque<Snapshot>& q){size_t total=0;for(const auto& s:q)for(int i=0;i<4;++i)if(s.mask&(1u<<i))total+=snapshotBytes(s.audio[i]);return total;};
     while(undos.size()>7)undos.pop_front();
     while(redos.size()>7)redos.pop_front();
     while(undos.size()>1 && bytes(undos)+bytes(redos)>limit)undos.pop_front();
     while(redos.size()>1 && bytes(undos)+bytes(redos)>limit)redos.pop_front();
 }
-void Engine::snapshot(){undos.push_back(capture());redos.clear();trimHistory();}
+void Engine::snapshot(unsigned mask){undos.push_back(capture(mask));redos.clear();trimHistory();}
 void Engine::setRecording(bool v){
-    if(v&&!isRecording){snapshot();tape[selected].left.reserve(maxFrames());tape[selected].right.reserve(maxFrames());isPlaying=true;}
-    isRecording=v;
+    if(v&&!isRecording){snapshot();tape[selected].left.reserve(maxFrames());tape[selected].right.reserve(maxFrames());isPlaying=true;countInRemaining=countInSetting;countInElapsed=0;}
+    isRecording=v;if(!v)countInRemaining=0;
 }
 void Engine::rewind(){position=params.loop?loopBegin:0;seqPhase=0;seqStep=-1;}
 void Engine::seek(double seconds){position=std::clamp(std::isfinite(seconds)?seconds:0.0,0.0,359.999)*sr;}
 void Engine::setLoop(double start,double end){start=std::isfinite(start)?start:0;end=std::isfinite(end)?end:2;loopBegin=std::clamp(start,0.0,359.999)*sr;loopFinish=std::clamp(end,loopBegin/sr+1.0/sr,360.0)*sr;}
 double Engine::recordedSeconds()const{size_t n=0;for(const auto&t:tape)n=std::max(n,t.left.size());return n/sr;}
 void Engine::clearTrack(){snapshot();auto& t=tape[selected];t.left.clear();t.right.clear();t.cuts.clear();}
-void Engine::lift(double start,double end){
-    auto& t=tape[selected];const size_t a=static_cast<size_t>(std::clamp(start,0.0,360.0)*sr),b=std::min(t.left.size(),static_cast<size_t>(std::clamp(end,0.0,360.0)*sr));
-    if(a>=b)return;
-    snapshot();
-    clipboardL.assign(t.left.begin()+static_cast<std::ptrdiff_t>(a),t.left.begin()+static_cast<std::ptrdiff_t>(b));
-    clipboardR.assign(t.right.begin()+static_cast<std::ptrdiff_t>(a),t.right.begin()+static_cast<std::ptrdiff_t>(b));
-    clipboardCuts.clear();for(double cut:t.cuts)if(cut>=start&&cut<=end)clipboardCuts.push_back(cut-start);
-    std::fill(t.left.begin()+static_cast<std::ptrdiff_t>(a),t.left.begin()+static_cast<std::ptrdiff_t>(b),0);
-    std::fill(t.right.begin()+static_cast<std::ptrdiff_t>(a),t.right.begin()+static_cast<std::ptrdiff_t>(b),0);
-    t.cuts.erase(std::remove_if(t.cuts.begin(),t.cuts.end(),[&](double s){return s>=start&&s<=end;}),t.cuts.end());
+void Engine::copyTracks(unsigned mask,double start,double end){
+    mask=mask?mask&15u:1u<<selected;
+    clipboardMask=0;clipboardFrames=0;for(auto& t:clipboard)t=Track{};
+    start=std::clamp(std::isfinite(start)?start:0.,0.,360.);end=std::clamp(std::isfinite(end)?end:0.,0.,360.);
+    const size_t a=static_cast<size_t>(start*sr),b=static_cast<size_t>(end*sr);if(a>=b)return;
+    size_t last=0;for(int i=0;i<4;++i)if(mask&(1u<<i))last=std::max(last,tape[i].left.size());
+    if(a>=std::min(b,last))return;clipboardFrames=std::min(b,last)-a;clipboardMask=mask;
+    for(int i=0;i<4;++i)if(mask&(1u<<i)){
+        const auto& t=tape[i];auto& c=clipboard[i];c.left.assign(clipboardFrames,0);c.right.assign(clipboardFrames,0);
+        if(a<t.left.size()){const size_t n=std::min(clipboardFrames,t.left.size()-a);std::copy_n(t.left.begin()+a,n,c.left.begin());std::copy_n(t.right.begin()+a,n,c.right.begin());}
+        c.level=t.level;c.pan=t.pan;c.mute=t.mute;c.solo=t.solo;
+        for(double cut:t.cuts)if(cut>=start&&cut<=end)c.cuts.push_back(cut-start);
+    }
+}
+void Engine::lift(double start,double end){liftTracks(1u<<selected,start,end);}
+void Engine::liftTracks(unsigned mask,double start,double end){
+    if(!std::isfinite(start)||!std::isfinite(end))return;
+    copyTracks(mask,start,end);if(!clipboardMask)return;snapshot(clipboardMask);
+    const size_t a=static_cast<size_t>(std::clamp(start,0.,360.)*sr);
+    for(int i=0;i<4;++i)if(clipboardMask&(1u<<i)){auto& t=tape[i];const size_t b=std::min(t.left.size(),a+clipboardFrames);if(a>=b)continue;std::fill(t.left.begin()+a,t.left.begin()+b,0);std::fill(t.right.begin()+a,t.right.begin()+b,0);t.cuts.erase(std::remove_if(t.cuts.begin(),t.cuts.end(),[&](double c){return c>=start&&c<=end;}),t.cuts.end());}
     position=static_cast<double>(a);
 }
-void Engine::drop(){
-    if(clipboardL.empty())return;
-    snapshot();auto& t=tape[selected];
-    const size_t a=static_cast<size_t>(std::clamp(position,0.0,static_cast<double>(maxFrames()-1))),n=std::min(clipboardL.size(),maxFrames()-a);
+void Engine::drop(){dropTracks();}
+void Engine::dropTracks(int destination){
+    if(!clipboardMask)return;if(destination<0)destination=selected;destination=std::clamp(destination,0,3);
+    int first=0;while(!(clipboardMask&(1u<<first)))++first;
+    unsigned mask=0;for(int i=first;i<4;++i)if((clipboardMask&(1u<<i))&&destination+i-first<4)mask|=1u<<(destination+i-first);
+    snapshot(mask);const size_t a=static_cast<size_t>(std::clamp(position,0.,static_cast<double>(maxFrames()-1)));
+    for(int i=first;i<4;++i)if((clipboardMask&(1u<<i))&&destination+i-first<4){auto& t=tape[destination+i-first];const auto& c=clipboard[i];const size_t n=std::min(c.left.size(),maxFrames()-a);
+        t.left.resize(std::max(t.left.size(),a+n),0);t.right.resize(t.left.size(),0);std::copy_n(c.left.begin(),n,t.left.begin()+a);std::copy_n(c.right.begin(),n,t.right.begin()+a);
+        t.cuts.erase(std::remove_if(t.cuts.begin(),t.cuts.end(),[&](double cut){return cut>=a/sr&&cut<=(a+n)/sr;}),t.cuts.end());
+        for(double cut:c.cuts)if(cut<=n/sr)t.cuts.push_back(cut+a/sr);t.cuts.push_back(a/sr);t.cuts.push_back((a+n)/sr);std::sort(t.cuts.begin(),t.cuts.end());t.cuts.erase(std::unique(t.cuts.begin(),t.cuts.end()),t.cuts.end());
+    }
+}
+void Engine::mergeClipboard(int destination){
+    if(!clipboardMask)return;destination=destination<0?selected:std::clamp(destination,0,3);snapshot(1u<<destination);writeClipboardMix(destination);
+}
+void Engine::writeClipboardMix(int destination){
+    auto& t=tape[destination];const size_t a=static_cast<size_t>(std::clamp(position,0.,static_cast<double>(maxFrames()-1))),n=std::min(clipboardFrames,maxFrames()-a);
     t.left.resize(std::max(t.left.size(),a+n),0);t.right.resize(t.left.size(),0);
-    std::copy_n(clipboardL.begin(),n,t.left.begin()+static_cast<std::ptrdiff_t>(a));std::copy_n(clipboardR.begin(),n,t.right.begin()+static_cast<std::ptrdiff_t>(a));
-    for(double cut:clipboardCuts)t.cuts.push_back(cut+a/sr);
+    bool solo=false;for(int i=0;i<4;++i)if(clipboardMask&(1u<<i))solo|=clipboard[i].solo;
+    for(size_t f=0;f<n;++f){float l=0,r=0;for(int i=0;i<4;++i)if(clipboardMask&(1u<<i)){const auto& c=clipboard[i];if(c.mute||(solo&&!c.solo)||f>=c.left.size())continue;l+=c.left[f]*c.level*(c.pan>0?1-c.pan:1);r+=c.right[f]*c.level*(c.pan<0?1+c.pan:1);}t.left[a+f]=std::clamp(l,-4.f,4.f);t.right[a+f]=std::clamp(r,-4.f,4.f);}
     t.cuts.push_back(a/sr);t.cuts.push_back((a+n)/sr);std::sort(t.cuts.begin(),t.cuts.end());
 }
+void Engine::joinTracks(unsigned mask,double start,double end){
+    mask=mask?mask&15u:1u<<selected;
+    if(!std::isfinite(start)||!std::isfinite(end)||start>=end||!(mask&15u))return;snapshot(mask&15u);
+    for(int i=0;i<4;++i)if(mask&(1u<<i)){auto& c=tape[i].cuts;c.erase(std::remove_if(c.begin(),c.end(),[&](double cut){return cut>start&&cut<end;}),c.end());}
+}
+void Engine::slideTracks(unsigned mask,double start,double end,double delta){
+    mask=mask?mask&15u:1u<<selected;
+    if(!std::isfinite(start)||!std::isfinite(end)||!std::isfinite(delta)||start>=end||delta==0||!(mask&15u))return;
+    start=std::clamp(start,0.,360.);end=std::clamp(end,0.,360.);delta=std::clamp(delta,-start,360.-end);if(delta==0)return;
+    const size_t a=static_cast<size_t>(start*sr),b=static_cast<size_t>(end*sr),at=static_cast<size_t>((start+delta)*sr);if(a>=b)return;snapshot(mask&15u);
+    for(int i=0;i<4;++i)if(mask&(1u<<i)){auto& t=tape[i];if(a>=t.left.size())continue;const size_t finish=std::min(b,t.left.size()),n=finish-a;
+        std::vector<float> l(t.left.begin()+a,t.left.begin()+finish),r(t.right.begin()+a,t.right.begin()+finish);std::vector<double> cuts;for(double cut:t.cuts)if(cut>=start&&cut<=end)cuts.push_back(cut+delta);
+        std::fill(t.left.begin()+a,t.left.begin()+finish,0);std::fill(t.right.begin()+a,t.right.begin()+finish,0);t.left.resize(std::max(t.left.size(),at+n),0);t.right.resize(t.left.size(),0);std::copy(l.begin(),l.end(),t.left.begin()+at);std::copy(r.begin(),r.end(),t.right.begin()+at);
+        t.cuts.erase(std::remove_if(t.cuts.begin(),t.cuts.end(),[&](double cut){return (cut>=start&&cut<=end)||(cut>=at/sr&&cut<=(at+n)/sr);}),t.cuts.end());t.cuts.insert(t.cuts.end(),cuts.begin(),cuts.end());t.cuts.push_back(at/sr);t.cuts.push_back((at+n)/sr);std::sort(t.cuts.begin(),t.cuts.end());}
+}
+void Engine::bounceTracks(unsigned mask,int destination,double start,double end,bool clearSources){
+    mask=mask?mask&15u:1u<<selected;
+    if(!(mask&15u)||destination<0||destination>3||!std::isfinite(start)||!std::isfinite(end)||start>=end)return;
+    // Reuse the bounded control-thread clipboard renderer, preserving the user's clipboard/history.
+    auto saved=std::move(clipboard);const auto savedMask=clipboardMask;const auto savedFrames=clipboardFrames;const double head=position;
+    copyTracks(mask,start,end);if(clipboardMask){snapshot((clearSources?mask:0)|(1u<<destination));position=std::clamp(start,0.,360.)*sr;
+        writeClipboardMix(destination);
+        if(clearSources)for(int i=0;i<4;++i)if(i!=destination&&(mask&(1u<<i))){auto& t=tape[i];const size_t a=std::min(t.left.size(),static_cast<size_t>(std::clamp(start,0.,360.)*sr)),b=std::min(t.left.size(),static_cast<size_t>(std::clamp(end,0.,360.)*sr));std::fill(t.left.begin()+a,t.left.begin()+b,0);std::fill(t.right.begin()+a,t.right.begin()+b,0);t.cuts.erase(std::remove_if(t.cuts.begin(),t.cuts.end(),[&](double c){return c>=start&&c<=end;}),t.cuts.end());}
+    }clipboard=std::move(saved);clipboardMask=savedMask;clipboardFrames=savedFrames;position=head;
+}
+void Engine::setTapeRoll(bool held,float beats){if(held&&!rollHeld){rollBegin=position;rollLength=std::max(1.,sr*60./params.tempo*clamp(beats,.03125f,8.f));}rollHeld=held;}
 void Engine::split(){snapshot();auto& cuts=tape[selected].cuts;cuts.push_back(position/sr);std::sort(cuts.begin(),cuts.end());cuts.erase(std::unique(cuts.begin(),cuts.end()),cuts.end());}
-void Engine::restore(Snapshot&& s){selected=s.track;tape[selected]=std::move(s.audio);position=s.head;isRecording=false;isPlaying=false;}
-void Engine::undo(){if(undos.empty())return;selected=undos.back().track;redos.push_back(capture());auto s=std::move(undos.back());undos.pop_back();restore(std::move(s));trimHistory();}
-void Engine::redo(){if(redos.empty())return;selected=redos.back().track;undos.push_back(capture());auto s=std::move(redos.back());redos.pop_back();restore(std::move(s));trimHistory();}
+void Engine::restore(Snapshot&& s){selected=s.track;for(int i=0;i<4;++i)if(s.mask&(1u<<i))tape[i]=std::move(s.audio[i]);position=s.head;isRecording=false;isPlaying=false;countInRemaining=0;reverseHeld=false;brakeHeld=false;rollHeld=false;}
+void Engine::undo(){if(undos.empty())return;selected=undos.back().track;redos.push_back(capture(undos.back().mask));auto s=std::move(undos.back());undos.pop_back();restore(std::move(s));trimHistory();}
+void Engine::redo(){if(redos.empty())return;selected=redos.back().track;undos.push_back(capture(redos.back().mask));auto s=std::move(redos.back());redos.pop_back();restore(std::move(s));trimHistory();}
 std::vector<float> Engine::waveform(int track,int bins)const{
     std::vector<float> result(static_cast<size_t>(std::max(0,bins)),0);if(track<0||track>=4||bins<=0)return result;
     const auto&t=tape[track];if(t.left.empty())return result;
@@ -797,7 +850,7 @@ std::pair<std::vector<float>,std::vector<float>> Engine::exportMix()const{
 }
 void Engine::restoredTape(){
     for(auto&t:tape){const size_t n=std::min(t.left.size(),maxFrames());t.left.resize(n);t.right.resize(n,0);for(auto&v:t.left)v=clamp(v,-4,4);for(auto&v:t.right)v=clamp(v,-4,4);t.level=clamp(t.level,0,2);t.pan=clamp(t.pan,-1,1);}
-    undos.clear();redos.clear();isPlaying=false;isRecording=false;position=std::clamp(position,0.0,static_cast<double>(maxFrames()-1));
+    undos.clear();redos.clear();isPlaying=false;isRecording=false;countInRemaining=0;countInElapsed=0;reverseHeld=false;brakeHeld=false;rollHeld=false;position=std::clamp(position,0.0,static_cast<double>(maxFrames()-1));
 }
 void Engine::setSequenceStep(int step,int note,float velocity){if(step>=0&&step<999){steps[step]=std::clamp(note,-1,127);stepVelocity[step]=clamp(velocity);}}
 int Engine::sequenceStep(int step)const{return step>=0&&step<999?steps[step]:-1;}

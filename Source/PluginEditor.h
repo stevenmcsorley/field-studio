@@ -31,6 +31,8 @@ private:
     juce::TextButton inputButton{"INPUT"},tempoButton{"CLICK"},comButton{"COM"},shiftButton{"shift"};
     std::array<juce::Slider,4> macros;
     juce::Slider volume,tempo;
+    std::array<juce::TextButton,3> tapePerformance;
+    juce::TextButton tapeEditButton{"Tape edits"};
     std::array<std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>,4> attachments;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> volumeAttachment,tempoAttachment;
     std::unique_ptr<juce::FileChooser> chooser;
@@ -45,6 +47,7 @@ private:
     std::array<bool,128> held{};
     std::array<bool,128> sequencerHeld{};
     std::array<std::vector<float>,4> waves;
+    std::array<std::vector<double>,4> trackCuts;
     std::array<float,4> levels{{1,1,1,1}},pans{};
     std::array<double,4> trackDurations{};
     std::array<bool,4> mutes{},solos{};
@@ -58,6 +61,7 @@ private:
     field::DrumPad padState;
     field::DBoxPad dboxState;
     bool playing=false,recording=false;
+    double countInRemaining=0;
     double recorded=0,visibleSeconds=16;
     float scale=1;
     juce::String status=juce::String::fromUTF8("Ready · play the keys or connect MIDI");

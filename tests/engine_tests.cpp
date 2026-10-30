@@ -208,5 +208,48 @@ int main(){
         p.volume=2;e.setParameters(p);render(e,l,r,8000);check(std::abs(l.back()-.4f)<1e-4f&&std::abs(r.back()+.2f)<1e-4f,"master offers six decibels of clean gain above unity");
         p.volume=0;e.setParameters(p);render(e,l,r,8000);check(std::abs(l.back())<.0002f,"master still fades to silence");
     }
+
+    {
+        auto owner=std::make_unique<Engine>();auto& e=*owner;e.prepare(8000,64);
+        for(int track=0;track<4;++track){auto& t=e.tracks()[track];t.left.assign(80,float(track+1)*.1f);t.right=t.left;t.cuts={.002,.004,.006};}
+        e.copyTracks(5,.002,.006);check(!e.canUndo(),"copy is nondestructive and does not add history");
+        e.liftTracks(5,.002,.006);check(e.tracks()[0].left[20]==0&&e.tracks()[2].left[20]==0&&e.tracks()[1].left[20]==.2f,"masked lift leaves unselected tracks untouched");
+        e.undo();check(e.tracks()[0].left[20]==.1f&&e.tracks()[2].left[20]==.3f,"one undo restores entire masked edit");e.redo();check(e.tracks()[0].left[20]==0&&e.tracks()[2].left[20]==0,"one redo reapplies entire masked edit");
+        e.seek(.008);e.dropTracks(1);check(e.tracks()[1].left[65]==.1f&&e.tracks()[3].left[65]==.3f,"drop preserves relative masked track spacing");e.undo();check(e.tracks()[1].left.size()==80&&e.tracks()[3].left.size()==80,"masked drop undoes atomically including lengths");
+        e.joinTracks(10,0,.01);check(e.tracks()[1].cuts.empty()&&e.tracks()[3].cuts.empty(),"join removes interior cuts on selected tracks");e.undo();check(e.tracks()[1].cuts.size()==3&&e.tracks()[3].cuts.size()==3,"join history restores all markers");
+        e.selectTrack(1);e.copyTracks(0,0,.002);e.selectTrack(2);e.seek(.008);e.drop();check(e.tracks()[2].left[65]==.2f,"mask zero follows selected and legacy drop relocates single track");
+    }
+    {
+        auto owner=std::make_unique<Engine>();auto& e=*owner;e.prepare(8000,64);auto& t=e.tracks()[0];for(int i=0;i<80;++i)t.left.push_back(float(i));t.right=t.left;t.cuts={.002,.004};
+        e.slideTracks(1,.002,.006,.002);check(t.left[16]==0&&t.left[31]==0&&t.left[32]==16&&t.left[63]==47&&t.left[64]==64,"overlapping slide preserves source snapshot and nonripple neighbours");
+        e.undo();check(e.tracks()[0].left[16]==16&&e.tracks()[0].left[63]==63,"slide undo restores overwritten destination");
+        e.slideTracks(1,.002,.006,-.002);check(e.tracks()[0].left[0]==16&&e.tracks()[0].left[31]==47&&e.tracks()[0].left[32]==0,"slide left is overlap safe");
+    }
+    {
+        auto owner=std::make_unique<Engine>();auto& e=*owner;e.prepare(8000,64);
+        for(int i=0;i<3;++i){e.tracks()[i].left.assign(80,.2f);e.tracks()[i].right.assign(80,.4f);}e.setTrackLevel(0,.5f);e.setTrackPan(0,1);e.setTrackMute(2,true);
+        e.copyTracks(7,0,.01);e.seek(.02);e.mergeClipboard(3);check(std::abs(e.tracks()[3].left[170]-.2f)<1e-6&&std::abs(e.tracks()[3].right[170]-.6f)<1e-6,"merge clipboard applies source mixer levels pan and mute");e.undo();check(e.tracks()[3].left.empty(),"merge is one undo operation");
+        e.bounceTracks(7,1,0,.01,true);check(e.tracks()[0].left[20]==0&&e.tracks()[2].left[20]==0&&std::abs(e.tracks()[1].right[20]-.6f)<1e-6,"bounce captures overlapping destination before clearing sources");e.undo();check(e.tracks()[0].left[20]==.2f&&e.tracks()[1].right[20]==.4f&&e.tracks()[2].left[20]==.2f,"bounce and cleared sources restore atomically");
+        e.seek(.02);e.mergeClipboard(3);check(std::abs(e.tracks()[3].right[170]-.6f)<1e-6,"bounce preserves user's prior clipboard");
+    }
+    {
+        auto owner=std::make_unique<Engine>();auto& e=*owner;e.prepare(8000,64);Parameters p;p.tempo=120;p.volume=1;p.monitorInput=true;e.setParameters(p);e.setOutputGainImmediately(1);e.seek(.1);e.setCountInBeats(2);e.setRecording(true);
+        render(e,l,r,4000);check(e.recording()&&std::abs(e.countInRemainingBeats()-1)<1e-8&&std::abs(e.positionSeconds()-.1)<1e-8&&e.tracks()[0].left.empty(),"count-in arms record without advancing or writing tape");check(energy(l)>.00001,"count-in clicks audible when metronome disabled");
+        e.setCountInBeats(2);render(e,l,r,4000);check(e.countInRemainingBeats()==0&&e.tracks()[0].left.empty(),"count-in is sample accurate and setting updates do not restart it");
+        l.assign(80,.2f);r.assign(80,-.1f);const auto allocationCount=watchedAllocations.load();watchAllocations=true;e.process(l.data(),r.data(),l.data(),r.data(),80);watchAllocations=false;check(watchedAllocations.load()==allocationCount,"record transition performs no callback allocations");check(e.tracks()[0].left.size()==880&&std::abs(e.tracks()[0].left[800]-.2f)<1e-6,"recording begins at frozen head after countdown");
+        e.setPlaying(false);e.setRecording(true);render(e,l,r,100);e.setPlaying(false);check(e.countInRemainingBeats()==0&&!e.recording(),"stop cancels armed count-in");
+    }
+    {
+        auto owner=std::make_unique<Engine>();auto& e=*owner;e.prepare(8000,64);Parameters p;p.tempo=120;p.volume=1;e.setParameters(p);e.setOutputGainImmediately(1);e.tracks()[0].left.assign(16000,.2f);e.tracks()[0].right.assign(16000,.2f);e.seek(.5);e.setPlaying(true);
+        e.setTapeBrake(true);render(e,l,r,400);check(e.positionSeconds()==.5&&energy(l)==0,"momentary break freezes and silences tape");e.setTapeBrake(false);e.setTapeReverse(true);render(e,l,r,400);check(std::abs(e.positionSeconds()-.45)<1e-8,"momentary reverse changes tape direction");e.setTapeReverse(false);
+        e.setTapeRoll(true,.25f);render(e,l,r,2500);check(e.positionSeconds()>=.45&&e.positionSeconds()<.575,"tempo roll repeats bounded window from press point");e.setTapeRoll(false);const double before=e.positionSeconds();render(e,l,r,400);check(std::abs(e.positionSeconds()-before-.05)<1e-8,"roll release resumes continuous tape advance");e.setTapeBrake(true);e.setPlaying(false);e.setPlaying(true);render(e,l,r,80);check(e.positionSeconds()>before+.05,"stop clears momentary tape tricks");
+    }
+
+    {
+        auto owner=std::make_unique<Engine>();auto& e=*owner;e.prepare(8000,64);Parameters p;p.volume=1;p.monitorInput=true;p.tapeRecordLevel=2;p.tapeRecordPan=.5f;e.setParameters(p);e.setOutputGainImmediately(1);e.setRecording(true);
+        l.assign(80,.2f);r.assign(80,.1f);e.process(l.data(),r.data(),l.data(),r.data(),80);e.setPlaying(false);check(std::abs(e.tracks()[0].left[0]-.2f)<1e-6&&std::abs(e.tracks()[0].right[0]-.2f)<1e-6,"record level and pan affect captured stereo only");check(std::abs(l[0]-.2f)<1e-6&&std::abs(r[0]-.1f)<1e-6,"record balance does not alter monitored source");
+        const auto original=e.tracks()[0].left;e.liftTracks(0,std::numeric_limits<double>::quiet_NaN(),1);e.slideTracks(0,0,1,std::numeric_limits<double>::infinity());check(e.tracks()[0].left==original,"malformed edit bounds leave tape intact");
+        e.setCountInBeats(2);e.setRecording(true);e.setTapeBrake(true);e.prepare(8000,64);check(!e.recording()&&e.countInRemainingBeats()==0,"prepare clears armed recording state");e.setRecording(true);e.restoredTape();check(!e.recording()&&e.countInRemainingBeats()==0,"tape restore clears armed recording state");
+    }
     std::cout<<"PASS: tuning, release, recording, stereo, overdub, undo/redo, lift/drop, splice, resampling, forward/reverse loops, export, mute/solo, sampler slices, engines/effects, sequencer\n";
 }

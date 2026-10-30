@@ -1,4 +1,5 @@
 #pragma once
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <deque>
@@ -34,6 +35,7 @@ struct Parameters {
     bool seqHold=false;
     int tapeStyle = 0;
     float tapeSpeed = 1;
+    float tapeRecordLevel = 1, tapeRecordPan = 0;
     bool loop = false;
     bool drumMode = false;
     bool monitorInput = false;
@@ -115,6 +117,20 @@ public:
     void clearTrack();
     void lift(double startSeconds, double endSeconds);
     void drop();
+    void copyTracks(unsigned mask, double start, double end);
+    void liftTracks(unsigned mask, double start, double end);
+    void dropTracks(int destinationFirstTrack = -1);
+    void mergeClipboard(int destinationTrack = -1);
+    void joinTracks(unsigned mask, double start, double end);
+    void slideTracks(unsigned mask, double start, double end, double deltaSeconds);
+    void bounceTracks(unsigned mask, int destination, double start, double end, bool clearSources = false);
+    void setCountInBeats(int beats) { countInSetting = std::clamp(beats,0,8); }
+    int countInBeats() const { return countInSetting; }
+    double countInRemainingBeats() const { return countInRemaining; }
+    void setTapeReverse(bool held) { reverseHeld=held; }
+    void setTapeBrake(bool held) { brakeHeld=held; }
+    void setTapeRoll(bool held, float beats = .25f);
+
     void split();
     void undo();
     void redo();
@@ -188,7 +204,7 @@ private:
         int stringLength = 2, stringPos = 0;
         std::array<float, 12> vocL1{}, vocL2{}, vocR1{}, vocR2{};
     };
-    struct Snapshot { int track = 0; Track audio; double head = 0; };
+    struct Snapshot { int track = 0; unsigned mask = 0; std::array<Track,4> audio; double head = 0; };
     struct VocoderBand { float b0=0,b2=0,a1=0,a2=0,z1=0,z2=0,envelope=0; };
     std::array<VocoderBand,12> vocoder;
     Parameters params;
@@ -234,15 +250,22 @@ private:
     struct NoteGate { int note=-1;double remaining=0; };
     std::array<NoteGate,64> noteGates;
     bool sequenceGateOpen=true;
-    std::vector<float> clipboardL, clipboardR;
-    std::vector<double> clipboardCuts;
+    std::array<Track,4> clipboard;
+    unsigned clipboardMask = 0;
+    size_t clipboardFrames = 0;
+    int countInSetting = 0;
+    double countInRemaining = 0, countInElapsed = 0;
+    bool reverseHeld = false, brakeHeld = false, rollHeld = false;
+    double rollBegin = 0, rollLength = 1;
+
     std::deque<Snapshot> undos, redos;
     void trigger(int note, float velocity);
     void triggerVoice(int note,float velocity,float detune=0);
     void releaseNote(int note);
-    void snapshot();
+    void writeClipboardMix(int destination);
+    void snapshot(unsigned mask = 0);
     void trimHistory();
-    Snapshot capture() const;
+    Snapshot capture(unsigned mask = 0) const;
     void restore(Snapshot&&);
     void tickSequence();
     void tickTombola();

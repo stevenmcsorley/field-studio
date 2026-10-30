@@ -46,3 +46,7 @@ The four Release CTests pass after adding supported preset-marker mapping and me
 ### Sample/output gain correction (2026-10-30)
 
 Removed the fixed 0.19 melodic / 0.42 drum voice attenuation for the sampler only. Synth/DBox calibration remains unchanged. Master range is now 0–2 (unity at 1, +6.02 dB at 2); saved physical volume values retain their meaning. Previously saved sample projects will play louder because of the corrected source gain. Stereo constant-sample regression tests check unity amplitude, clean 2x output gain and fade to silence. Existing ADSR amplitude assertions were updated to unity sample gain while preserving the original timing checks. No peak normalization modifies imported audio.
+
+### Tape phase (2026-10-30)
+
+All five local CTest suites pass after the tape extension. Core tests cover grouped masked edits/history, overlapping slides, mixer-aware merge/bounce, count-in timing/clicks, control cancellation and recording level/pan; callback allocation checks remain enabled. Wrapper tests check group-copy/lift/drop destinations, atomic undo, beat/eighth/bar grids, countdown hold/cancel and project persistence of record/edit settings. The native tape screenshot was regenerated and visually checked. Hardware timing/gesture/curve matching and drop-free live edits remain unverified.
