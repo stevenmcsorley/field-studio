@@ -1,0 +1,21 @@
+build*/
+vendor/
+*.field
+*.wav
+*.aif
+.DS_Store
+
+dist/
+build-output.log
+
+# Local media, credentials and editor caches
+*.aiff
+*.aifc
+*.flac
+*.ogg
+.env
+.env.*
+*.pem
+*.key
+__pycache__/
+.vscode/

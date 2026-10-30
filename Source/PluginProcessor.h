@@ -1,0 +1,111 @@
+#pragma once
+#include <juce_audio_utils/juce_audio_utils.h>
+#include "Engine.h"
+
+class FieldProcessor final : public juce::AudioProcessor, private juce::Timer {
+public:
+    FieldProcessor();
+    ~FieldProcessor() override { stopTimer(); }
+    void prepareToPlay(double, int) override;
+    void releaseResources() override {}
+    bool isBusesLayoutSupported(const BusesLayout&) const override;
+    void processBlock(juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
+    juce::AudioProcessorEditor* createEditor() override;
+    bool hasEditor() const override { return true; }
+    const juce::String getName() const override { return "Field Studio"; }
+    bool acceptsMidi() const override { return true; }
+    bool producesMidi() const override { return false; }
+    double getTailLengthSeconds() const override { return 4; }
+    int getNumPrograms() override { return 16; }
+    int getCurrentProgram() override { return currentProgram+(drumMode?8:0); }
+    void setCurrentProgram(int) override;
+    const juce::String getProgramName(int) override;
+    void changeProgramName(int,const juce::String&) override {}
+    void getStateInformation(juce::MemoryBlock&) override;
+    void setStateInformation(const void*,int) override;
+    juce::AudioProcessorValueTreeState parameters;
+    juce::MidiKeyboardState keyboard;
+    field::Engine engine;
+    void startSampleCapture(bool fromOutput=false);
+    void stopSampleCapture();
+    void startAlbumRecording(int);
+    bool playAlbum(int);
+    void stopAlbum();
+    void clearAlbum(int);
+    double albumDuration(int) const;
+    bool exportAlbum(int,const juce::File&,juce::String&);
+    std::atomic<int> albumRecording{-1},albumPlaying{-1};
+    std::atomic<bool> sampling{false};
+    juce::var importedPresetMetadata;
+    juce::CriticalSection engineLock;
+    static const juce::StringArray engineNames, effectNames, sequencerNames, lfoNames, lfoTargetNames;
+    float value(const juce::String&) const;
+    void setValue(const juce::String&,float);
+    field::Parameters currentParameters() const;
+    void updateEngine();
+    bool loadSampleFile(const juce::File&, juce::String& error);
+    bool exportAudio(const juce::File&, juce::String& error);
+    bool saveProject(const juce::File&, juce::String& error);
+    bool loadProject(const juce::File&, juce::String& error);
+    void transport(const juce::String& action);
+    void setTrack(int);
+    void selectTape(int);
+    int tapeNumber() const { return currentTape; }
+    void newProject();
+    void savePatchSlot(int);
+    void recallPatchSlot(int);
+    void storeMemo(int);
+    void recallMemo(int);
+    juce::String lastImportSummary,lastImportDetails;
+    juce::String sampleName = "No sample loaded";
+    juce::String projectName = "Untitled";
+    std::atomic<float> outputPeak{0},effectiveTempo{110};
+    std::atomic<int> skippedBlocks{0};
+    std::atomic<double> playhead{0};
+    std::atomic<bool> hostSync{false};
+    std::atomic<bool> metronome{false};
+    std::atomic<bool> inputMonitor{false};
+    std::atomic<bool> drumMode{false};
+    double selectionStart=0, selectionEnd=4;
+    int octave=0;
+private:
+    enum ParamKey {P_engine,P_macro1,P_macro2,P_macro3,P_macro4,P_attack,P_decay,P_sustain,P_release,P_sampleStart,P_sampleLoopIn,P_sampleLoopOut,P_sampleEnd,P_sampleLoop,P_sampleReverse,P_sampleOneShot,P_fx1,P_fx2,P_fx3,P_fx4,P_seq1,P_seq2,P_seq3,P_seq4,P_lfoTarget,P_effect,P_effectMix,P_masterLow,P_masterMid,P_masterHigh,P_masterDrive,P_compressor,P_masterEffect,P_masterMix,P_volume,P_tempo,P_lfo,P_lfoRate,P_lfoDepth,P_sequencer,P_sequenceOn,P_tapeStyle,P_tapeSpeed,P_loop,P_masterFx1,P_masterFx2,P_masterFx3,P_masterFx4,P_seqSwing,P_seqGate,P_seqHold,P_sampleRootNote,P_voiceMode,P_glideTime,P_bendRange,P_patchGain,P_lfoWaveform,P_lfoRetrigger,P_lfoSync,P_lfoDivision,P_elementSource,P_elementManual,P_envelopeCurve,P_midiTarget1,P_midiTarget2,P_midiTarget3,P_midiTarget4,P_midiDepth1,P_midiDepth2,P_midiDepth3,P_midiDepth4,P_count};
+    std::array<std::atomic<float>*,P_count> rawValues{};
+    std::array<juce::RangedAudioParameter*,P_count> rawTargets{};
+    float cached(int key) const { return rawValues[(size_t)key]->load(); }
+    void setNormalized(int key,float v){rawTargets[(size_t)key]->setValueNotifyingHost(v);}
+    void setPhysical(int key,float v){auto* p=rawTargets[(size_t)key];p->setValueNotifyingHost(p->convertTo0to1(v));}
+    static juce::AudioProcessorValueTreeState::ParameterLayout makeLayout();
+    void timerCallback() override;
+    void resetSampleParameters();
+    std::atomic<int> pendingProgram{-1};
+    int currentProgram=0,currentTape=0;
+    std::array<juce::ValueTree,16> patchSlots;
+    std::array<juce::ValueTree,2> memos;
+    juce::AudioFormatManager formats;
+    std::vector<float> sampleLeft,sampleRight;
+    double sampleRateFile=44100;
+    struct AlbumSide { std::vector<float> left,right; double rate=44100; };
+    std::array<AlbumSide,2> albums;
+    double albumHead=0;
+    size_t albumLimit=0;
+    size_t captureLimit=0;
+    bool captureFromOutput=false;
+    struct TapeState { std::array<field::Track,4> tracks; double position=0; };
+    std::array<TapeState,8> tapes;
+    juce::AudioBuffer<float> inputCopy;
+    struct MasterState { float low[2]{}, upper[2]{}, envelope=0; };
+    MasterState masterState;
+    field::Engine masterFx;
+    void processMaster(float*,float*,int,double,MasterState&,field::Engine&);
+    double clickPhase=0;
+    bool previousHostPlaying=false,hostPositionValid=false;
+    double previousHostSeconds=0;
+    int previousHostFrames=0;
+    bool sustainPedal=false;
+    std::array<bool,128> keysDown{},sustained{};
+    void midiController(int channel,int cc,int amount);
+    juce::ValueTree makeState();
+    void restoreState(const juce::ValueTree&);
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(FieldProcessor)
+};

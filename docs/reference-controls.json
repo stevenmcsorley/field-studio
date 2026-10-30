@@ -1,0 +1,179 @@
+{
+  "source": "https://assets.teenage.engineering/_img/69f248938d433104c4dd1846_original.pdf",
+  "basis": "Guide pp12\u201322; labels paraphrased where useful. Parameter ranges and DSP remain unverified.",
+  "order": "Matches proposed Field Studio engine enumeration, not an asserted hardware browser ordering.",
+  "engines": [
+    {
+      "index": 0,
+      "name": "Voltage",
+      "macros": [
+        "Modulation",
+        "Ground noise",
+        "Phase filter",
+        "Detune"
+      ]
+    },
+    {
+      "index": 1,
+      "name": "FM",
+      "macros": [
+        "FM amount",
+        "Frequency",
+        "Topology",
+        "Detune"
+      ]
+    },
+    {
+      "index": 2,
+      "name": "Cluster",
+      "macros": [
+        "Wave count",
+        "Wave envelope",
+        "Spread",
+        "Unitor"
+      ]
+    },
+    {
+      "index": 3,
+      "name": "Digital",
+      "macros": [
+        "Waveshaper",
+        "Octave",
+        "Detune / ring mod",
+        "Digitalness"
+      ]
+    },
+    {
+      "index": 4,
+      "name": "Dr Wave",
+      "macros": [
+        "Wave type / length",
+        "Filter",
+        "Phase",
+        "Chorus"
+      ]
+    },
+    {
+      "index": 5,
+      "name": "Dimension",
+      "macros": [
+        "Waveform",
+        "Modulation",
+        "Cutoff",
+        "Resonance"
+      ]
+    },
+    {
+      "index": 6,
+      "name": "String",
+      "macros": [
+        "Tension",
+        "Decay",
+        "Detune",
+        "Impulse"
+      ]
+    },
+    {
+      "index": 7,
+      "name": "Pulse",
+      "macros": [
+        "Filter",
+        "Amplitude",
+        "Second pulse",
+        "Modulation"
+      ]
+    },
+    {
+      "index": 8,
+      "name": "Phase",
+      "macros": [
+        "Phase shift",
+        "Distortion",
+        "Phase filter",
+        "Phase tilt"
+      ]
+    },
+    {
+      "index": 9,
+      "name": "DNA",
+      "macros": [
+        "Filter",
+        "Wave count",
+        "Wave modifier",
+        "Noise"
+      ]
+    },
+    {
+      "index": 10,
+      "name": "DSynth",
+      "macros": [
+        "Frequency",
+        "Waveform",
+        "Envelope",
+        "Cross modulation"
+      ]
+    },
+    {
+      "index": 11,
+      "name": "Sampler",
+      "macros": [
+        "Start",
+        "Loop in",
+        "Loop out",
+        "End"
+      ]
+    },
+    {
+      "index": 12,
+      "name": "Vocoder",
+      "macros": [
+        "Waveform",
+        "Formant",
+        "Bands",
+        "Mix"
+      ]
+    },
+    {
+      "index": 13,
+      "name": "Amp",
+      "macros": [
+        "Volume",
+        "Compression",
+        "Tone",
+        "Overdrive"
+      ]
+    }
+  ],
+  "keyboard": {
+    "white_pitch_classes": [
+      "F",
+      "G",
+      "A",
+      "B",
+      "C",
+      "D",
+      "E",
+      "F",
+      "G",
+      "A",
+      "B",
+      "C",
+      "D",
+      "E"
+    ],
+    "black_after_white_indices": [
+      0,
+      1,
+      2,
+      4,
+      5,
+      7,
+      8,
+      9,
+      11,
+      12
+    ],
+    "total": 24,
+    "absolute_octave": "unverified; choose a disclosed software default"
+  }
+}

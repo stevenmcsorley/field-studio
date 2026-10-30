@@ -1,0 +1,11 @@
+# Native VST3 smoke host
+
+`tests/vst3_host.cpp` is a small Linux test host using the bundled Steinberg VST3 SDK interfaces and `dlopen`. It does not link the JUCE framework, instantiate the processor directly, or manually call an untyped vtable. Interface declarations and platform IID byte constants come from the same bundled SDK used by the plug-in.
+
+It checks module entry/exit, factory2 class enumeration and Instrument classification, IComponent creation and IAudioProcessor discovery, initialize/setup/activate/process/deactivate/terminate/release, stereo float32 at 44100 Hz with 256-sample blocks, a note-on timestamped at sample128, finite written output, silence before that timestamp, nonzero sound afterward, and note-off decay to silence. It runs separate fresh instances with optional tape-output buses disabled and enabled; enabled empty-tape stems must be finite, fully written and silent while the live synth sounds only on main. Input buffers are silent and output buffers start with NaN sentinels, so missing writes fail. A minimal IHostApplication and IEventList implement host callbacks.
+
+Usage: `field_vst3_host "/absolute/path/to/Field Studio.vst3/Contents/x86_64-linux/Field Studio.so"`. The argument is the actual shared object, not the enclosing bundle directory. Only the Linux module lifecycle ABI is implemented here. Build from the project CMake target or compile with C++17, the bundled `VST3_SDK` include path and `-ldl`.
+
+Passing this test establishes a basic real VST3 module lifecycle/audio path in this smoke host. It does **not** establish editor embedding, automation/state interoperability, all bus/sample-rate arrangements, compatibility with commercial DAWs, Windows/macOS plug-in loading, or feature/visual/sonic parity with hardware. Those remain separate test gates.
+
+Validation on 2026-10-30: compiled the host directly with the pinned bundled SDK and tested the built Linux `Field Studio.so`. Both main+four-disabled-stem and main+four-enabled-stem layouts passed. The note-on block peaked at 0.0137478, its first 128 samples were silent, note-off settled to 0, and module teardown succeeded. This verifies empty-stem isolation; recording and populated tape-stem correctness require separate integration tests.
