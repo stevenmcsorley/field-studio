@@ -109,4 +109,14 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ github.ref_name }}
-        run: gh release create "$RELEASE_TAG" release-downloads/*.zip release-downloads/*.sha256 --verify-tag --prerelease --title "Field Studio $RELEASE_TAG" --notes-file docs/RELEASE_NOTES.md
+        run: |
+          if gh release view "$RELEASE_TAG" --json isDraft --jq '.isDraft' > /tmp/field-release-draft.txt; then
+            if [ "$(cat /tmp/field-release-draft.txt)" != "true" ]; then
+              echo "Refusing to overwrite an already published release."
+              exit 1
+            fi
+            gh release upload "$RELEASE_TAG" release-downloads/*.zip release-downloads/*.sha256 --clobber
+            gh release edit "$RELEASE_TAG" --draft=false --prerelease --title "Field Studio $RELEASE_TAG" --notes-file docs/RELEASE_NOTES.md
+          else
+            gh release create "$RELEASE_TAG" release-downloads/*.zip release-downloads/*.sha256 --verify-tag --prerelease --title "Field Studio $RELEASE_TAG" --notes-file docs/RELEASE_NOTES.md
+          fi
