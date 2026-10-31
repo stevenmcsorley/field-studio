@@ -20,6 +20,8 @@ public:
     float interpolate(int channel,double frame) const noexcept;
     // Control-only. Ensures enough spare resources for a complete COW pass.
     void prepareWrite(size_t frames);
+    TapeAudio preparedCopy(size_t frames) const; // independent pool; safe against a pinned live generation
+    bool sameGeneration(const TapeAudio& other) const noexcept {return pool==other.pool&&data.rootIdentity()==other.data.rootIdentity()&&size()==other.size();}
     void resize(size_t frames);
     void clear() noexcept { data.clear(); }
     void assign(size_t frames,float left,float right);
@@ -30,6 +32,7 @@ public:
     void write(size_t frame,float left,float right);
     // Audio-only: bounded, no allocation/free/locks. False leaves stereo intact.
     bool tryWrite(size_t frame,float left,float right) noexcept { return data.writeStereo(frame,left,right); }
+    std::shared_ptr<tape::TapePool> poolHandle() const noexcept {return pool;}
     size_t collect(size_t budget=256) noexcept { return pool?pool->collect(budget):0; }
     uint64_t rootIdentity() const noexcept { return data.rootIdentity(); }
     tape::TapePool::Stats stats() const noexcept { return pool?pool->stats():tape::TapePool::Stats{}; }

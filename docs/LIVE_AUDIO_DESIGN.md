@@ -2,7 +2,12 @@
 
 Status: original audit 2026-10-30; foundations and live paged tape/album/capture storage integrated 2026-10-31. See AUDIO_REWRITE_PROGRESS.md. The control/command ownership migration and dropout-free acceptance remain unfinished. The sections below retain the original audit context where noted; they are architectural requirements, not a completion claim.
 
-## Current failure and ownership
+## Current implementation update
+
+Large allocation, DSP/media preparation, tape editing, serialization, reclamation and preview generation have moved outside the live lock in the 0.2.1 beta. See AUDIO_REWRITE_PROGRESS.md and KNOWN_ISSUES.md for current code and evidence. The callback still takes the short commit/UI lock and can clear a contended block. Preparation APIs remain synchronous control calls. The audit and redesign below describe the original failure mechanisms and the unfinished final ownership target; historical vector/locked-preparation descriptions are not current implementation claims.
+
+## Original failure and ownership audit
+
 
 `FieldProcessor::processBlock` uses `ScopedTryLock(engineLock)` and clears the output when acquisition fails, incrementing `skippedBlocks`. That prevents a blocking wait, but converts any long control operation into audio loss. `makeState` now pins tape, album and capture generations under the lock and flattens those payloads after unlocking. Imported sample packing and metadata work remain locked. `exportAudio` pins track/mixer state and renders the mix outside the lock. Compression alone was insufficient. `restoreState` parses much of its input before locking, but resampling banks, preparing engine and copying sample data still happen after locking.
 

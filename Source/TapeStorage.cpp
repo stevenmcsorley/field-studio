@@ -5,9 +5,12 @@
 #include <cmath>
 #include <cstring>
 #include <stdexcept>
+#include <mutex>
 
 namespace field::tape {
 namespace {
+std::atomic<size_t> reservedTapeBytes{0},tapeByteLimit{size_t{2}*1024*1024*1024};
+std::mutex tapeBudgetMutex;
 using Token=uint64_t;
 constexpr uint32_t fanout=64;
 static_assert(std::atomic<uint64_t>::is_always_lock_free,"Tape storage requires lock-free64bit atomics");
@@ -56,7 +59,27 @@ size_t checkedCapacity(size_t value){if(value>1000000)throw std::invalid_argumen
 unsigned firstBit(uint64_t bits) noexcept{unsigned result=0;while((bits&1)==0){bits>>=1;++result;}return result;}
 }
 
+struct TapePool::Reservation {
+    size_t bytes;
+    explicit Reservation(size_t count):bytes(count){
+        std::lock_guard<std::mutex> lock(tapeBudgetMutex);
+        const auto used=reservedTapeBytes.load(std::memory_order_relaxed),limit=tapeByteLimit.load(std::memory_order_relaxed);
+        if(count>limit||used>limit-count)throw std::runtime_error("Tape memory budget exceeded. Clear unused tapes/undo history, or increase COM > Tape memory budget.");
+        reservedTapeBytes.fetch_add(count,std::memory_order_relaxed);
+    }
+    ~Reservation(){reservedTapeBytes.fetch_sub(bytes,std::memory_order_relaxed);}
+};
+size_t TapePool::memoryUsed() noexcept {return reservedTapeBytes.load(std::memory_order_relaxed);}
+size_t TapePool::memoryLimit() noexcept {return tapeByteLimit.load(std::memory_order_relaxed);}
+bool TapePool::setMemoryLimit(size_t bytes){std::lock_guard<std::mutex> lock(tapeBudgetMutex);if(bytes<reservedTapeBytes.load(std::memory_order_relaxed))return false;tapeByteLimit.store(bytes,std::memory_order_relaxed);return true;}
+size_t TapePool::estimateBytes(size_t pages,size_t nodes){
+    checkedCapacity(pages);checkedCapacity(nodes);
+    const uint64_t bytes=uint64_t(pages)*sizeof(Page)+uint64_t(nodes)*sizeof(Node)+((uint64_t(pages)+63)/64+(uint64_t(nodes)+63)/64)*sizeof(std::atomic<uint64_t>)+(uint64_t(pages)+nodes+2)*sizeof(uint32_t)+1024;
+    if(bytes>std::numeric_limits<size_t>::max())throw std::length_error("Tape pool size overflow");return static_cast<size_t>(bytes);
+}
+
 struct TapePool::Impl {
+    std::mutex collectorMutex;
     const size_t pageCount,nodeCount,pageWords,nodeWords;
     std::unique_ptr<Page[]> pages;
     std::unique_ptr<Node[]> nodes;
@@ -184,9 +207,9 @@ struct TapePool::Impl {
     }
 };
 
-TapePool::TapePool(size_t pages,size_t nodes):impl(std::make_unique<Impl>(pages,nodes)){}
+TapePool::TapePool(size_t pages,size_t nodes):reservation(std::make_unique<Reservation>(estimateBytes(pages,nodes))),impl(std::make_unique<Impl>(pages,nodes)){}
 TapePool::~TapePool(){impl->collect(std::numeric_limits<size_t>::max());assert(impl->pageUse.load()==0&&impl->nodeUse.load()==0&&"TapePool must outlive its buffers");}
-size_t TapePool::collect(size_t budget)noexcept{return impl->collect(budget);}
+size_t TapePool::collect(size_t budget)noexcept{std::lock_guard<std::mutex> lock(impl->collectorMutex);return impl->collect(budget);}
 TapePool::Stats TapePool::stats()const noexcept{
     Stats s;s.pageCapacity=impl->pageCount;s.nodeCapacity=impl->nodeCount;s.freePages=impl->freePages.available();s.freeNodes=impl->freeNodes.available();s.pagesInUse=impl->pageUse.load(std::memory_order_relaxed);s.nodesInUse=impl->nodeUse.load(std::memory_order_relaxed);s.retiredPages=impl->pageRetired.load(std::memory_order_relaxed);s.retiredNodes=impl->nodeRetired.load(std::memory_order_relaxed);
     s.allocatedBytes=sizeof(Impl)+s.pageCapacity*sizeof(Page)+s.nodeCapacity*sizeof(Node)+(s.pageCapacity+s.nodeCapacity+2)*sizeof(uint32_t)+(impl->pageWords+impl->nodeWords)*sizeof(std::atomic<uint64_t>);return s;

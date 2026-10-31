@@ -1,6 +1,6 @@
-# Field Studio 0.2.0 beta 1
+# Field Studio 0.2.1 beta 1
 
-First portable multi-platform beta of the independent synthesizer, sampler and four-track stereo tape instrument. Exact OP-1 field sound, feature and visual parity is not established.
+Reliability update to the portable multi-platform beta of the independent synthesizer, sampler and four-track stereo tape instrument. Exact OP-1 field sound, feature and visual parity is not established.
 
 ## Licensing
 
@@ -15,17 +15,21 @@ Original Field Studio code/graphics: **MIT**. Combined app/plugin binaries with 
 
 Each download has a SHA-256 sidecar. Binary bundles include installation instructions, dependency notices and a per-file hash manifest. These are portable archives, not signed installers. Windows binaries are unsigned; macOS binaries are not Developer ID signed/notarized. Commercial DAWs, physical audio devices and MIDI controllers still need hands-on validation.
 
-## New in this beta
+## Fixed in this beta
 
-- MIDI learn for parameters, mixer, selected drum pad and basic tape transport. Absolute pickup/jump, three relative encodings, reverse direction, project/host-state persistence and reusable controller profiles. See docs/CONTROLLERS.md for Faderfox/BeatStep setup.
-- Paged live tape, undo history, all eight banks, albums and sample capture. Sparse recording writes bounded pages rather than filling a long vector gap. Tape/capture save flattening and mix rendering run outside the engine lock.
-- Immutable sample lifetimes, deferred parameter notifications, ordered keyboard panic and recovered MIDI releases.
+- Large record/capture/album reserve allocation and prefaulting happen outside the live lock.
+- Tape edits use independent prepared state and reject stale sources. Old history and media are reclaimed after unlocking.
+- Project/new-project DSP preparation and resampling, sample/patch preparation, imported-sample serialization and UI waveform calculations move out of the live lock.
+- Tape pools have a shared 2 GiB default reservation cap, with COM controls and recoverable admission failures. Save/export work is serialized per processor to reduce overlapping buffers.
+- Stop and newer-project operations invalidate suspended preparations. Five allocation-pause test paths verify pilot audio continues during heavy preparation.
 
 ## Known limitations
 
-The shared engine lock still exists. Heavy edits, record preparation, imported sample serialization and project loads can produce silent skipped blocks. A global pool memory budget, prepared edit jobs and final command/telemetry ownership migration are unfinished. Pool exhaustion stops recording while preserving playback and recorded material. This is not a seamless live-performance release.
+The short commit/UI lock still exists: a contended callback can still produce silence. The final command/telemetry migration, asynchronous UI job coordination, total working-memory admission and real device/DAW deadline checks remain unfinished. This is not a seamless live-performance release. Synchronous preparation can still stall the UI thread if initiated there.
 
-The app reserves and prefaults significant RAM before recording, especially at high sample rates. Avoid maximum-size sessions until the memory admission policy is complete. Back up `.field` projects before testing. Hardware sound/interaction equivalence, long-session performance, real-device/DAW compatibility, signed installers and notarization are not established by CI.
+The pool cap covers paged tape storage, not all process RAM; separate formats/processes may have separate caps. Retained history/saves count against their pool reservations. Clear unused media and discard history to release them. Back up projects before testing. See docs/KNOWN_ISSUES.md for the precise scope.
+
+Downloads remain unsigned/not notarized: no signing certificates are available. Physical Faderfox/BeatStep, audio-device/commercial-DAW compatibility and exact hardware equivalence remain unverified. MIDI learn, reusable profiles and guide-based screen improvements from 0.2.0 are retained.
 
 ## Verification
 

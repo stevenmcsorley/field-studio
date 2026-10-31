@@ -6,6 +6,39 @@
 #include <stdexcept>
 #include <cmath>
 #include <cstring>
+#include <cstdlib>
+#include <new>
+#include <chrono>
+#ifdef _MSC_VER
+#include <malloc.h>
+#endif
+
+namespace {thread_local bool pauseLargeAllocations=false;std::atomic<bool> largeAllocationReached{false},releaseLargeAllocation{false};
+void allocationGate(size_t bytes){if(pauseLargeAllocations&&bytes>=1024*1024){largeAllocationReached.store(true,std::memory_order_release);while(!releaseLargeAllocation.load(std::memory_order_acquire))std::this_thread::yield();}}}
+void* operator new(size_t bytes){allocationGate(bytes);if(auto* p=std::malloc(bytes?bytes:1))return p;throw std::bad_alloc();}
+void* operator new[](size_t bytes){return ::operator new(bytes);}
+void operator delete(void* p) noexcept {std::free(p);}
+void operator delete[](void* p) noexcept {std::free(p);}
+void operator delete(void* p,size_t) noexcept {std::free(p);}
+void operator delete[](void* p,size_t) noexcept {std::free(p);}
+void* operator new(size_t bytes,std::align_val_t alignment){allocationGate(bytes);
+#ifdef _MSC_VER
+ if(auto* p=_aligned_malloc(bytes?bytes:1,(size_t)alignment))return p;
+#else
+ void* p=nullptr;if(posix_memalign(&p,std::max((size_t)alignment,sizeof(void*)),bytes?bytes:1)==0)return p;
+#endif
+ throw std::bad_alloc();}
+void* operator new[](size_t bytes,std::align_val_t alignment){return ::operator new(bytes,alignment);}
+void operator delete(void* p,std::align_val_t) noexcept {
+#ifdef _MSC_VER
+ _aligned_free(p);
+#else
+ std::free(p);
+#endif
+}
+void operator delete[](void* p,std::align_val_t a) noexcept {::operator delete(p,a);}
+void operator delete(void* p,size_t,std::align_val_t a) noexcept {::operator delete(p,a);}
+void operator delete[](void* p,size_t,std::align_val_t a) noexcept {::operator delete(p,a);}
 
 void require(bool b,const char* message){if(!b)throw std::runtime_error(message);}
 double energy(const juce::AudioBuffer<float>& b){double sum=0;for(int c=0;c<b.getNumChannels();++c)for(int i=0;i<b.getNumSamples();++i)sum+=b.getSample(c,i)*b.getSample(c,i);return sum;}
@@ -87,6 +120,14 @@ int main(int argc,char** argv){
     for(int skippedSize:{0,16384}){auto owner=std::make_unique<FieldProcessor>();auto& recovery=*owner;recovery.prepareToPlay(8000,128);recovery.setValue("release",.005f);recovery.setValue("midiThru",1);juce::AudioBuffer<float> audio(2,128);juce::MidiBuffer events;events.addEvent(juce::MidiMessage::noteOn(1,60,.8f),0);audio.clear();recovery.processBlock(audio,events);juce::AudioBuffer<float> skipped(2,skippedSize);events.clear();events.addEvent(juce::MidiMessage::noteOff(1,60),0);recovery.processBlock(skipped,events);recovery.keyboard.noteOn(1,60,.8f);events.clear();audio.clear();recovery.processBlock(audio,events);int releaseIndex=-1,onIndex=-1,index=0;for(const auto event:events){auto message=event.getMessage();if(message.isNoteOff()&&message.getNoteNumber()==60)releaseIndex=index;if(message.isNoteOn()&&message.getNoteNumber()==60)onIndex=index;++index;}require(releaseIndex>=0&&onIndex>releaseIndex,"Recovered note-off did not precede fresh GUI note-on");require(recovery.engine.activeVoiceCount()>0,"Recovered release cut freshly played GUI note");}
     // Learned CCs override legacy destinations, persist and reject malformed profiles atomically.
     {auto owner=std::make_unique<FieldProcessor>();auto& mapped=*owner;mapped.prepareToPlay(8000,128);juce::AudioBuffer<float> audio(2,128);juce::MidiBuffer events;auto cc=[&](int channel,int number,int amount){events.clear();events.addEvent(juce::MidiMessage::controllerEvent(channel,number,amount),0);audio.clear();mapped.processBlock(audio,events);};mapped.setValue("attack",.1f);mapped.beginMidiLearn("macro2",field::EncoderMode::absolute,false);cc(2,50,0);require(mapped.midiLearnTarget().isEmpty(),"Processor did not complete learn");cc(2,50,127);require(mapped.value("macro2")>.99f&&std::abs(mapped.value("attack")-.1f)<.0001f,"Mapped CC did not override legacy ADSR destination");cc(1,50,0);require(mapped.value("macro2")>.99f,"Mapping ignored its learned channel");auto profile=mapped.midiMappingState();auto profileXml=profile.createXml();profile=juce::ValueTree::fromXml(*profileXml);mapped.clearMidiMappings();juce::String mappingError;require(mapped.restoreMidiMappingState(profile,mappingError),"Mapping profile restore failed");auto invalid=profile.createCopy();invalid.getChild(0).setProperty("cc",120,nullptr);require(!mapped.restoreMidiMappingState(invalid,mappingError)&&mapped.midiMappingDescription("macro2").contains("CC 50"),"Malformed profile damaged existing mapping");invalid.getChild(0).setProperty("cc","bad-number",nullptr);require(!mapped.restoreMidiMappingState(invalid,mappingError),"Malformed numeric CC accepted");juce::MemoryBlock saved;mapped.getStateInformation(saved);auto restored=std::make_unique<FieldProcessor>();restored->prepareToPlay(8000,128);restored->setStateInformation(saved.getData(),(int)saved.getSize());require(restored->midiMappingDescription("macro2")==mapped.midiMappingDescription("macro2"),"Host/project state lost mapping");mapped.beginMidiLearn("track1Pan",field::EncoderMode::absolute,false);cc(2,20,0);cc(2,20,127);require(mapped.engine.trackPan(0)==1,"Track mixer is not MIDI learnable");mapped.beginMidiLearn("dboxCutoff",field::EncoderMode::absolute,false);cc(2,21,0);cc(2,21,127);require(mapped.engine.dboxPad(mapped.engine.selectedPad()).cutoff==1,"Selected DBox pad is not MIDI learnable");mapped.beginMidiLearn("engine",field::EncoderMode::twosComplement,false);cc(2,22,1);mapped.setValue("engine",0);for(int i=0;i<10;++i)cc(2,22,1);require(mapped.value("engine")>=1,"Relative encoder increments were lost by choice parameter quantization");mapped.newProject();require(mapped.midiMappingDescription("macro2")=="Unassigned","New project retained old mappings");}
+    // Admission failure must retain existing media and leave monitored audio working.
+    {auto owner=std::make_unique<FieldProcessor>();auto& live=*owner;live.prepareToPlay(8000,128);require(live.loadSampleFile(fixture,error),"Budget fixture import failed");const auto oldSize=live.engine.sampleLeft().size();const auto cap=field::tape::TapePool::memoryLimit();require(field::tape::TapePool::setMemoryLimit(field::tape::TapePool::memoryUsed()),"Could not set bounded admission test cap");live.startSampleCapture();require(!live.sampling&&live.engine.sampleLeft().size()==oldSize&&live.takeOperationError().isNotEmpty(),"Failed sample preparation lost current sound or hid error");live.startAlbumRecording(0);require(live.albumRecording<0&&live.takeOperationError().isNotEmpty(),"Album admission failure was not recoverable");live.transport("record");require(!live.engine.recording()&&live.takeOperationError().isNotEmpty(),"Tape admission failure was not recoverable");live.inputMonitor=true;juce::AudioBuffer<float> audio(2,128);for(int f=0;f<128;++f){audio.setSample(0,f,.2f);audio.setSample(1,f,.1f);}juce::MidiBuffer events;live.processBlock(audio,events);require(energy(audio)>0,"Memory refusal silenced monitored output");require(field::tape::TapePool::setMemoryLimit(cap),"Could not restore tape cap");}
+    // Pause an actual large allocation: audio must keep running while preparation is blocked.
+    {auto exercise=[&](int kind){auto owner=std::make_unique<FieldProcessor>();auto& live=*owner;live.prepareToPlay(kind==4?192000:8000,128);live.inputMonitor=true;if(kind==3)live.engine.tracks()[0].audio.assign(131072,.15f,-.1f);live.selectionStart=0;live.selectionEnd=.1;largeAllocationReached=false;releaseLargeAllocation=false;std::exception_ptr failure;
+        std::thread control([&]{try{pauseLargeAllocations=true;if(kind==0)live.startSampleCapture();else if(kind==1)live.startAlbumRecording(0);else if(kind==2)live.transport("record");else if(kind==3)live.transport("lift");else{juce::String loadError;if(!live.loadProject(project,loadError)&&loadError.isEmpty())throw std::runtime_error("Missing load diagnostic");}pauseLargeAllocations=false;}catch(...){pauseLargeAllocations=false;failure=std::current_exception();}});
+        const auto deadline=std::chrono::steady_clock::now()+std::chrono::seconds(10);while(!largeAllocationReached.load(std::memory_order_acquire)&&std::chrono::steady_clock::now()<deadline)std::this_thread::yield();const bool reached=largeAllocationReached.load(std::memory_order_acquire);bool continuous=true;const auto skipped=live.skippedBlocks.load();if(reached){juce::AudioBuffer<float> audio(2,128);juce::MidiBuffer events;for(int iteration=0;iteration<16;++iteration){for(int f=0;f<128;++f){audio.setSample(0,f,.2f);audio.setSample(1,f,-.1f);}events.clear();live.processBlock(audio,events);continuous&=energy(audio)>0;}}
+        // Stop and newer-document operations invalidate suspended jobs before publication.
+        if(reached){if(kind==0)live.stopSampleCapture();else if(kind==1)live.stopAlbum();else if(kind==2)live.transport("stop");else live.newProject();}releaseLargeAllocation.store(true,std::memory_order_release);control.join();require(reached,"Preparation did not reach the controlled large allocation");require(!failure,"Preparation worker threw an unexpected exception");require(continuous&&live.skippedBlocks.load()==skipped,"Large media preparation held the live engine lock and silenced audio");require(!live.sampling&&live.albumRecording<0&&!live.engine.recording(),"Stale prepared job overwrote a newer project");};for(int kind=0;kind<5;++kind)exercise(kind);}
     // Sample capture copies either raw input or the processed main output.
     {auto captureOwner=std::make_unique<FieldProcessor>();auto& capture=*captureOwner;capture.prepareToPlay(8000,128);capture.startSampleCapture();juce::AudioBuffer<float> block(2,128);for(int i=0;i<128;++i){block.setSample(0,i,.123f);block.setSample(1,i,-.321f);}juce::MidiBuffer events;capture.processBlock(block,events);capture.stopSampleCapture();require(capture.engine.sampleLeft().size()==128,"Input sampling frame count wrong");require(std::abs(capture.engine.sampleLeft()[10]-.123f)<1e-6&&std::abs(capture.engine.sampleRight()[10]+.321f)<1e-6,"Input sampling lost stereo data");capture.setValue("engine",0);capture.startSampleCapture(true);block.clear();events.addEvent(juce::MidiMessage::noteOn(1,60,.9f),0);capture.processBlock(block,events);capture.stopSampleCapture();require(energy(block)>1e-7,"Output resampling produced silence");require(std::abs(capture.engine.sampleLeft()[64]-block.getSample(0,64))<1e-6,"Output resample differs from main output");}
     // Saves pin in-flight sample/album capture at one completed callback.

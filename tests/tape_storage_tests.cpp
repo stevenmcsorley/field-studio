@@ -1,4 +1,5 @@
 #include "TapeStorage.h"
+#include <stdexcept>
 #include <algorithm>
 #include <array>
 #include <atomic>
@@ -95,5 +96,6 @@ int main(){
         for(int iteration=0;iteration<20000;++iteration){const auto page=static_cast<size_t>((iteration*17)%64);const float value=static_cast<float>(iteration+1);bool written=false;do{rt([&]{written=writer.writeStereo(page*pageFrames,value,-value);});if(!written){check(std::chrono::steady_clock::now()<deadline,"reclaimer makes progress under pressure");std::this_thread::yield();}}while(!written);expected[page]=value;rt([&]{Envelope item;item.tape=writer.snapshot();item.expected=expected;queue.push(std::move(item));});}
         done.store(true,std::memory_order_release);worker.join();check(!failed.load()&&inspected.load()>0,"concurrent snapshot readers/reclaimer observe immutable complete generations");writer.clear();clean(pool);
     }
+    {const auto oldLimit=TapePool::memoryLimit(),before=TapePool::memoryUsed();const auto bytes=TapePool::estimateBytes(2,8);check(TapePool::setMemoryLimit(before+bytes),"set process-wide tape cap");{TapePool first(2,8);check(TapePool::memoryUsed()==before+bytes,"pool reserves before allocating/touching storage");bool refused=false;try{TapePool second(1,4);}catch(const std::runtime_error&){refused=true;}check(refused&&TapePool::memoryUsed()==before+bytes,"second pool cannot exceed shared cap or leak reservation");check(!TapePool::setMemoryLimit(before),"cannot lower cap below live allocations");}check(TapePool::memoryUsed()==before,"pool destruction releases global reservation");check(TapePool::setMemoryLimit(oldLimit),"restore global cap");}
     std::cout<<"PASS: sparse bounds, constant-time snapshots, fixed-depth COW, transactional exhaustion, zero-tail truncation, vector oracle, deferred reclamation, allocation/free-free RT operations and threaded snapshot stress\n";
 }

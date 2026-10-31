@@ -74,8 +74,17 @@ struct Track {
     bool mute = false, solo = false;
     std::vector<double> cuts; // Tape splice positions, in seconds.
 };
+enum class TapeEditAction { copy,lift,drop,merge,join,slide,bounce,clear,split };
+struct TapeEditState {std::array<Track,4> tracks,clipboard;unsigned clipboardMask=0,changedMask=0;size_t clipboardFrames=0;int selected=0;double position=0,sampleRate=44100;Parameters parameters;bool updatesClipboard=false;};
 class Engine {
 public:
+    TapeEditState captureTapeEdit() const;
+    static TapeEditState prepareTapeEdit(const TapeEditState&,TapeEditAction,unsigned mask,double start,double end,double delta=0);
+    bool commitTapeEdit(const TapeEditState& base,TapeEditState&& result);
+    bool hasRetiredTape() const noexcept {return !retiredTape.empty();}
+    void discardTapeHistory(){retireHistory(undos);retireHistory(redos);}
+    std::deque<std::array<Track,4>> takeRetiredTape(){return std::move(retiredTape);}
+
     Engine();
     Engine(Engine&&) = default;
     Engine& operator=(Engine&&) = default;
@@ -139,6 +148,7 @@ public:
     // never in process(). Holding the wrapper's lock is required for all calls.
     void setPlaying(bool);
     void setRecording(bool);
+    void startPreparedRecording(TapeAudio&&);
     void rewind();
     void seek(double seconds);
     void setLoop(double startSeconds, double endSeconds);
@@ -175,11 +185,13 @@ public:
     float peak() const { return peakValue; }
     double maxTapeSeconds() const { return 360.0; }
     std::vector<float> waveform(int track, int bins) const;
+    static std::vector<float> waveform(const TapeAudio&,int bins);
     std::pair<std::vector<float>, std::vector<float>> exportMix() const;
     static std::pair<std::vector<float>,std::vector<float>> exportMix(const std::array<Track,4>&,const Parameters&);
     std::array<Track, 4>& tracks() { return tape; }
     const std::array<Track, 4>& tracks() const { return tape; }
     void restoredTape(); // Clamp/sanitize direct track restoration; reset history.
+    void tapeBankChanged(); // Validated media: reset runtime/history without scanning audio.
     // Explicit step editing for Pattern/Finger/Sketch. -1 is rest, notes 0..127.
     void setSequenceStep(int step, int note, float velocity = .8f);
     int sequenceStep(int step) const;
@@ -318,6 +330,8 @@ private:
     double rollBegin = 0, rollLength = 1;
 
     std::deque<Snapshot> undos, redos;
+    std::deque<std::array<Track,4>> retiredTape;
+    void retireHistory(std::deque<Snapshot>&);
     void trigger(int note, float velocity);
     void triggerVoice(int note,float velocity,float detune=0);
     void releaseNote(int note);

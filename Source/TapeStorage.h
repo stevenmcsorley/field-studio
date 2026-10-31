@@ -24,6 +24,10 @@ public:
     // Allocates and physically touches all pages, nodes, queues and retire bits.
     // Construction, collection and destruction belong off the audio thread.
     TapePool(size_t pageCapacity,size_t nodeCapacity);
+    static size_t memoryUsed() noexcept;
+    static size_t memoryLimit() noexcept;
+    static bool setMemoryLimit(size_t bytes); // control-only; cannot undercut live reservations
+    static size_t estimateBytes(size_t pages,size_t nodes);
     ~TapePool();
     TapePool(const TapePool&)=delete;
     TapePool& operator=(const TapePool&)=delete;
@@ -32,7 +36,9 @@ public:
     size_t collect(size_t budget=std::numeric_limits<size_t>::max()) noexcept;
     Stats stats() const noexcept;
 private:
+    struct Reservation;
     struct Impl;
+    std::unique_ptr<Reservation> reservation;
     std::unique_ptr<Impl> impl;
     friend class TapeBuffer;
 };

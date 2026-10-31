@@ -5,9 +5,12 @@
 #include "RtKeyboard.h"
 #include "RealtimeValues.h"
 #include "MidiLearn.h"
+#include <mutex>
 
 class FieldProcessor final : public juce::AudioProcessor, private juce::Timer, private juce::AudioProcessorParameter::Listener {
 public:
+    struct SampleData {std::vector<float> left,right;double rate=44100;};
+    std::shared_ptr<const SampleData> samplePreviewSnapshot(){const juce::ScopedLock lock(engineLock);return sampleData;}
     FieldProcessor();
     ~FieldProcessor() override;
     void prepareToPlay(double, int) override;
@@ -60,10 +63,12 @@ public:
     void synchronizeParameterDisplay(){flushParameterMirrors();} // message thread only
     bool loadSampleFile(const juce::File&, juce::String& error);
     bool exportAudio(const juce::File&, juce::String& error);
+    juce::String takeOperationError();
     bool captureStorageExhausted() const noexcept { return captureExhausted.load(); }
     bool saveProject(const juce::File&, juce::String& error);
     bool loadProject(const juce::File&, juce::String& error);
     void transport(const juce::String& action);
+    void slideTapeSelection(double destination){prepareTapeOperation(field::TapeEditAction::slide,destination,true);}
     void setTrack(int);
     void setTapePerformance(int control,bool down);
     void releaseTapePerformance();
@@ -74,7 +79,7 @@ public:
     int tapeNumber() const { return currentTape; }
     void newProject();
     void savePatchSlot(int);
-    void recallPatchSlot(int);
+    void recallPatchSlot(int,int explicitSlot=-1);
     void storeMemo(int);
     void recallMemo(int);
     juce::String lastImportSummary,lastImportDetails;
@@ -120,9 +125,17 @@ private:
     void applyPatchAction(int);
     int currentProgram=0,currentTape=0;
     std::array<juce::ValueTree,16> patchSlots;
+    std::array<uint64_t,16> patchStoreRequest{};
     std::array<juce::ValueTree,2> memos;
     juce::AudioFormatManager formats;
-    std::vector<float> sampleLeft,sampleRight;
+    std::shared_ptr<const SampleData> sampleData=std::make_shared<SampleData>();
+    uint64_t sampleRequest=0,controlRevision=0,documentEpoch=0;
+    void startTapeRecording();
+    void prepareTapeOperation(field::TapeEditAction,double delta=0,bool absolute=false);
+    void reportOperationError(const juce::String&);
+    std::mutex mediaEncodeMutex;
+    juce::CriticalSection operationErrorLock;
+    juce::String operationError;
     double sampleRateFile=44100;
     struct AlbumSide { field::TapeAudio audio; double rate=44100; };
     field::TapeAudio captureAudio;
@@ -137,7 +150,6 @@ private:
     juce::AudioBuffer<float> inputCopy;
     juce::MidiBuffer midiInput;
     juce::CriticalSection sampleWorkerLock;
-    void loadLegacySample(const std::vector<float>&,const std::vector<float>&,double);
     struct MasterState { float low[2]{}, upper[2]{}, envelope=0; };
     MasterState masterState;
     field::Engine masterFx;

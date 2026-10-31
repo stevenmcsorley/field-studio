@@ -3,6 +3,7 @@
 #include <cmath>
 #include <limits>
 #include <numeric>
+#include <stdexcept>
 
 namespace field {
 namespace {
@@ -86,7 +87,7 @@ void Engine::prepare(double rate, int /* maxBlock */) {
             t.audio.resample(ratio,static_cast<size_t>(360.0*nextSr));
         }
         position *= ratio; loopBegin *= ratio; loopFinish *= ratio;
-        undos.clear(); redos.clear();
+        retireHistory(undos);retireHistory(redos);
     }
     sr = nextSr;
     delayL.assign(static_cast<size_t>(sr*2.1)+1,0);
@@ -772,21 +773,26 @@ Engine::Snapshot Engine::capture(unsigned mask)const{Snapshot s;s.track=selected
 void Engine::trimHistory(){
     constexpr size_t limit=256u*1024u*1024u;
     auto bytes=[](const std::deque<Snapshot>& q){size_t total=0;for(const auto& s:q)for(int i=0;i<4;++i)if(s.mask&(1u<<i))total+=snapshotBytes(s.audio[i]);return total;};
-    while(undos.size()>7)undos.pop_front();
-    while(redos.size()>7)redos.pop_front();
-    while(undos.size()>1 && bytes(undos)+bytes(redos)>limit)undos.pop_front();
-    while(redos.size()>1 && bytes(undos)+bytes(redos)>limit)redos.pop_front();
+    while(undos.size()>7){retiredTape.push_back(std::move(undos.front().audio));undos.pop_front();}
+    while(redos.size()>7){retiredTape.push_back(std::move(redos.front().audio));redos.pop_front();}
+    while(undos.size()>1 && bytes(undos)+bytes(redos)>limit){retiredTape.push_back(std::move(undos.front().audio));undos.pop_front();}
+    while(redos.size()>1 && bytes(undos)+bytes(redos)>limit){retiredTape.push_back(std::move(redos.front().audio));redos.pop_front();}
 }
-void Engine::snapshot(unsigned mask){undos.push_back(capture(mask));redos.clear();trimHistory();}
+void Engine::snapshot(unsigned mask){undos.push_back(capture(mask));retireHistory(redos);trimHistory();}
 void Engine::setRecording(bool v){
     if(v&&!isRecording){snapshot();tape[selected].audio.prepareWrite(maxFrames());isPlaying=true;countInRemaining=countInSetting;countInElapsed=0;}
     isRecording=v;if(!v)countInRemaining=0;
+}
+void Engine::startPreparedRecording(TapeAudio&& prepared){
+    const auto required=(maxFrames()+tape::pageFrames-1)/tape::pageFrames;
+    const auto space=prepared.stats();if(space.freePages<required+1||space.freeNodes<required*3+3)throw std::runtime_error("Recording reserve is not ready");
+    snapshot();tape[selected].audio=std::move(prepared);isPlaying=true;isRecording=true;countInRemaining=countInSetting;countInElapsed=0;
 }
 void Engine::rewind(){position=params.loop?loopBegin:0;seqPhase=0;seqStep=-1;seqPositionPending=-1;}
 void Engine::seek(double seconds){position=std::clamp(std::isfinite(seconds)?seconds:0.0,0.0,359.999)*sr;}
 void Engine::setLoop(double start,double end){start=std::isfinite(start)?start:0;end=std::isfinite(end)?end:2;loopBegin=std::clamp(start,0.0,359.999)*sr;loopFinish=std::clamp(end,loopBegin/sr+1.0/sr,360.0)*sr;}
 double Engine::recordedSeconds()const{size_t n=0;for(const auto&t:tape)n=std::max(n,t.audio.size());return n/sr;}
-void Engine::clearTrack(){snapshot();auto& t=tape[selected];t.audio.clear();t.cuts.clear();}
+void Engine::clearTrack(){snapshot();auto& t=tape[selected];t.audio=TapeAudio{};t.cuts.clear();}
 void Engine::copyTracks(unsigned mask,double start,double end){
     mask=mask?mask&15u:1u<<selected;
     clipboardMask=0;clipboardFrames=0;for(auto& t:clipboard)t=Track{};
@@ -861,16 +867,17 @@ void Engine::split(){snapshot();auto& cuts=tape[selected].cuts;cuts.push_back(po
 void Engine::restore(Snapshot&& s){selected=s.track;for(int i=0;i<4;++i)if(s.mask&(1u<<i))tape[i]=std::move(s.audio[i]);position=s.head;isRecording=false;isPlaying=false;countInRemaining=0;reverseHeld=false;brakeHeld=false;rollHeld=false;}
 void Engine::undo(){if(undos.empty())return;selected=undos.back().track;redos.push_back(capture(undos.back().mask));auto s=std::move(undos.back());undos.pop_back();restore(std::move(s));trimHistory();}
 void Engine::redo(){if(redos.empty())return;selected=redos.back().track;undos.push_back(capture(redos.back().mask));auto s=std::move(redos.back());redos.pop_back();restore(std::move(s));trimHistory();}
-std::vector<float> Engine::waveform(int track,int bins)const{
-    std::vector<float> result(static_cast<size_t>(std::max(0,bins)),0);if(track<0||track>=4||bins<=0)return result;
-    const auto&t=tape[track];if(t.audio.empty())return result;
+std::vector<float> Engine::waveform(int track,int bins)const{if(track<0||track>=4)return std::vector<float>((size_t)std::max(0,bins),0);return waveform(tape[(size_t)track].audio,bins);}
+std::vector<float> Engine::waveform(const TapeAudio& audio,int bins){
+    std::vector<float> result(static_cast<size_t>(std::max(0,bins)),0);if(bins<=0)return result;
+    if(audio.empty())return result;
     // Display-only decimation: at most 32 samples per bin, independent of
     // tape duration. This is a waveform overview, not a true-peak analyser.
     for(int b=0;b<bins;++b){
-        size_t a=static_cast<size_t>(static_cast<double>(b)/bins*t.audio.size());
-        size_t e=std::min(t.audio.size(),std::max(a+1,static_cast<size_t>(static_cast<double>(b+1)/bins*t.audio.size())));
+        size_t a=static_cast<size_t>(static_cast<double>(b)/bins*audio.size());
+        size_t e=std::min(audio.size(),std::max(a+1,static_cast<size_t>(static_cast<double>(b+1)/bins*audio.size())));
         size_t count=std::min<size_t>(32,e-a);float v=0;
-        for(size_t j=0;j<count;++j){size_t i=a+(e-a-1)*j/std::max<size_t>(1,count-1);v=std::max(v,std::max(std::abs(t.audio.read(0,i)),std::abs(t.audio.read(1,i))));}
+        for(size_t j=0;j<count;++j){size_t i=a+(e-a-1)*j/std::max<size_t>(1,count-1);v=std::max(v,std::max(std::abs(audio.read(0,i)),std::abs(audio.read(1,i))));}
         result[static_cast<size_t>(b)]=v;
     }
     return result;
@@ -890,7 +897,10 @@ std::pair<std::vector<float>,std::vector<float>> Engine::exportMix(const std::ar
 }
 void Engine::restoredTape(){
     for(auto& t:tape){const size_t n=std::min(t.audio.size(),maxFrames());t.audio.resize(n);for(size_t i=0;i<n;++i){const auto value=t.audio.readStereo(i);const float l=clamp(value[0],-4,4),r=clamp(value[1],-4,4);if(l!=value[0]||r!=value[1])t.audio.write(i,l,r);}t.level=clamp(t.level,0,2);t.pan=clamp(t.pan,-1,1);}
-    undos.clear();redos.clear();isPlaying=false;isRecording=false;countInRemaining=0;countInElapsed=0;reverseHeld=false;brakeHeld=false;rollHeld=false;position=std::clamp(position,0.0,static_cast<double>(maxFrames()-1));
+    tapeBankChanged();
+}
+void Engine::tapeBankChanged(){
+    retireHistory(undos);retireHistory(redos);isPlaying=false;isRecording=false;countInRemaining=0;countInElapsed=0;reverseHeld=false;brakeHeld=false;rollHeld=false;position=std::clamp(position,0.0,static_cast<double>(maxFrames()-1));
 }
 void Engine::setSequenceStep(int step,int note,float velocity){if(step>=0&&step<999){steps[step]=std::clamp(note,-1,127);stepVelocity[step]=clamp(velocity);}}
 int Engine::sequenceStep(int step)const{return step>=0&&step<999?steps[step]:-1;}
@@ -929,4 +939,29 @@ void Engine::setOutputGainImmediately(float value){smoothedVolume=clamp(value,0,
 
 namespace field {
 void Engine::collectTapeStorage(size_t budget){for(auto& track:tape)track.audio.collect(budget);for(auto& track:clipboard)track.audio.collect(budget);for(auto& version:undos)for(auto& track:version.audio)track.audio.collect(budget);for(auto& version:redos)for(auto& track:version.audio)track.audio.collect(budget);}
+}
+
+namespace field {
+void Engine::retireHistory(std::deque<Snapshot>& history){while(!history.empty()){retiredTape.push_back(std::move(history.front().audio));history.pop_front();}}
+TapeEditState Engine::captureTapeEdit() const {TapeEditState state;state.tracks=tape;state.clipboard=clipboard;state.clipboardMask=clipboardMask;state.clipboardFrames=clipboardFrames;state.selected=selected;state.position=position;state.sampleRate=sr;state.parameters=params;return state;}
+TapeEditState Engine::prepareTapeEdit(const TapeEditState& base,TapeEditAction action,unsigned mask,double start,double end,double delta){
+    Engine edit;edit.sr=base.sampleRate;edit.params=base.parameters;edit.tape=base.tracks;edit.clipboard=base.clipboard;edit.clipboardMask=base.clipboardMask;edit.clipboardFrames=base.clipboardFrames;edit.selected=base.selected;edit.position=base.position;
+    mask=mask?mask&15u:1u<<base.selected;unsigned changed=mask;
+    if(action==TapeEditAction::copy)changed=0;
+    else if(action==TapeEditAction::merge||action==TapeEditAction::bounce||action==TapeEditAction::clear||action==TapeEditAction::split)changed=1u<<base.selected;
+    else if(action==TapeEditAction::drop){changed=0;if(base.clipboardMask){int first=0;while(!(base.clipboardMask&(1u<<first)))++first;for(int i=first;i<4;++i)if((base.clipboardMask&(1u<<i))&&base.selected+i-first<4)changed|=1u<<(base.selected+i-first);}}
+    if(action!=TapeEditAction::join&&action!=TapeEditAction::split&&action!=TapeEditAction::clear)for(int i=0;i<4;++i)if(changed&(1u<<i))edit.tape[i].audio=base.tracks[i].audio.preparedCopy(base.tracks[i].audio.size());
+    switch(action){case TapeEditAction::copy:edit.copyTracks(mask,start,end);break;case TapeEditAction::lift:edit.liftTracks(mask,start,end);break;case TapeEditAction::drop:edit.dropTracks();break;case TapeEditAction::merge:edit.mergeClipboard();break;case TapeEditAction::join:edit.joinTracks(mask,start,end);break;case TapeEditAction::slide:edit.slideTracks(mask,start,end,delta);break;case TapeEditAction::bounce:edit.bounceTracks(mask,base.selected,start,end,false);break;case TapeEditAction::clear:edit.clearTrack();break;case TapeEditAction::split:edit.split();break;}
+    auto result=edit.captureTapeEdit();if(action==TapeEditAction::lift&&!result.clipboardMask)changed=0;if(action==TapeEditAction::merge&&!base.clipboardMask)changed=0;result.changedMask=changed;result.updatesClipboard=action==TapeEditAction::copy||action==TapeEditAction::lift;return result;
+}
+bool Engine::commitTapeEdit(const TapeEditState& base,TapeEditState&& result){
+    if(sr!=base.sampleRate||selected!=base.selected)return false;
+    for(int i=0;i<4;++i){const auto& live=tape[i];const auto& old=base.tracks[i];if(!live.audio.sameGeneration(old.audio)||live.cuts!=old.cuts||live.level!=old.level||live.pan!=old.pan||live.mute!=old.mute||live.solo!=old.solo)return false;}
+    if(result.changedMask)snapshot(result.changedMask);
+    for(int i=0;i<4;++i)if(result.changedMask&(1u<<i)){tape[i].audio=std::move(result.tracks[i].audio);tape[i].cuts.swap(result.tracks[i].cuts);}
+    if(result.updatesClipboard){clipboard=std::move(result.clipboard);clipboardMask=result.clipboardMask;clipboardFrames=result.clipboardFrames;}
+    // Copy/lift historically move the head; other edits preserve a moving live head.
+    if(result.updatesClipboard&&result.changedMask)position=result.position;
+    return true;
+}
 }

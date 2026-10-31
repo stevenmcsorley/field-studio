@@ -38,3 +38,7 @@ std::vector<float> TapeAudio::exportChannel(int channel) const {std::vector<floa
 void TapeAudio::resample(double ratio,size_t frameLimit){if(empty())return;TapeAudio next;const size_t frames=(size_t)std::min((double)frameLimit,std::ceil(size()*ratio));next.prepareWrite(frames);next.resize(frames);for(size_t f=0;f<frames;++f)next.write(f,interpolate(0,f/ratio),interpolate(1,f/ratio));*this=std::move(next);}
 void TapeAudio::silence(size_t begin,size_t end){end=std::min(end,size());if(begin>=end)return;prepareWrite(size());for(size_t f=begin;f<end;++f)write(f,0,0);}
 }
+
+namespace field {
+TapeAudio TapeAudio::preparedCopy(size_t frames) const {TapeAudio next;next.prepareWrite(std::max(frames,size()));if(!next.data.resizeLogical(size()))throw std::bad_alloc();for(size_t i=0;i<size();++i){const auto value=readStereo(i);if(value[0]!=0||value[1]!=0)next.write(i,value[0],value[1]);}return next;}
+}
