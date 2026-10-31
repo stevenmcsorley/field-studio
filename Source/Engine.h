@@ -7,6 +7,7 @@
 #include <deque>
 #include <utility>
 #include <vector>
+#include "TapeAudio.h"
 
 // Original DSP implementations guided by publicly documented concepts. These
 // algorithms are not recovered Teenage Engineering DSP and are not sonically
@@ -68,7 +69,7 @@ struct DBoxPad {
 struct Point { float x=0,y=.5f; };
 struct BallState { float x=.5f,y=.5f,vx=0,vy=0;int note=60;bool active=false; };
 struct Track {
-    std::vector<float> left, right;
+    TapeAudio audio;
     float level = 1, pan = 0;
     bool mute = false, solo = false;
     std::vector<double> cuts; // Tape splice positions, in seconds.
@@ -81,6 +82,8 @@ public:
     Engine(const Engine&) = delete;
     Engine& operator=(const Engine&) = delete;
     void prepare(double sampleRate, int maxBlock);
+    void collectTapeStorage(size_t budgetPerTrack=256);
+    uint64_t tapeWriteFailures() const noexcept { return tapeFailures; }
     void setParameters(const Parameters&);
     const Parameters& parameters() const { return params; }
     void noteOn(int note, float velocity);
@@ -173,6 +176,7 @@ public:
     double maxTapeSeconds() const { return 360.0; }
     std::vector<float> waveform(int track, int bins) const;
     std::pair<std::vector<float>, std::vector<float>> exportMix() const;
+    static std::pair<std::vector<float>,std::vector<float>> exportMix(const std::array<Track,4>&,const Parameters&);
     std::array<Track, 4>& tracks() { return tape; }
     const std::array<Track, 4>& tracks() const { return tape; }
     void restoredTape(); // Clamp/sanitize direct track restoration; reset history.
@@ -304,6 +308,7 @@ private:
     struct NoteGate { int note=-1;double remaining=0; };
     std::array<NoteGate,64> noteGates;
     bool sequenceGateOpen=true;
+    uint64_t tapeFailures=0;
     std::array<Track,4> clipboard;
     unsigned clipboardMask = 0;
     size_t clipboardFrames = 0;

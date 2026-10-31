@@ -76,6 +76,8 @@ private:
     field::DrumPad padState;
     field::DBoxPad dboxState;
     bool playing=false,recording=false;
+    uint64_t observedTapeFailures=0;
+    bool observedCaptureExhaustion=false;
     double countInRemaining=0;
     double recorded=0,visibleSeconds=16;
     float scale=1;

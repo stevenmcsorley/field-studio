@@ -41,17 +41,17 @@ int main(){
     {
         auto eOwner=std::make_unique<Engine>();auto& e=*eOwner;e.prepare(8000,128);Parameters p;p.monitorInput=true;p.volume=1;e.setParameters(p);
         e.setRecording(true);l.assign(800,.2f);r.assign(800,-.1f);e.process(l.data(),r.data(),l.data(),r.data(),800);e.setRecording(false);e.setPlaying(false);
-        check(e.tracks()[0].left.size()==800,"recording writes exact frame count");
-        check(std::abs(e.tracks()[0].left[20]-.2f)<1e-6,"recording preserves left input");
-        check(std::abs(e.tracks()[0].right[20]+.1f)<1e-6,"recording preserves stereo input");
+        check(e.tracks()[0].audio.size()==800,"recording writes exact frame count");
+        check(std::abs(e.tracks()[0].audio.read(0,20)-.2f)<1e-6,"recording preserves left input");
+        check(std::abs(e.tracks()[0].audio.read(1,20)+.1f)<1e-6,"recording preserves stereo input");
         check(std::abs(e.positionSeconds()-.1)<1e-9,"transport advances by audio time");
         e.rewind();e.setRecording(true);l.assign(800,.1f);r.assign(800,.1f);e.process(l.data(),r.data(),l.data(),r.data(),800);e.setRecording(false);e.setPlaying(false);
-        check(std::abs(e.tracks()[0].left[100]-.3f)<1e-6,"overdub adds to existing audio");
-        e.undo();check(std::abs(e.tracks()[0].left[100]-.2f)<1e-6,"undo restores previous overdub");e.redo();check(std::abs(e.tracks()[0].left[100]-.3f)<1e-6,"redo restores overdub");
-        e.lift(.025,.05);check(e.tracks()[0].left[250]==0,"lift silences source without ripple");check(e.tracks()[0].left.size()==800,"lift preserves tape timeline");
-        e.selectTrack(1);e.seek(.05);e.drop();check(e.tracks()[1].left.size()==600,"drop places copied span at playhead");check(std::abs(e.tracks()[1].left[450]-.3f)<1e-6,"clipboard crosses tracks");
+        check(std::abs(e.tracks()[0].audio.read(0,100)-.3f)<1e-6,"overdub adds to existing audio");
+        e.undo();check(std::abs(e.tracks()[0].audio.read(0,100)-.2f)<1e-6,"undo restores previous overdub");e.redo();check(std::abs(e.tracks()[0].audio.read(0,100)-.3f)<1e-6,"redo restores overdub");
+        e.lift(.025,.05);check(e.tracks()[0].audio.read(0,250)==0,"lift silences source without ripple");check(e.tracks()[0].audio.size()==800,"lift preserves tape timeline");
+        e.selectTrack(1);e.seek(.05);e.drop();check(e.tracks()[1].audio.size()==600,"drop places copied span at playhead");check(std::abs(e.tracks()[1].audio.read(0,450)-.3f)<1e-6,"clipboard crosses tracks");
         e.seek(.06);e.split();check(e.tracks()[1].cuts.size()>=3,"split records splice boundary");
-        e.prepare(16000,128);check(std::abs(e.recordedSeconds()-.1)<1e-9,"sample-rate change preserves tape duration");check(std::abs(e.tracks()[0].left[100]-.3f)<1e-6,"sample-rate change preserves tape samples");
+        e.prepare(16000,128);check(std::abs(e.recordedSeconds()-.1)<1e-9,"sample-rate change preserves tape duration");check(std::abs(e.tracks()[0].audio.read(0,100)-.3f)<1e-6,"sample-rate change preserves tape samples");
         p.loop=true;e.setParameters(p);e.setLoop(.02,.04);e.seek(.03);e.setPlaying(true);render(e,l,r,800);check(e.positionSeconds()>=.02&&e.positionSeconds()<=.04+1.0/16000,"loop wraps to selected span");
         p.tapeSpeed=-1;e.setParameters(p);e.seek(.03);render(e,l,r,800);check(e.positionSeconds()>=.02&&e.positionSeconds()<=.04+1.0/16000,"reverse playback respects loop");
         e.setPlaying(false);auto mix=e.exportMix();check(mix.first.size()==1600&&mix.second.size()==1600,"stereo mix export has project duration");
@@ -73,7 +73,7 @@ int main(){
         auto eOwner=std::make_unique<Engine>();auto& e=*eOwner;e.prepare(8000,64);Parameters p;p.sequenceOn=true;p.sequencer=1;p.tempo=120;p.attack=.001f;p.release=.01f;e.setParameters(p);e.noteOn(60,1);e.noteOn(64,.8f);render(e,l,r,8000);check(energy(l)>.00001,"arpeggiator drives synth from held notes");check(e.currentSequenceStep()==8,"sequencer advances at sixteenth-note tempo");e.noteOff(60);e.noteOff(64);render(e,l,r,4000);render(e,l,r,1000);check(energy(l)<1e-9,"releasing arpeggiator keys stops sequence");
     }
     {
-        auto eOwner=std::make_unique<Engine>();auto& e=*eOwner;e.prepare(8000,128);e.tracks()[0].left.assign(800,.25f);e.tracks()[0].right.assign(800,-.15f);e.restoredTape();
+        auto eOwner=std::make_unique<Engine>();auto& e=*eOwner;e.prepare(8000,128);e.tracks()[0].audio.assign(800,.25f,-.15f);e.restoredTape();
         Parameters p;
         for(int style=0;style<4;++style){p.tapeStyle=style;e.setParameters(p);auto offline=e.exportMix();e.rewind();e.setPlaying(true);render(e,l,r,400);check(std::abs(offline.first[200]-l[200])<1e-6f&&std::abs(offline.second[200]-r[200])<1e-6f,"offline export matches live tape coloration");e.setPlaying(false);}
         std::vector<float> source(8000*30,.1f);e.loadSample(source,source,8000);check(e.sampleLeft().size()==source.size(),"sample storage preserves more than twenty seconds");
@@ -112,7 +112,7 @@ int main(){
         Parameters p;p.engine=11;p.effect=1;p.effectMix=.5f;p.sampleLoop=true;p.attack=.001f;a.setParameters(p);p.macro[0]=1;p.macro[1]=0;p.macro[2]=0;p.macro[3]=1;b.setParameters(p);a.noteOn(60,1);b.noteOn(60,1);render(a,l,r,8000);std::vector<float> bl,br;render(b,bl,br,8000);check(l==bl&&r==br,"effect parameters are independent of synthesis macros");
     }
     {
-        auto eOwner=std::make_unique<Engine>();auto& e=*eOwner;e.prepare(8000,64);for(int track=0;track<4;++track){e.tracks()[track].left.assign(400,.02f*(track+1));e.tracks()[track].right.assign(400,-.01f*(track+1));e.setTrackLevel(track,1-track*.1f);e.setTrackPan(track,(track-1.5f)/3);}
+        auto eOwner=std::make_unique<Engine>();auto& e=*eOwner;e.prepare(8000,64);for(int track=0;track<4;++track){e.tracks()[track].audio.assign(400,.02f*(track+1),-.01f*(track+1));e.setTrackLevel(track,1-track*.1f);e.setTrackPan(track,(track-1.5f)/3);}
         e.restoredTape();e.setTrackMute(1,true);e.setPlaying(true);std::array<std::vector<float>,8> channels;std::array<float*,8> stems;for(int i=0;i<8;++i){channels[i].resize(400);stems[i]=channels[i].data();}l.resize(400);r.resize(400);
         const auto before=watchedAllocations.load();watchAllocations=true;e.process(l.data(),r.data(),nullptr,nullptr,400,stems.data());watchAllocations=false;check(watchedAllocations.load()==before,"stem rendering performs no allocations");
         for(int i=0;i<400;++i){float sumL=0,sumR=0;for(int track=0;track<4;++track){sumL+=channels[track*2][i];sumR+=channels[track*2+1][i];}check(std::abs(l[i]-sumL*.65f)<1e-6f&&std::abs(r[i]-sumR*.65f)<1e-6f,"stem sum reproduces uncoloured tape main output before mastergain");}
@@ -214,44 +214,44 @@ int main(){
 
     {
         auto owner=std::make_unique<Engine>();auto& e=*owner;e.prepare(8000,64);
-        for(int track=0;track<4;++track){auto& t=e.tracks()[track];t.left.assign(80,float(track+1)*.1f);t.right=t.left;t.cuts={.002,.004,.006};}
+        for(int track=0;track<4;++track){auto& t=e.tracks()[track];t.audio.assign(80,float(track+1)*.1f,float(track+1)*.1f);t.cuts={.002,.004,.006};}
         e.copyTracks(5,.002,.006);check(!e.canUndo(),"copy is nondestructive and does not add history");
-        e.liftTracks(5,.002,.006);check(e.tracks()[0].left[20]==0&&e.tracks()[2].left[20]==0&&e.tracks()[1].left[20]==.2f,"masked lift leaves unselected tracks untouched");
-        e.undo();check(e.tracks()[0].left[20]==.1f&&e.tracks()[2].left[20]==.3f,"one undo restores entire masked edit");e.redo();check(e.tracks()[0].left[20]==0&&e.tracks()[2].left[20]==0,"one redo reapplies entire masked edit");
-        e.seek(.008);e.dropTracks(1);check(e.tracks()[1].left[65]==.1f&&e.tracks()[3].left[65]==.3f,"drop preserves relative masked track spacing");e.undo();check(e.tracks()[1].left.size()==80&&e.tracks()[3].left.size()==80,"masked drop undoes atomically including lengths");
+        e.liftTracks(5,.002,.006);check(e.tracks()[0].audio.read(0,20)==0&&e.tracks()[2].audio.read(0,20)==0&&e.tracks()[1].audio.read(0,20)==.2f,"masked lift leaves unselected tracks untouched");
+        e.undo();check(e.tracks()[0].audio.read(0,20)==.1f&&e.tracks()[2].audio.read(0,20)==.3f,"one undo restores entire masked edit");e.redo();check(e.tracks()[0].audio.read(0,20)==0&&e.tracks()[2].audio.read(0,20)==0,"one redo reapplies entire masked edit");
+        e.seek(.008);e.dropTracks(1);check(e.tracks()[1].audio.read(0,65)==.1f&&e.tracks()[3].audio.read(0,65)==.3f,"drop preserves relative masked track spacing");e.undo();check(e.tracks()[1].audio.size()==80&&e.tracks()[3].audio.size()==80,"masked drop undoes atomically including lengths");
         e.joinTracks(10,0,.01);check(e.tracks()[1].cuts.empty()&&e.tracks()[3].cuts.empty(),"join removes interior cuts on selected tracks");e.undo();check(e.tracks()[1].cuts.size()==3&&e.tracks()[3].cuts.size()==3,"join history restores all markers");
-        e.selectTrack(1);e.copyTracks(0,0,.002);e.selectTrack(2);e.seek(.008);e.drop();check(e.tracks()[2].left[65]==.2f,"mask zero follows selected and legacy drop relocates single track");
+        e.selectTrack(1);e.copyTracks(0,0,.002);e.selectTrack(2);e.seek(.008);e.drop();check(e.tracks()[2].audio.read(0,65)==.2f,"mask zero follows selected and legacy drop relocates single track");
     }
     {
-        auto owner=std::make_unique<Engine>();auto& e=*owner;e.prepare(8000,64);auto& t=e.tracks()[0];for(int i=0;i<80;++i)t.left.push_back(float(i));t.right=t.left;t.cuts={.002,.004};
-        e.slideTracks(1,.002,.006,.002);check(t.left[16]==0&&t.left[31]==0&&t.left[32]==16&&t.left[63]==47&&t.left[64]==64,"overlapping slide preserves source snapshot and nonripple neighbours");
-        e.undo();check(e.tracks()[0].left[16]==16&&e.tracks()[0].left[63]==63,"slide undo restores overwritten destination");
-        e.slideTracks(1,.002,.006,-.002);check(e.tracks()[0].left[0]==16&&e.tracks()[0].left[31]==47&&e.tracks()[0].left[32]==0,"slide left is overlap safe");
+        auto owner=std::make_unique<Engine>();auto& e=*owner;e.prepare(8000,64);auto& t=e.tracks()[0];t.audio.resize(80);for(int i=0;i<80;++i)t.audio.write(i,float(i),float(i));t.cuts={.002,.004};
+        e.slideTracks(1,.002,.006,.002);check(t.audio.read(0,16)==0&&t.audio.read(0,31)==0&&t.audio.read(0,32)==16&&t.audio.read(0,63)==47&&t.audio.read(0,64)==64,"overlapping slide preserves source snapshot and nonripple neighbours");
+        e.undo();check(e.tracks()[0].audio.read(0,16)==16&&e.tracks()[0].audio.read(0,63)==63,"slide undo restores overwritten destination");
+        e.slideTracks(1,.002,.006,-.002);check(e.tracks()[0].audio.read(0,0)==16&&e.tracks()[0].audio.read(0,31)==47&&e.tracks()[0].audio.read(0,32)==0,"slide left is overlap safe");
     }
     {
         auto owner=std::make_unique<Engine>();auto& e=*owner;e.prepare(8000,64);
-        for(int i=0;i<3;++i){e.tracks()[i].left.assign(80,.2f);e.tracks()[i].right.assign(80,.4f);}e.setTrackLevel(0,.5f);e.setTrackPan(0,1);e.setTrackMute(2,true);
-        e.copyTracks(7,0,.01);e.seek(.02);e.mergeClipboard(3);check(std::abs(e.tracks()[3].left[170]-.2f)<1e-6&&std::abs(e.tracks()[3].right[170]-.6f)<1e-6,"merge clipboard applies source mixer levels pan and mute");e.undo();check(e.tracks()[3].left.empty(),"merge is one undo operation");
-        e.bounceTracks(7,1,0,.01,true);check(e.tracks()[0].left[20]==0&&e.tracks()[2].left[20]==0&&std::abs(e.tracks()[1].right[20]-.6f)<1e-6,"bounce captures overlapping destination before clearing sources");e.undo();check(e.tracks()[0].left[20]==.2f&&e.tracks()[1].right[20]==.4f&&e.tracks()[2].left[20]==.2f,"bounce and cleared sources restore atomically");
-        e.seek(.02);e.mergeClipboard(3);check(std::abs(e.tracks()[3].right[170]-.6f)<1e-6,"bounce preserves user's prior clipboard");
+        for(int i=0;i<3;++i){e.tracks()[i].audio.assign(80,.2f,.4f);}e.setTrackLevel(0,.5f);e.setTrackPan(0,1);e.setTrackMute(2,true);
+        e.copyTracks(7,0,.01);e.seek(.02);e.mergeClipboard(3);check(std::abs(e.tracks()[3].audio.read(0,170)-.2f)<1e-6&&std::abs(e.tracks()[3].audio.read(1,170)-.6f)<1e-6,"merge clipboard applies source mixer levels pan and mute");e.undo();check(e.tracks()[3].audio.empty(),"merge is one undo operation");
+        e.bounceTracks(7,1,0,.01,true);check(e.tracks()[0].audio.read(0,20)==0&&e.tracks()[2].audio.read(0,20)==0&&std::abs(e.tracks()[1].audio.read(1,20)-.6f)<1e-6,"bounce captures overlapping destination before clearing sources");e.undo();check(e.tracks()[0].audio.read(0,20)==.2f&&e.tracks()[1].audio.read(1,20)==.4f&&e.tracks()[2].audio.read(0,20)==.2f,"bounce and cleared sources restore atomically");
+        e.seek(.02);e.mergeClipboard(3);check(std::abs(e.tracks()[3].audio.read(1,170)-.6f)<1e-6,"bounce preserves user's prior clipboard");
     }
     {
         auto owner=std::make_unique<Engine>();auto& e=*owner;e.prepare(8000,64);Parameters p;p.tempo=120;p.volume=1;p.monitorInput=true;e.setParameters(p);e.setOutputGainImmediately(1);e.seek(.1);e.setCountInBeats(2);e.setRecording(true);
-        render(e,l,r,4000);check(e.recording()&&std::abs(e.countInRemainingBeats()-1)<1e-8&&std::abs(e.positionSeconds()-.1)<1e-8&&e.tracks()[0].left.empty(),"count-in arms record without advancing or writing tape");check(energy(l)>.00001,"count-in clicks audible when metronome disabled");
-        e.setCountInBeats(2);render(e,l,r,4000);check(e.countInRemainingBeats()==0&&e.tracks()[0].left.empty(),"count-in is sample accurate and setting updates do not restart it");
-        l.assign(80,.2f);r.assign(80,-.1f);const auto allocationCount=watchedAllocations.load();watchAllocations=true;e.process(l.data(),r.data(),l.data(),r.data(),80);watchAllocations=false;check(watchedAllocations.load()==allocationCount,"record transition performs no callback allocations");check(e.tracks()[0].left.size()==880&&std::abs(e.tracks()[0].left[800]-.2f)<1e-6,"recording begins at frozen head after countdown");
+        render(e,l,r,4000);check(e.recording()&&std::abs(e.countInRemainingBeats()-1)<1e-8&&std::abs(e.positionSeconds()-.1)<1e-8&&e.tracks()[0].audio.empty(),"count-in arms record without advancing or writing tape");check(energy(l)>.00001,"count-in clicks audible when metronome disabled");
+        e.setCountInBeats(2);render(e,l,r,4000);check(e.countInRemainingBeats()==0&&e.tracks()[0].audio.empty(),"count-in is sample accurate and setting updates do not restart it");
+        l.assign(80,.2f);r.assign(80,-.1f);const auto allocationCount=watchedAllocations.load();watchAllocations=true;e.process(l.data(),r.data(),l.data(),r.data(),80);watchAllocations=false;check(watchedAllocations.load()==allocationCount,"record transition performs no callback allocations");check(e.tracks()[0].audio.size()==880&&std::abs(e.tracks()[0].audio.read(0,800)-.2f)<1e-6,"recording begins at frozen head after countdown");
         e.setPlaying(false);e.setRecording(true);render(e,l,r,100);e.setPlaying(false);check(e.countInRemainingBeats()==0&&!e.recording(),"stop cancels armed count-in");
     }
     {
-        auto owner=std::make_unique<Engine>();auto& e=*owner;e.prepare(8000,64);Parameters p;p.tempo=120;p.volume=1;e.setParameters(p);e.setOutputGainImmediately(1);e.tracks()[0].left.assign(16000,.2f);e.tracks()[0].right.assign(16000,.2f);e.seek(.5);e.setPlaying(true);
+        auto owner=std::make_unique<Engine>();auto& e=*owner;e.prepare(8000,64);Parameters p;p.tempo=120;p.volume=1;e.setParameters(p);e.setOutputGainImmediately(1);e.tracks()[0].audio.assign(16000,.2f,.2f);e.seek(.5);e.setPlaying(true);
         e.setTapeBrake(true);render(e,l,r,400);check(e.positionSeconds()==.5&&energy(l)==0,"momentary break freezes and silences tape");e.setTapeBrake(false);e.setTapeReverse(true);render(e,l,r,400);check(std::abs(e.positionSeconds()-.45)<1e-8,"momentary reverse changes tape direction");e.setTapeReverse(false);
         e.setTapeRoll(true,.25f);render(e,l,r,2500);check(e.positionSeconds()>=.45&&e.positionSeconds()<.575,"tempo roll repeats bounded window from press point");e.setTapeRoll(false);const double before=e.positionSeconds();render(e,l,r,400);check(std::abs(e.positionSeconds()-before-.05)<1e-8,"roll release resumes continuous tape advance");e.setTapeBrake(true);e.setPlaying(false);e.setPlaying(true);render(e,l,r,80);check(e.positionSeconds()>before+.05,"stop clears momentary tape tricks");
     }
 
     {
         auto owner=std::make_unique<Engine>();auto& e=*owner;e.prepare(8000,64);Parameters p;p.volume=1;p.monitorInput=true;p.tapeRecordLevel=2;p.tapeRecordPan=.5f;e.setParameters(p);e.setOutputGainImmediately(1);e.setRecording(true);
-        l.assign(80,.2f);r.assign(80,.1f);e.process(l.data(),r.data(),l.data(),r.data(),80);e.setPlaying(false);check(std::abs(e.tracks()[0].left[0]-.2f)<1e-6&&std::abs(e.tracks()[0].right[0]-.2f)<1e-6,"record level and pan affect captured stereo only");check(std::abs(l[0]-.2f)<1e-6&&std::abs(r[0]-.1f)<1e-6,"record balance does not alter monitored source");
-        const auto original=e.tracks()[0].left;e.liftTracks(0,std::numeric_limits<double>::quiet_NaN(),1);e.slideTracks(0,0,1,std::numeric_limits<double>::infinity());check(e.tracks()[0].left==original,"malformed edit bounds leave tape intact");
+        l.assign(80,.2f);r.assign(80,.1f);e.process(l.data(),r.data(),l.data(),r.data(),80);e.setPlaying(false);check(std::abs(e.tracks()[0].audio.read(0,0)-.2f)<1e-6&&std::abs(e.tracks()[0].audio.read(1,0)-.2f)<1e-6,"record level and pan affect captured stereo only");check(std::abs(l[0]-.2f)<1e-6&&std::abs(r[0]-.1f)<1e-6,"record balance does not alter monitored source");
+        const auto original=e.tracks()[0].audio.exportChannel(0);e.liftTracks(0,std::numeric_limits<double>::quiet_NaN(),1);e.slideTracks(0,0,1,std::numeric_limits<double>::infinity());check(e.tracks()[0].audio.exportChannel(0)==original,"malformed edit bounds leave tape intact");
         e.setCountInBeats(2);e.setRecording(true);e.setTapeBrake(true);e.prepare(8000,64);check(!e.recording()&&e.countInRemainingBeats()==0,"prepare clears armed recording state");e.setRecording(true);e.restoredTape();check(!e.recording()&&e.countInRemainingBeats()==0,"tape restore clears armed recording state");
     }
 
@@ -313,6 +313,28 @@ int main(){
     {
         auto a=std::make_unique<Engine>(),reference=std::make_unique<Engine>();a->prepare(8000,64);reference->prepare(8000,64);Parameters p;p.engine=11;p.sampleLoop=true;p.attack=.001f;p.decay=.001f;p.sustain=1;p.release=.005f;p.volume=1;std::vector<float> wave(8000);for(size_t i=0;i<wave.size();++i)wave[i]=.3f*std::sin(i*6.283185307179586*220/8000);a->loadSample(wave,{},8000);reference->loadSample(wave,{},8000);a->setParameters(p);reference->setParameters(p);a->setOutputGainImmediately(1);reference->setOutputGainImmediately(1);a->noteOn(60,1);reference->noteOn(60,1);render(*a,l,r,1000);std::vector<float> expectedL,expectedR;render(*reference,expectedL,expectedR,1000);
         auto replacement=a->registerPreparedSample(Engine::prepareSample(std::vector<float>(8000,.25f),{},16000));a->installPreparedSample(replacement);p.sampleRootNote=72;a->setParameters(p);render(*a,l,r,1000);render(*reference,expectedL,expectedR,1000);check(l==expectedL&&r==expectedR,"sample turnover preserves old voice rate/root/bounds, not just its audio memory");
+    }
+    {
+        TapeAudio live;live.assign(8200,.2f,-.3f);live.prepareWrite(20000);const auto pinned=live;
+        const auto allocations=watchedAllocations.load(),frees=watchedDeallocations.load();watchAllocations=true;
+        auto snapshot=live;const bool wrote=live.tryWrite(18000,.7f,-.8f);watchAllocations=false;
+        check(wrote&&watchedAllocations.load()==allocations&&watchedDeallocations.load()==frees,"paged snapshot and sparse stereo write allocate/free nothing");
+        check(pinned.size()==8200&&snapshot.size()==8200&&pinned.read(0,18000)==0&&live.read(0,18000)==.7f&&live.read(1,18000)==-.8f,"pinned tape generations retain length and stereo samples");
+        check(live.read(0,15000)==0,"long seek creates sparse zero space");live.resize(5000);live.resize(19000);check(live.read(0,18000)==0&&live.read(1,7000)==0,"truncated tape cannot resurrect after regrowth");
+        TapeAudio copy;copy=live;TapeAudio moved;moved=std::move(copy);live=TapeAudio{};check(moved.size()==19000&&moved.read(0,20)==.2f,"pool lifetime survives copy/move assignment and last source destruction");
+        const auto generation=moved;std::atomic<bool> done{false},valid{true};std::thread reader([&]{while(!done.load(std::memory_order_acquire))for(size_t f=0;f<5000;f+=113)if(generation.read(0,f)!=.2f||generation.read(1,f)!=-.3f)valid=false;});
+        moved.prepareWrite(19000);for(size_t f=0;f<5000;++f)moved.write(f,.9f,.8f);done.store(true,std::memory_order_release);reader.join();check(valid.load(),"concurrent snapshot reader sees immutable audio during a live overwrite");
+    }
+    {
+        auto owner=std::make_unique<Engine>();auto& e=*owner;e.prepare(8000,64);Parameters p;p.monitorInput=true;p.volume=1;e.setParameters(p);e.setOutputGainImmediately(1);e.setRecording(true);e.seek(300);
+        l.assign(64,.2f);r.assign(64,-.1f);const auto allocations=watchedAllocations.load(),frees=watchedDeallocations.load();watchAllocations=true;e.process(l.data(),r.data(),l.data(),r.data(),64);watchAllocations=false;
+        check(watchedAllocations.load()==allocations&&watchedDeallocations.load()==frees,"six-minute sparse recording gap does not allocate or free in callback");check(e.tracks()[0].audio.size()==2400064&&e.tracks()[0].audio.read(0,1200000)==0&&e.tracks()[0].audio.read(0,2400000)==.2f,"live recording writes only the distant page and preserves logical zeros");
+        e.tracks()[0].audio=TapeAudio{};l.assign(64,.2f);r.assign(64,-.1f);e.process(l.data(),r.data(),l.data(),r.data(),64);check(!e.recording()&&e.tapeWriteFailures()==1&&energy(l)>.001f,"missing recording reserve stops recording while monitored audio continues");
+    }
+    {
+        TapeAudio live;live.assign(1,.1f,-.1f);std::vector<TapeAudio> pins;pins.reserve(128);bool exhausted=false;
+        for(int i=0;i<128;++i){pins.push_back(live);const auto before=live.readStereo(0);const auto allocations=watchedAllocations.load(),frees=watchedDeallocations.load();watchAllocations=true;const bool written=live.tryWrite(0,(i+1)*.01f,-(i+1)*.01f);watchAllocations=false;check(watchedAllocations.load()==allocations&&watchedDeallocations.load()==frees,"pinned generation pressure never falls back to heap allocation/free");if(!written){exhausted=true;check(live.readStereo(0)==before,"pool exhaustion preserves both channels of the last committed sample");break;}}
+        check(exhausted,"bounded recording pool reports exhaustion under pinned generation pressure");pins.clear();live.collect(10000);live.prepareWrite(1);check(live.tryWrite(0,.7f,-.7f),"control reclamation restores recording capacity after saved generations retire");
     }
     std::cout<<"PASS: tuning, release, recording, stereo, overdub, undo/redo, lift/drop, splice, resampling, forward/reverse loops, export, mute/solo, sampler slices, engines/effects, sequencer\n";
 }

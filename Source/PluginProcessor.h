@@ -49,6 +49,7 @@ public:
     void synchronizeParameterDisplay(){flushParameterMirrors();} // message thread only
     bool loadSampleFile(const juce::File&, juce::String& error);
     bool exportAudio(const juce::File&, juce::String& error);
+    bool captureStorageExhausted() const noexcept { return captureExhausted.load(); }
     bool saveProject(const juce::File&, juce::String& error);
     bool loadProject(const juce::File&, juce::String& error);
     void transport(const juce::String& action);
@@ -106,7 +107,9 @@ private:
     juce::AudioFormatManager formats;
     std::vector<float> sampleLeft,sampleRight;
     double sampleRateFile=44100;
-    struct AlbumSide { std::vector<float> left,right; double rate=44100; };
+    struct AlbumSide { field::TapeAudio audio; double rate=44100; };
+    field::TapeAudio captureAudio;
+    std::atomic<bool> captureExhausted{false};
     std::array<AlbumSide,2> albums;
     double albumHead=0;
     size_t albumLimit=0;
