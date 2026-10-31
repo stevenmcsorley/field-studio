@@ -1,4 +1,6 @@
 #include "RtKeyboard.h"
+#include "ControlJobs.h"
+#include <chrono>
 #include "RealtimeValues.h"
 #include "MidiLearn.h"
 #include <atomic>
@@ -16,6 +18,16 @@ void operator delete(void* p,std::size_t)noexcept{::operator delete(p);}
 void operator delete[](void* p,std::size_t)noexcept{::operator delete(p);}
 static void check(bool ok,const char* text){if(!ok){std::cerr<<"FAIL: "<<text<<'\n';std::exit(1);}}
 int main(){
+    {field::ControlJobs jobs;std::atomic<bool> entered{false},release{false},published{false};
+    auto wait=[&](auto predicate){auto deadline=std::chrono::steady_clock::now()+std::chrono::seconds(5);while(!predicate()){check(std::chrono::steady_clock::now()<deadline,"background job timeout");std::this_thread::yield();}};
+    check(jobs.submit("save",[&]{entered=true;while(!release.load())std::this_thread::yield();if(jobs.beginCommit())published=true;}),"admit file job");
+    wait([&]{return entered.load();});check(!jobs.submit("second",[]{}),"bounded worker rejects backlog");check(jobs.cancel(),"cancel preparation");release=true;wait([&]{return !jobs.busy();});check(!published&&jobs.status()=="save cancelled","cancel prevents destination publication");
+    entered=false;release=false;
+    check(jobs.submit("export",[&]{check(jobs.beginCommit(),"begin file publication");entered=true;while(!release.load())std::this_thread::yield();published=true;}),"worker reusable");
+    wait([&]{return entered.load();});check(!jobs.cancel(),"publication cannot be cancelled halfway");release=true;wait([&]{return !jobs.busy();});check(published&&jobs.status()=="export finished","publication completes exactly once");
+    jobs.submit("failure",[]{throw std::runtime_error("disk full");});wait([&]{return !jobs.busy();});check(jobs.status()=="failure: disk full","worker reports exceptions");
+    jobs.shutdown();check(!jobs.submit("closed",[]{}),"shutdown rejects new work");}
+
     {field::RtQueue<int,8> queue;int value=-1;check(!queue.pop(value),"empty queue");for(int i=0;i<8;++i)check(queue.push(i),"fill queue");check(!queue.push(99),"backpressure");for(int i=0;i<8;++i){check(queue.pop(value)&&value==i,"FIFO preserves full payload");}for(int i=0;i<200;++i){check(queue.push(i)&&queue.pop(value)&&value==i,"indices wrap");}queue.push(1);queue.discardPending();check(!queue.pop(value),"consumer discard");}
     {struct Item{uint64_t sequence,inverse;};field::RtQueue<Item,256> queue;std::atomic<bool> intact{true};constexpr uint64_t count=500000;
     std::thread producer([&]{for(uint64_t i=0;i<count;++i)while(!queue.push({i,~i}))std::this_thread::yield();});

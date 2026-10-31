@@ -5,6 +5,7 @@
 #include "RtKeyboard.h"
 #include "RealtimeValues.h"
 #include "MidiLearn.h"
+#include "ControlJobs.h"
 #include <mutex>
 
 class FieldProcessor final : public juce::AudioProcessor, private juce::Timer, private juce::AudioProcessorParameter::Listener {
@@ -65,6 +66,10 @@ public:
     bool exportAudio(const juce::File&, juce::String& error);
     juce::String takeOperationError();
     bool captureStorageExhausted() const noexcept { return captureExhausted.load(); }
+    bool requestFileWrite(int action,const juce::File&);
+    bool fileWriteBusy() const {return fileJobs.busy();}
+    bool cancelFileWrite(){return fileJobs.cancel();}
+    juce::String fileWriteStatus(){return fileJobs.status();}
     bool saveProject(const juce::File&, juce::String& error);
     bool loadProject(const juce::File&, juce::String& error);
     void transport(const juce::String& action);
@@ -133,6 +138,7 @@ private:
     void startTapeRecording();
     void prepareTapeOperation(field::TapeEditAction,double delta=0,bool absolute=false);
     void reportOperationError(const juce::String&);
+    field::ControlJobs fileJobs;
     std::mutex mediaEncodeMutex;
     juce::CriticalSection operationErrorLock;
     juce::String operationError;

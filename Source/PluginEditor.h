@@ -82,6 +82,7 @@ private:
     double countInRemaining=0;
     double recorded=0,visibleSeconds=16;
     float scale=1;
+    bool observedFileWrite=false;
     juce::String status=juce::String::fromUTF8("Ready · play the keys or connect MIDI");
     juce::String observedLearnTarget;
     void showMidiMappingMenu(const juce::String&);

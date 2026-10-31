@@ -77,6 +77,16 @@ int main(int argc,char** argv){
         const juce::ScopedLock lock(p.engineLock);auto& t=p.engine.tracks()[1];t.audio.import({.3f,.2f,.1f},{.3f,.2f,.1f});p.engine.restoredTape();
     }p.selectTape(0);p.setValue("macro1",.731f);p.selectionStart=.02;p.selectionEnd=.08;p.setValue("voiceMode",2);p.setValue("glideTime",.2f);p.setValue("bendRange",7);p.setValue("patchGain",.8f);p.setValue("lfoTarget",19);p.setValue("lfoWaveform",4);p.setValue("lfoSync",1);p.setValue("lfoDivision",8);p.setValue("elementSource",3);p.setValue("elementManual",.72f);p.setValue("envelopeCurve",1);p.setValue("midiTarget4",16);p.setValue("midiDepth4",-.65f);p.setValue("countInBeats",4);p.setValue("tapeRecordLevel",1.3f);p.setValue("tapeRecordPan",-.3f);p.tapeEditMask=5;p.tapeSnap=true;p.setValue("midiOutputChannel",9);p.setValue("midiThru",1);p.setValue("midiSppOrigin",.5f);
     p.storeMemo(0);p.setValue("volume",.21f);p.recallMemo(0);require(std::abs(p.value("volume")-.65f)<1e-5,"Mixer memory did not recall");p.savePatchSlot(2);p.setValue("macro1",.12f);p.recallPatchSlot(2);require(std::abs(p.value("macro1")-.731f)<1e-5,"Synth patch slot did not recall");p.drumMode=true;p.setValue("macro1",.234f);p.savePatchSlot(2);p.drumMode=false;p.recallPatchSlot(2);require(std::abs(p.value("macro1")-.731f)<1e-5,"Drum patch overwrote synth slot");
+    {const auto originalName=p.projectName;const auto background=dir.getChildFile("background.field");
+    require(!p.requestFileWrite(1,background),"Read operation admitted to file writer");
+    require(p.requestFileWrite(2,background),"Background save not admitted");
+    const auto deadline=juce::Time::getMillisecondCounterHiRes()+10000;
+    while(p.fileWriteBusy()){require(juce::Time::getMillisecondCounterHiRes()<deadline,"Background save timed out");std::this_thread::yield();}
+    require(background.existsAsFile()&&p.fileWriteStatus().contains("finished"),"Background save failed");
+    require(p.projectName==originalName,"Background save changed live document name");
+    auto loaded=std::make_unique<FieldProcessor>();loaded->prepareToPlay(44100,256);
+    require(loaded->loadProject(background,error),"Background project did not load");
+    require(loaded->projectName=="background","Loaded project name was not published with state");}
     auto project=dir.getChildFile("roundtrip.field");require(p.saveProject(project,error),"Project save failed");
     require(p.exportAudio(dir.getChildFile("mix.wav"),error),"Tape export failed");
     auto restoredOwner=std::make_unique<FieldProcessor>();auto& restored=*restoredOwner;restored.prepareToPlay(48000,256);require(restored.loadProject(project,error),"Project load failed");

@@ -14,12 +14,16 @@ This ledger distinguishes concrete fixes from the remaining performance and rele
 
 The tape cap covers pages, nodes and pool bookkeeping shared by instances of the same loaded binary. Separate app processes/plugin formats may have separate caps. It does **not** cap decoded samples, flattened state/export buffers, framework allocations or total process RAM. The setting lasts for the process; project files cannot raise it. Existing import/decompressed-state limits still apply.
 
+## Background file writes (next beta)
+
+Save project, export tape mix and export album now run on one processor-owned worker, with no pending backlog. The editor polls completion, and **COM → Cancel background save/export** cancels before the atomic destination replacement begins. Cancellation is cooperative: compression/rendering already underway finishes before temporary buffers are released. Once publication starts cancellation is refused. Shutdown joins the worker before processor resources are destroyed. Background saving retains the live document name; opening the file uses its filename.
+
 ## Still open
 
 | Issue | Status |
 |---|---|
 | Short commit/UI lock | `processBlock` still uses `engineLock` and clears a contended block. Large work has moved out, but command/telemetry ownership and removal of that last lock are unfinished. No claim of zero dropouts for arbitrary concurrent controls. |
-| GUI responsiveness | Preparation APIs are synchronous control calls. A long operation initiated directly on the message thread can still stall that thread; a bounded asynchronous UI job coordinator remains to be implemented. |
+| GUI responsiveness | Save and export use a bounded background worker. Import, project opening, record preparation and tape edits still use synchronous control calls and can stall the message thread. Extending cancellation to their state commits remains open. |
 | Whole-processor realtime guarantees | No complete callback lock/allocation/free audit, hardware deadline certification or long-session device stress pass. Host state APIs remain non-realtime calls. |
 | Trusted signing/installers | Downloads are portable unsigned betas. The maintainer has confirmed no Apple Developer ID or Windows signing certificates are available. macOS notarization and publisher-trusted Windows signatures cannot be supplied without those external credentials. |
 | Device/DAW validation | Physical Faderfox/BeatStep, real audio interfaces and commercial DAWs need hands-on validation. CI tests software messages, native UI/state and Linux VST3 loading. |
