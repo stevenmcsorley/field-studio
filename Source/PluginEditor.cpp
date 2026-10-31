@@ -593,8 +593,14 @@ void FieldEditor::keyboardNote(int n,float velocity,bool on){if(n<0||n>127)retur
 void FieldEditor::panic(){heldPresetSlot=-1;suppressSlotClick=false;processor.releaseTapePerformance();drawingSketch=false;draggingSampleMarker=-1;typingNotes.clear();held.fill(false);mouseNote=-1;processor.transport("panic");}
 bool FieldEditor::keyPressed(const juce::KeyPress& k){
     auto code=k.getKeyCode();
-    if(mode<2&&code>='1'&&code<='8'){
-        const int slot=code-'1';if(presetBrowser){presetSlot=slot;macros[2].setValue(slot+1,juce::dontSendNotification);repaint();return true;}if(heldPresetSlot==slot)return true;
+    int soundKey=code>='1'&&code<='8'?code-'1':-1;
+    // Linux/macOS may report the shifted character, rather than a digit key.
+    if(soundKey<0&&k.getModifiers().isShiftDown()){
+        const juce::String symbols=juce::String::fromUTF8("!@#$%^&*");soundKey=symbols.indexOfChar((juce::juce_wchar)code);
+        if(code=='"')soundKey=1;else if(code==0x00a3)soundKey=2; // UK layout
+    }
+    if(mode<2&&soundKey>=0&&!k.getModifiers().isCommandDown()&&!k.getModifiers().isCtrlDown()){
+        const int slot=soundKey;if(presetBrowser){presetSlot=slot;macros[2].setValue(slot+1,juce::dontSendNotification);repaint();return true;}if(heldPresetSlot==slot)return true;
         if(k.getModifiers().isShiftDown()||shifted){openPresetBrowser(slot);return true;}
         heldPresetKeyboard=true;heldPresetSlot=slot;presetHoldStarted=juce::Time::getMillisecondCounterHiRes();suppressSlotClick=false;return true;
     }
