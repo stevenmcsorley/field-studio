@@ -5,6 +5,7 @@
 class FieldLookAndFeel final : public juce::LookAndFeel_V4 {
 public:
     FieldLookAndFeel();
+    void drawButtonText(juce::Graphics&,juce::TextButton&,bool,bool) override;
     void drawRotarySlider(juce::Graphics&, int,int,int,int,float,float,float,juce::Slider&) override;
     void drawButtonBackground(juce::Graphics&,juce::Button&,const juce::Colour&,bool,bool) override;
 };

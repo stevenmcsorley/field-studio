@@ -51,6 +51,11 @@ int main(){
         auto extreme=processCwo(1,1,1,false);check(energy(extreme)>0,"CWO maximum controls produce audio");
     }
     {
+        auto delayImpulse=[&](float range,float speed,float feedback,float level){auto fx=std::make_unique<Engine>();fx->prepare(8000,64);Parameters p;p.monitorInput=true;p.volume=1;p.effect=1;p.effectMix=1;p.effectMacro[0]=range;p.effectMacro[1]=speed;p.effectMacro[2]=feedback;p.effectMacro[3]=level;fx->setParameters(p);fx->setOutputGainImmediately(1);std::vector<float> input(24000,0),left(24000),right(24000);input[0]=.1f;const auto allocations=watchedAllocations.load(),frees=watchedDeallocations.load();watchAllocations=true;fx->process(left.data(),right.data(),input.data(),input.data(),24000);watchAllocations=false;check(watchedAllocations.load()==allocations&&watchedDeallocations.load()==frees,"Delay processing neither allocates nor frees");for(float sample:left)check(std::isfinite(sample)&&std::abs(sample)<=1,"Delay maximum feedback remains bounded");return left;};
+        auto normal=delayImpulse(.4f,.5f,0,1),fast=delayImpulse(.4f,1,0,1),wide=delayImpulse(.6f,.5f,0,1),quiet=delayImpulse(.4f,.5f,0,0),echo=delayImpulse(.4f,.5f,.8f,1);
+        auto peak=[](const auto& signal){return (int)std::distance(signal.begin(),std::max_element(signal.begin(),signal.end()));};check(peak(normal)==2000&&peak(fast)==1000&&peak(wide)==4000,"Delay range and speed independently set echo timing");check(energy(quiet)==0,"Delay level zero silences wet output");double dryTail=0,echoTail=0;for(size_t i=3000;i<normal.size();++i){dryTail+=normal[i]*normal[i];echoTail+=echo[i]*echo[i];}check(dryTail==0&&echoTail>.001,"Delay feedback controls repeats independently of speed");auto maximum=delayImpulse(1,0,1,1);check(energy(maximum)>0,"Delay extreme controls produce audio");
+    }
+    {
         auto eOwner=std::make_unique<Engine>();auto& e=*eOwner;e.prepare(48000,512);Parameters p;p.engine=1;p.macro[1]=0;p.attack=.001f;p.decay=.01f;p.sustain=1;p.release=.025f;p.volume=1;e.setParameters(p);e.noteOn(69,1);render(e,l,r,48000);
         check(energy(l)>.001f,"FM sine carrier produces audio");
         int crossings=0;for(size_t i=4801;i<l.size();++i)if(l[i-1]<=0&&l[i]>0)++crossings;

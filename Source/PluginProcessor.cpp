@@ -1,5 +1,6 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
+#include "DelayControls.h"
 #include "PresetFormat.h"
 #include "PresetMapping.h"
 #include "PresetParameters.h"
@@ -64,13 +65,14 @@ FieldProcessor::FieldProcessor(juce::File presetDirectory) : AudioProcessor(Buse
 FieldProcessor::~FieldProcessor(){stopTimer();fileJobs.shutdown();for(auto* parameter:rawTargets)parameter->removeListener(this);}
 double FieldProcessor::getTailLengthSeconds() const {
     const double rate=getSampleRate()>0?getSampleRate():44100.;
-    auto cwoTail=[&](int effect,int mix,int time,int feedback){
-        if((int)cached(effect)!=7||cached(mix)<=0)return 0.;
+    auto feedbackTail=[&](int effect,int mix,int range,int time,int feedback){
+        const int kind=(int)cached(effect);if((kind!=7&&kind!=1)||cached(mix)<=0)return 0.;
         const double amount=juce::jlimit(0.,.94,cached(feedback)*.94),delay=cached(time);
         const double repeats=amount>0?std::ceil(std::log(1.e-5)/std::log(amount))+1:1;
-        return std::min(180.,repeats*(33./rate+.8*delay*delay));
+        const double interval=kind==7?33./rate+.8*delay*delay:field::delaySeconds(cached(range),cached(time));
+        return std::min(420.,repeats*interval);
     };
-    return std::max(4.,(double)cached(P_release))+cwoTail(P_effect,P_effectMix,P_fx2,P_fx3)+cwoTail(P_masterEffect,P_masterMix,P_masterFx2,P_masterFx3);
+    return std::max(4.,(double)cached(P_release))+feedbackTail(P_effect,P_effectMix,P_fx1,P_fx2,P_fx3)+feedbackTail(P_masterEffect,P_masterMix,P_masterFx1,P_masterFx2,P_masterFx3);
 }
 void FieldProcessor::parameterValueChanged(int index,float normalized){for(int i=0;i<P_count;++i)if(rawTargets[(size_t)i]->getParameterIndex()==index){const auto version=realtimeValues.version((size_t)i);const float actual=cached(i),received=rawTargets[(size_t)i]->convertFrom0to1(normalized);const float tolerance=8*std::numeric_limits<float>::epsilon()*std::max(1.f,std::abs(actual));if(std::abs(actual-received)>tolerance){realtimeValues.fromAudio((size_t)i,actual);return;}if(activeMirror.owner==this&&activeMirror.key==i&&std::abs(activeMirror.value-received)<=tolerance)return;realtimeValues.fromControlIfUnchanged((size_t)i,version,actual);return;}}
 juce::ValueTree FieldProcessor::copyParameterState(){auto copy=parameters.copyState();for(auto item:copy)if(item.hasProperty("id")){const auto id=item["id"].toString();if(parameters.getParameter(id))item.setProperty("value",value(id),nullptr);}return copy;}

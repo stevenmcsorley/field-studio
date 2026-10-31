@@ -2,6 +2,7 @@
 #include "DimensionScreen.h"
 #include "DSynthScreen.h"
 #include "CwoScreen.h"
+#include "DelayScreen.h"
 #include <cmath>
 #include <algorithm>
 
@@ -80,11 +81,12 @@ FieldEditor::FieldEditor(FieldProcessor& p):AudioProcessorEditor(p),processor(p)
     newButton.setTooltip("New empty tape bank");openButton.setTooltip("Open a Field Studio project");saveButton.setTooltip("Save all eight tapes, sample, effects and settings");importButton.setTooltip("Import WAV, AIFF, FLAC or Ogg into Sampler");exportButton.setTooltip("Export current tape mix as 24-bit stereo WAV");
     const juce::StringArray fn{"~","drum","tape","mix","1","2","3","4","IN","OUT","loop","seq","rev","click","M1","M2",juce::String::fromUTF8("•••")};
     const juce::StringArray tips{"Synthesizer","Drum machine","Four-track tape recorder",juce::String::fromUTF8("Mixer · Shift changes coloured knobs to pan"),juce::String::fromUTF8("T1 · engine or track 1"),juce::String::fromUTF8("T2 · envelope / mixer EQ / tape track 2"),juce::String::fromUTF8("T3 · insert / master FX / tape track 3"),juce::String::fromUTF8("T4 · modulation / master dynamics / tape track 4"),"Set loop selection start at playhead","Set loop selection end at playhead","Toggle tape loop","Open sequencer grid","Reverse tape speed","Toggle metronome",juce::String::fromUTF8("Recall mixer memo 1 · Shift: store · Sequencer: previous page"),juce::String::fromUTF8("Recall mixer memo 2 · Shift: store · Sequencer: next page"),"Tape style, host sync and editing menu"};
-    for(int i=0;i<17;++i){auto* b=functionButtons.add(new juce::TextButton(fn[i]));b->getProperties().set("hardware",true);b->setColour(juce::TextButton::textColourOffId,ink);b->setColour(juce::TextButton::textColourOnId,ink);b->setWantsKeyboardFocus(false);b->setTooltip(tips[i]);b->onClick=[this,i]{functionAction(i);grabKeyboardFocus();};addAndMakeVisible(b);}
+    for(int i=0;i<17;++i){auto* b=functionButtons.add(new juce::TextButton(fn[i]));b->getProperties().set("hardware",true);b->getProperties().set("panelKey",i);b->setColour(juce::TextButton::textColourOffId,ink);b->setColour(juce::TextButton::textColourOnId,ink);b->setWantsKeyboardFocus(false);b->setTooltip(tips[i]);b->onClick=[this,i]{functionAction(i);grabKeyboardFocus();};addAndMakeVisible(b);}
     const juce::StringArray tr{juce::String::fromUTF8("↑"),juce::String::fromUTF8("↓"),juce::String::fromUTF8("✂"),juce::String::fromUTF8("●"),juce::String::fromUTF8("▶"),juce::String::fromUTF8("■"),juce::String::fromUTF8("←"),juce::String::fromUTF8("→")};
     const juce::StringArray tt{juce::String::fromUTF8("Lift selected tape segment · Shift: undo"),juce::String::fromUTF8("Drop lifted audio at playhead · Shift: redo"),juce::String::fromUTF8("Split at playhead · Shift: clear track (undoable)"),juce::String::fromUTF8("Start / stop tape recording · Shift: capture input sample"),juce::String::fromUTF8("Play / pause · Space"),"Stop recording and playback",juce::String::fromUTF8("Seek back one second · Shift: rewind"),juce::String::fromUTF8("Seek forward one second · Shift: selection end")};
-    for(int i=0;i<8;++i){auto* b=transportButtons.add(new juce::TextButton(tr[i]));b->getProperties().set("hardware",true);b->setColour(juce::TextButton::textColourOffId,i==3?juce::Colour(0xffbf513b):ink);b->setWantsKeyboardFocus(false);b->setTooltip(tt[i]);b->onClick=[this,i]{transportAction(i);grabKeyboardFocus();};addAndMakeVisible(b);}
+    for(int i=0;i<8;++i){auto* b=transportButtons.add(new juce::TextButton(tr[i]));b->getProperties().set("hardware",true);b->getProperties().set("transportKey",i);b->setColour(juce::TextButton::textColourOffId,i==3?juce::Colour(0xffbf513b):ink);b->setWantsKeyboardFocus(false);b->setTooltip(tt[i]);b->onClick=[this,i]{transportAction(i);grabKeyboardFocus();};addAndMakeVisible(b);}
     for(auto* b:{&inputButton,&tempoButton,&comButton,&shiftButton}){b->getProperties().set("hardware",true);b->setColour(juce::TextButton::textColourOffId,ink);b->setWantsKeyboardFocus(false);addAndMakeVisible(b);}
+    inputButton.getProperties().set("panelUtility",0);tempoButton.getProperties().set("panelUtility",1);comButton.getProperties().set("panelUtility",2);
     inputButton.setTooltip(juce::String::fromUTF8("Monitor live audio input · required for Amp / Vocoder"));inputButton.onClick=[this]{processor.inputMonitor=!processor.inputMonitor;status=processor.inputMonitor?"Input monitoring on":"Input monitoring off";grabKeyboardFocus();};
     tempoButton.setTooltip("Metronome on / off");tempoButton.onClick=[this]{processor.metronome=!processor.metronome;grabKeyboardFocus();};
     comButton.setTooltip("Connections, host sync, tape styles and panic");comButton.onClick=[this]{showMenu();};shiftButton.setTooltip(juce::String::fromUTF8("Latch Shift · alternate tape edits and mixer pan"));shiftButton.onClick=[this]{shiftLatched=!shiftLatched;setShift(shiftLatched);grabKeyboardFocus();};
@@ -251,6 +253,7 @@ void FieldEditor::drawScreen(juce::Graphics& g){
     juce::Rectangle<float> r(304,38,271,134);g.setColour(juce::Colour(0xff3d4949));g.fillRoundedRectangle(r.expanded(1),3);g.setColour(screenBlack);g.fillRoundedRectangle(r,2);g.saveState();g.reduceClipRegion(r.toNearestInt());
     auto content=r.reduced(12,9);if(presetBrowser){drawPresetBrowser(g,content);g.restoreState();return;}
     const bool masterCwo=mode==3&&page==2;const bool patchCwo=(mode==0||mode==1)&&page==2;
+    if((masterCwo||patchCwo)&&(int)processor.value(masterCwo?"masterEffect":"effect")==1){std::array<float,4> values{};for(int i=0;i<4;++i)values[(size_t)i]=processor.value((masterCwo?"masterFx":"fx")+juce::String(i+1));field::drawDelayScreen(g,r,values,tick/30.f);g.restoreState();return;}
     if((masterCwo||patchCwo)&&(int)processor.value(masterCwo?"masterEffect":"effect")==7){std::array<float,4> values{};for(int i=0;i<4;++i)values[(size_t)i]=processor.value((masterCwo?"masterFx":"fx")+juce::String(i+1));field::drawCwoScreen(g,r,values,tick/30.f);g.restoreState();return;}
     if(mode==2){drawTape(g,content);g.restoreState();return;}if(mode==3){drawMixer(g,content);g.restoreState();return;}if(mode==4){drawSequence(g,content);g.restoreState();return;}
     const int engine=(int)processor.value("engine");
@@ -345,6 +348,7 @@ void FieldEditor::drawEffect(juce::Graphics& g,juce::Rectangle<float> area,bool 
     const int effect=juce::jlimit(0,10,(int)processor.value(master?"masterEffect":"effect"));
     std::array<float,4> v{};for(int i=0;i<4;++i)v[(size_t)i]=juce::jlimit(0.f,1.f,processor.value((master?"masterFx":"fx")+juce::String(i+1)));
     const float mix=processor.value(master?"masterMix":"effectMix");
+    if(effect==1){field::drawDelayScreen(g,area,v,tick/30.f);return;}
     if(effect==7){field::drawCwoScreen(g,area,v,tick/30.f);return;}
     const auto body=area.withTrimmedBottom(16).reduced(3,3);const float x=v[0],y=v[1],z=v[2],w=v[3];
     if(effect==0){g.setColour(colours[2].withAlpha(.25f));g.drawLine(body.getX()+8,body.getCentreY(),body.getRight()-8,body.getCentreY(),1);text(g,"BYPASS",body.withHeight(body.getHeight()-8),17,colours[2]);text(g,"CHOOSE AN EFFECT ABOVE",area.withY(area.getBottom()-12).withHeight(12),8,colours[2]);return;}
@@ -712,7 +716,7 @@ void FieldEditor::timerCallback(){
     for(int i=0;i<4;++i)functionButtons[i]->setToggleState(mode==i,juce::dontSendNotification);for(int i=4;i<8;++i)functionButtons[i]->setToggleState(mode==2?selectedTrack==i-4:page==i-4,juce::dontSendNotification);
     functionButtons[10]->setToggleState(processor.value("loop")>.5f,juce::dontSendNotification);functionButtons[11]->setToggleState(mode==4,juce::dontSendNotification);functionButtons[13]->setToggleState(processor.metronome,juce::dontSendNotification);inputButton.setToggleState(processor.inputMonitor,juce::dontSendNotification);tempoButton.setToggleState(processor.metronome,juce::dontSendNotification);transportButtons[3]->setToggleState(recording,juce::dontSendNotification);transportButtons[4]->setToggleState(playing,juce::dontSendNotification);
     if(mode<2){for(int slot=0;slot<8;++slot){functionButtons[8+slot]->setButtonText(juce::String(slot+1));functionButtons[8+slot]->setToggleState(processor.getCurrentProgram()%8==slot,juce::dontSendNotification);functionButtons[8+slot]->setTooltip("Sound "+juce::String(slot+1)+": "+processor.soundSlotName(slot)+" / Shift: browse / Hold 2 seconds: snapshot");}}
-    else {const juce::StringArray labels{"IN","OUT","loop","seq","rev","click","M1","M2"};for(int slot=0;slot<8;++slot)functionButtons[8+slot]->setButtonText(labels[slot]);}
+    else {const juce::StringArray labels{"IN","OUT","loop","seq","rev","click","M1","M2"};const juce::StringArray tips{"Set loop start","Set loop end","Toggle loop","Open sequencer","Reverse tape speed","Toggle metronome","Mixer memo 1 / Shift: store / Sequencer: previous page","Mixer memo 2 / Shift: store / Sequencer: next page"};for(int slot=0;slot<8;++slot){functionButtons[8+slot]->setButtonText(labels[slot]);functionButtons[8+slot]->setTooltip(juce::String(slot+1)+" / "+labels[slot]+": "+tips[slot]);}}
     transportButtons[3]->setButtonText(countInRemaining>0?"ARM":processor.sampling?"SAMPLE":juce::String::fromUTF8("●"));
     updateControlAvailability();
     repaint();

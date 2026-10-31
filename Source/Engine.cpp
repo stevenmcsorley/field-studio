@@ -1,4 +1,5 @@
 #include "Engine.h"
+#include "DelayControls.h"
 #include <algorithm>
 #include <cmath>
 #include <limits>
@@ -94,7 +95,7 @@ void Engine::prepare(double rate, int /* maxBlock */) {
     delayR.assign(delayL.size(),0);
     delayWrite=0; fxLowL=fxLowR=fxBandL=fxBandR=wetLowL=wetLowR=0;
     phaserL.fill(0); phaserR.fill(0);
-    cwoShifter.prepare(sr);cwoDelay=-1;cwoDelaySmoothing=1-std::exp(-1/(.005*sr));
+    cwoShifter.prepare(sr);cwoDelay=plainDelay=-1;cwoDelaySmoothing=1-std::exp(-1/(.005*sr));
     for (auto& v : voices) {v.active=false;releaseVoiceSample(v);}keyCount=0;
     isRecording=false; isPlaying=false;countInRemaining=0;countInElapsed=0;reverseHeld=false;brakeHeld=false;rollHeld=false;
     seqPhase=0; seqStep=-1;seqPositionPending=-1; seqLastNote=-1;
@@ -590,7 +591,11 @@ std::pair<float,float> Engine::effect(float l,float r) {
     const float tapL=read(delayL,(.04+x*.71)*sr), tapR=read(delayR,(.057+x*.713)*sr);
     fxPhase=wrap(fxPhase+(0.05+y*1.8)/sr);
     switch(params.effect) {
-        case 1: wetL=tapL; wetR=tapR; feedbackL=tapR*(.15f+y*.65f); feedbackR=tapL*(.15f+y*.65f); break;
+        case 1: {
+            const double target=delaySeconds(x,y)*sr;if(plainDelay<0)plainDelay=target;else plainDelay+=(target-plainDelay)*cwoDelaySmoothing;
+            const float echoL=read(delayL,plainDelay),echoR=read(delayR,plainDelay);
+            feedbackL=echoR*z*.94f;feedbackR=echoL*z*.94f;wetL=echoL*w;wetR=echoR*w;break;
+        }
         case 2: { // Short dispersive feedback taps: spring-inspired, not a model of TE's engine.
             wetL=read(delayL,sr*.0311)+read(delayR,sr*.0477)*.7f+read(delayL,sr*.0713)*.5f;
             wetR=read(delayR,sr*.0371)+read(delayL,sr*.0537)*.7f+read(delayR,sr*.0793)*.5f;
@@ -631,9 +636,9 @@ std::pair<float,float> Engine::effect(float l,float r) {
     }
     delayL[delayWrite]=std::tanh(l+feedbackL);delayR[delayWrite]=std::tanh(r+feedbackR);
     delayWrite=(delayWrite+1)%delayL.size();
-    // CWO has dedicated feedback and sideband controls. Other original
-    // software effects retain their wet-tone and stereo-width processing.
-    if(params.effect!=7){
+    // Delay and CWO have dedicated four-control paths. Other software
+    // effects retain their wet-tone and stereo-width processing.
+    if(params.effect!=7&&params.effect!=1){
         const float tone=1-std::exp(-static_cast<float>(tau)*std::min(static_cast<float>(sr*.42),200+z*z*18000)/static_cast<float>(sr));
         wetLowL+=tone*(wetL-wetLowL);wetLowR+=tone*(wetR-wetLowR);
         const float mid=(wetLowL+wetLowR)*.5f,side=(wetLowL-wetLowR)*w;

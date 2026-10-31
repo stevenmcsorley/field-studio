@@ -6,7 +6,7 @@ The preset workflow follows the two supplied OP-1 field guide screenshots. Sound
 
 ## Eight sound keys
 
-In **Synth** or **Drum**, the eight keys to the right of T1–T4 show **1–8**. Each mode has its own eight slots. Click a sound key to recall its complete sound. Its tooltip shows the assigned preset name. The computer number keys also work: a short press recalls on release, so a long press can save the current edited sound without loading the slot's previous contents first.
+In **Synth** or **Drum**, the eight keys to the right of T1–T4 show **1–8** above their permanent secondary icons/legends (IN/OUT, loop, sequencer, reverse, click, M1/M2). Each mode has its own eight slots. Click a sound key to recall its complete sound. Its tooltip shows the assigned preset name. The computer number keys also work: a short press recalls on release, so a long press can save the current edited sound without loading the slot's previous contents first.
 
 A sound contains T1 engine/macros (including sample audio, regions and pad data where applicable), T2 envelope/play mode, T3 insert effect and T4 modulation/routing. Tempo, tape transport, sequencers, master mix and MIDI connection settings are not sound-preset parameters. The sixteen assigned slots travel with a project or host state.
 

@@ -296,7 +296,7 @@ private:
     float fxLowL = 0, fxLowR = 0, fxBandL = 0, fxBandR = 0, wetLowL=0, wetLowR=0;
     std::array<float, 8> phaserL{}, phaserR{};
     CwoShifter cwoShifter;
-    double cwoDelay=-1,cwoDelaySmoothing=0;
+    double cwoDelay=-1,cwoDelaySmoothing=0,plainDelay=-1;
     std::array<float,20> modulationRoutes{};
     std::array<float,4> midiControllers{};
     float previousOutputEnvelope = 0;
