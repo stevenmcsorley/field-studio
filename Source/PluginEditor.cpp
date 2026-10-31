@@ -1,6 +1,7 @@
 #include "PluginEditor.h"
 #include "DimensionScreen.h"
 #include "DSynthScreen.h"
+#include "CwoScreen.h"
 #include <cmath>
 #include <algorithm>
 
@@ -28,7 +29,7 @@ juce::StringArray effectLabels(int index,bool shifted,bool master){
         {{"FREQUENCY","PUNCH","ROUNDS","POWER"}},{{"FREQUENCY","DELAY","FEEDBACK","SIDEBAND"}},
         {{"RATE","BITS","MODEL","MIX"}},{{"DISTANCE","GATE","COLOUR","MIX"}},{{"DEPTH","RATE","FEEDBACK","MIX"}}
     }};
-    juce::StringArray result;for(auto name:labels[(size_t)juce::jlimit(0,10,index)])result.add(name);if(shifted)result.set(3,master?"MASTER FX MIX":"INSERT MIX");return result;
+    juce::StringArray result;for(auto name:labels[(size_t)juce::jlimit(0,10,index)])result.add(name);if(shifted)result.set(3,master?"MASTER FX MIX":"INSERT MIX");if(index==7&&shifted)result.set(0,"FREQUENCY / FINE");return result;
 }
 void text(juce::Graphics& g,const juce::String& s,juce::Rectangle<float> r,float size,juce::Colour c=ink,int justification=juce::Justification::centred){
     g.setColour(c);g.setFont(juce::Font(juce::FontOptions(size)));g.drawText(s,r,justification,false);
@@ -110,7 +111,7 @@ void FieldEditor::setMode(int m){presetBrowser=false;heldPresetSlot=-1;if(mode==
 void FieldEditor::setPage(int p){page=p;if(mode>1&&mode!=3)mode=processor.drumMode?1:0;configureMacros();repaint();}
 void FieldEditor::setShift(bool s){if(shifted==s)return;shifted=s;shiftButton.setToggleState(s,juce::dontSendNotification);configureMacros();repaint();}
 void FieldEditor::configureMacros(){
-    for(size_t i=0;i<4;++i){attachments[i].reset();macros[i].onValueChange=nullptr;macros[i].setTextValueSuffix("");macros[i].getProperties().set("midiTarget",juce::String{});macros[i].setEnabled(true);}
+    for(size_t i=0;i<4;++i){attachments[i].reset();macros[i].onValueChange=nullptr;macros[i].setTextValueSuffix("");macros[i].getProperties().set("midiTarget",juce::String{});macros[i].setEnabled(true);macros[i].setMouseDragSensitivity(250);}
     macroLabels.clear();juce::StringArray ids;effectBox.getProperties().set("midiTarget",mode==3?"masterEffect":"effect");
     if(presetBrowser){configurePresetMacros();lastVoiceMode=(int)processor.value("voiceMode");lastEngine=(int)processor.value("engine");lastEffect=(int)processor.value("effect");lastMasterEffect=(int)processor.value("masterEffect");lastLfo=(int)processor.value("lfo");lastElementSource=(int)processor.value("elementSource");lastLfoSync=(int)processor.value("lfoSync");return;}
     bool heldSource=mode==4&&(int)processor.value("sequencer")==4;
@@ -162,6 +163,7 @@ void FieldEditor::configureMacros(){
         else{ids={"macro1","macro2","macro3","macro4"};int e=juce::jlimit(0,14,(int)processor.value("engine"));for(auto n:names[(size_t)e])macroLabels.add(n);if(mode==1)macroLabels={"TONE","DECAY","NOISE / BODY","DRIVE"};else if(e==11&&processor.parameters.getParameter("sampleStart"))ids={"sampleStart","sampleLoopIn","sampleLoopOut","sampleEnd"};}
         for(size_t i=0;i<4;++i){macros[i].getProperties().set("midiTarget",ids[(int)i]);attachments[i]=std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(processor.parameters,ids[(int)i],macros[i]);auto* p=processor.parameters.getParameter(ids[(int)i]);macros[i].setDoubleClickReturnValue(true,p?p->convertFrom0to1(p->getDefaultValue()):.5f);}
     }
+    if(page==2&&(mode==0||mode==1||mode==3)&&(int)processor.value(mode==3?"masterEffect":"effect")==7&&shifted){macros[0].setMouseDragSensitivity(2400);}
     updateControlAvailability();
     lastVoiceMode=(int)processor.value("voiceMode");lastEngine=(int)processor.value("engine");lastEffect=(int)processor.value("effect");lastMasterEffect=(int)processor.value("masterEffect");lastLfo=(int)processor.value("lfo");lastElementSource=(int)processor.value("elementSource");lastLfoSync=(int)processor.value("lfoSync");
 }
@@ -247,7 +249,10 @@ void FieldEditor::paint(juce::Graphics& g){
 }
 void FieldEditor::drawScreen(juce::Graphics& g){
     juce::Rectangle<float> r(304,38,271,134);g.setColour(juce::Colour(0xff3d4949));g.fillRoundedRectangle(r.expanded(1),3);g.setColour(screenBlack);g.fillRoundedRectangle(r,2);g.saveState();g.reduceClipRegion(r.toNearestInt());
-    auto content=r.reduced(12,9);if(presetBrowser){drawPresetBrowser(g,content);g.restoreState();return;}if(mode==2){drawTape(g,content);g.restoreState();return;}if(mode==3){drawMixer(g,content);g.restoreState();return;}if(mode==4){drawSequence(g,content);g.restoreState();return;}
+    auto content=r.reduced(12,9);if(presetBrowser){drawPresetBrowser(g,content);g.restoreState();return;}
+    const bool masterCwo=mode==3&&page==2;const bool patchCwo=(mode==0||mode==1)&&page==2;
+    if((masterCwo||patchCwo)&&(int)processor.value(masterCwo?"masterEffect":"effect")==7){std::array<float,4> values{};for(int i=0;i<4;++i)values[(size_t)i]=processor.value((masterCwo?"masterFx":"fx")+juce::String(i+1));field::drawCwoScreen(g,r,values,tick/30.f);g.restoreState();return;}
+    if(mode==2){drawTape(g,content);g.restoreState();return;}if(mode==3){drawMixer(g,content);g.restoreState();return;}if(mode==4){drawSequence(g,content);g.restoreState();return;}
     const int engine=(int)processor.value("engine");
     if(mode==0&&page==0&&engine==5){field::drawDimensionScreen(g,r,processor.value("macro1"),processor.value("macro2"),processor.value("macro3"),processor.value("macro4"),processor.getSampleRate()>0?processor.getSampleRate():44100.,tick/30.f);g.restoreState();return;}
     if(mode==0&&page==0&&engine==10){field::drawDSynthScreen(g,r,{{processor.value("macro1"),processor.value("macro2"),processor.value("macro3"),processor.value("macro4")}},shifted,tick/30.f);g.restoreState();return;}
@@ -340,6 +345,7 @@ void FieldEditor::drawEffect(juce::Graphics& g,juce::Rectangle<float> area,bool 
     const int effect=juce::jlimit(0,10,(int)processor.value(master?"masterEffect":"effect"));
     std::array<float,4> v{};for(int i=0;i<4;++i)v[(size_t)i]=juce::jlimit(0.f,1.f,processor.value((master?"masterFx":"fx")+juce::String(i+1)));
     const float mix=processor.value(master?"masterMix":"effectMix");
+    if(effect==7){field::drawCwoScreen(g,area,v,tick/30.f);return;}
     const auto body=area.withTrimmedBottom(16).reduced(3,3);const float x=v[0],y=v[1],z=v[2],w=v[3];
     if(effect==0){g.setColour(colours[2].withAlpha(.25f));g.drawLine(body.getX()+8,body.getCentreY(),body.getRight()-8,body.getCentreY(),1);text(g,"BYPASS",body.withHeight(body.getHeight()-8),17,colours[2]);text(g,"CHOOSE AN EFFECT ABOVE",area.withY(area.getBottom()-12).withHeight(12),8,colours[2]);return;}
     auto curve=[&](auto fn,juce::Colour colour,float thickness=1.3f){juce::Path path;for(int i=0;i<180;++i){float u=i/179.f,value=juce::jlimit(-1.2f,1.2f,fn(u));float px=body.getX()+u*body.getWidth(),py=body.getCentreY()-value*body.getHeight()*.4f;if(i==0)path.startNewSubPath(px,py);else path.lineTo(px,py);}g.setColour(colour);g.strokePath(path,juce::PathStrokeType(thickness));};
@@ -349,7 +355,7 @@ void FieldEditor::drawEffect(juce::Graphics& g,juce::Rectangle<float> area,bool 
     else if(effect==4){float low=std::min(x,w),high=std::max(x,w);curve([&](float u){float lo=1/(1+std::exp(-(u-low)*20)),hi=1/(1+std::exp((u-high)*20));return lo*hi*(1+z*.8f)-.5f;},colours[0]);g.setColour(colours[1]);g.drawLine(body.getX()+y*body.getWidth(),body.getY(),body.getX()+y*body.getWidth(),body.getBottom(),.7f);}
     else if(effect==5){const float steps=4+std::round(z*22),levels=2+std::round(x*10);curve([&](float u){float t=std::floor(u*steps)/steps;return std::round(std::sin(t*(10+y*20))*(levels))/levels*(.4f+w*.6f);},colours[2]);}
     else if(effect==6){curve([&](float u){float input=u*2-1;return std::tanh(input*(1+x*12+z*8))*std::pow(.4f+w*.6f,1+y);},colours[3],1.7f);g.setColour(colours[2].withAlpha(.25f));g.drawLine(body.getX(),body.getBottom(),body.getRight(),body.getY(),.7f);}
-    else if(effect==7){float cx=body.getCentreX()-45,cy=body.getCentreY()-15;g.setColour(colours[2]);g.drawRoundedRectangle({cx,cy,88,31},10,1.1f);g.drawEllipse(cx-24,cy-7,27,25,1.1f);g.drawLine(cx-20,cy-6,cx-24-x*8,cy-13,1.1f);g.drawLine(cx-5,cy-6,cx+x*8,cy-13,1.1f);for(int i=0;i<4;++i)g.drawLine(cx+9+i*20,cy+30,cx+9+i*20+y*5,cy+42,1.1f);g.drawLine(cx+87,cy+6,cx+98+w*9,cy-7,1.1f);for(int i=0;i<3;++i){g.setColour(colours[(size_t)i]);g.drawEllipse(cx+10+i*23,cy+6,11+z*7,15,1);}g.setColour(colours[0]);g.fillEllipse(cx-18,cy+1,3,3);}
+
     else if(effect==8){const float steps=5+std::round(x*38),levels=2+std::round(y*12);curve([&](float u){float phase=std::floor(u*steps)/steps;return std::round(std::sin(phase*(8+z*16))*levels)/levels*(.35f+w*.65f);},colours[3]);}
     else if(effect==9){for(int i=0;i<5;++i){float inset=i*(4+x*5);auto box=body.reduced(inset,juce::jmin(body.getHeight()*.45f,inset*.45f));if(box.getWidth()<3||box.getHeight()<3)continue;g.setColour(colours[(size_t)(i%4)].interpolatedWith(colours[2],z).withAlpha((.18f+w*.6f)*(1-i*.12f)));g.drawRoundedRectangle(box,2+y*7,1);}g.setColour(colours[3]);g.drawLine(body.getX()+body.getWidth()*y,body.getY(),body.getX()+body.getWidth()*y,body.getBottom(),1);}
     else{for(int i=0;i<4;++i){float px=body.getX()+22+i*60,py=body.getCentreY()+std::sin(i+y*6)*x*17;g.setColour(colours[(size_t)i].withAlpha(.35f+w*.65f));g.drawEllipse(px-13,py-13,26,26,1.2f);if(i<3)g.drawLine(px+13,py,px+47,body.getCentreY()+std::sin(i+1+y*6)*x*17,1);if(z>.1f)g.drawEllipse(px-17,py-17,34,34,z);}}

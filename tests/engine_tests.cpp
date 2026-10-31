@@ -32,6 +32,25 @@ void render(Engine& e,std::vector<float>& l,std::vector<float>& r,int frames){l.
 int main(){
     std::vector<float> l,r;
     {
+        constexpr int rate=8000,frames=16000;
+        auto processCwo=[&](float delay,float feedback,float sideband,bool impulse){
+            auto fx=std::make_unique<Engine>();fx->prepare(rate,128);Parameters p;p.monitorInput=true;p.volume=1;p.effect=7;p.effectMix=1;p.effectMacro[0]=std::cbrt((200.f-.02f)/1600.f);p.effectMacro[1]=delay;p.effectMacro[2]=feedback;p.effectMacro[3]=sideband;fx->setParameters(p);fx->setOutputGainImmediately(1);
+            std::vector<float> source(frames,0),left(frames),right(frames);if(impulse)source[0]=.1f;else for(int i=0;i<frames;++i)source[(size_t)i]=.1f*std::sin(i*6.28318530717958647692*1000/rate);
+            const auto allocations=watchedAllocations.load(),frees=watchedDeallocations.load();watchAllocations=true;fx->process(left.data(),right.data(),source.data(),source.data(),frames);watchAllocations=false;
+            check(watchedAllocations.load()==allocations&&watchedDeallocations.load()==frees,"CWO processing allocates/frees no heap storage");for(int i=0;i<frames;++i){check(std::isfinite(left[(size_t)i])&&std::abs(left[(size_t)i])<=1,"CWO feedback bounded");check(left[(size_t)i]==right[(size_t)i],"CWO preserves equal stereo inputs");}return left;
+        };
+        auto power=[](const std::vector<float>& signal,double frequency){double real=0,imaginary=0;for(size_t i=2000;i<signal.size();++i){const double phase=i*6.28318530717958647692*frequency/rate;real+=signal[i]*std::cos(phase);imaginary+=signal[i]*std::sin(phase);}return real*real+imaginary*imaginary;};
+        auto shifted=processCwo(0,0,1,false),plain=processCwo(0,0,0,false);
+        check(power(shifted,1200)>100*power(shifted,800)&&power(shifted,1200)>100*power(shifted,1000),"CWO produces a shifted upper sideband rather than symmetric ring modulation");
+        check(power(plain,1000)>100*power(plain,1200),"CWO sideband amount zero retains delayed source frequency");
+        auto longShift=processCwo(.75f,0,1,false);check(power(longShift,1200)>100*power(longShift,800)&&power(longShift,1200)>100*power(longShift,1000),"CWO delay control does not retune the blue frequency control");
+        auto immediate=processCwo(0,0,0,true),delayed=processCwo(.5f,0,0,true),repeated=processCwo(.5f,.8f,0,true);
+        auto peak=[](const auto& signal){return (int)std::distance(signal.begin(),std::max_element(signal.begin(),signal.end()));};
+        check(peak(immediate)==33&&peak(delayed)==1633,"CWO delay independently changes impulse arrival with FIR group delay");
+        double quietTail=0,repeatTail=0;for(int i=2000;i<frames;++i){quietTail+=delayed[(size_t)i]*delayed[(size_t)i];repeatTail+=repeated[(size_t)i]*repeated[(size_t)i];}check(quietTail==0&&repeatTail>.001,"CWO feedback independently creates further echoes");
+        auto extreme=processCwo(1,1,1,false);check(energy(extreme)>0,"CWO maximum controls produce audio");
+    }
+    {
         auto eOwner=std::make_unique<Engine>();auto& e=*eOwner;e.prepare(48000,512);Parameters p;p.engine=1;p.macro[1]=0;p.attack=.001f;p.decay=.01f;p.sustain=1;p.release=.025f;p.volume=1;e.setParameters(p);e.noteOn(69,1);render(e,l,r,48000);
         check(energy(l)>.001f,"FM sine carrier produces audio");
         int crossings=0;for(size_t i=4801;i<l.size();++i)if(l[i-1]<=0&&l[i]>0)++crossings;

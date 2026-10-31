@@ -94,6 +94,7 @@ void Engine::prepare(double rate, int /* maxBlock */) {
     delayR.assign(delayL.size(),0);
     delayWrite=0; fxLowL=fxLowR=fxBandL=fxBandR=wetLowL=wetLowR=0;
     phaserL.fill(0); phaserR.fill(0);
+    cwoShifter.prepare(sr);cwoDelay=-1;cwoDelaySmoothing=1-std::exp(-1/(.005*sr));
     for (auto& v : voices) {v.active=false;releaseVoiceSample(v);}keyCount=0;
     isRecording=false; isPlaying=false;countInRemaining=0;countInElapsed=0;reverseHeld=false;brakeHeld=false;rollHeld=false;
     seqPhase=0; seqStep=-1;seqPositionPending=-1; seqLastNote=-1;
@@ -610,9 +611,14 @@ std::pair<float,float> Engine::effect(float l,float r) {
         }
         case 6: wetL=std::tanh(l*(1+x*15))*.8f;wetR=std::tanh(r*(1+x*15))*.8f;break;
         case 7: {
-            double ring=wrap(fxPhase*(4+std::round(x*500)));
-            wetL=(l+tapL*y*.4f)*sine(ring);wetR=(r+tapR*y*.4f)*sine(ring+.25);
-            feedbackL=wetL*.3f;feedbackR=wetR*.3f;break;
+            // Independent controls: blue shift rate, ochre delay, grey loop
+            // feedback, orange shifted-sideband amount. The shift is inside
+            // the feedback loop, so successive echoes acquire further shifts.
+            const double target=1+y*y*.8*sr;
+            if(cwoDelay<0)cwoDelay=target;else cwoDelay+=(target-cwoDelay)*cwoDelaySmoothing;
+            const float frequency=.02f+x*x*x*std::min(2000.f,(float)(sr*.2));
+            const auto shifted=cwoShifter.process(read(delayL,cwoDelay),read(delayR,cwoDelay),frequency,w);
+            wetL=shifted[0];wetR=shifted[1];feedbackL=wetL*z*.94f;feedbackR=wetR*z*.94f;break;
         }
         case 8: { const float levels=4+std::pow(2.0f,(1-x)*10); wetL=std::round((l+tapL*y*.4f)*levels)/levels;wetR=std::round((r+tapR*y*.4f)*levels)/levels;feedbackL=wetL*.35f;feedbackR=wetR*.35f;break; }
         case 9: { const double movement=(.03+.45*(1-fxPhase))*sr;wetL=read(delayL,movement);wetR=read(delayR,movement+sr*.013);feedbackL=wetR*.5f;feedbackR=wetL*.5f;break; }
@@ -625,13 +631,14 @@ std::pair<float,float> Engine::effect(float l,float r) {
     }
     delayL[delayWrite]=std::tanh(l+feedbackL);delayR[delayWrite]=std::tanh(r+feedbackR);
     delayWrite=(delayWrite+1)%delayL.size();
-    // Consistent wet-tone and stereo-width controls complement each effect's
-    // two core controls. These are original software controls, not recovered
-    // proprietary engine parameter meanings.
-    const float tone=1-std::exp(-static_cast<float>(tau)*std::min(static_cast<float>(sr*.42),200+z*z*18000)/static_cast<float>(sr));
-    wetLowL+=tone*(wetL-wetLowL);wetLowR+=tone*(wetR-wetLowR);
-    const float mid=(wetLowL+wetLowR)*.5f,side=(wetLowL-wetLowR)*w;
-    wetL=mid+side;wetR=mid-side;
+    // CWO has dedicated feedback and sideband controls. Other original
+    // software effects retain their wet-tone and stereo-width processing.
+    if(params.effect!=7){
+        const float tone=1-std::exp(-static_cast<float>(tau)*std::min(static_cast<float>(sr*.42),200+z*z*18000)/static_cast<float>(sr));
+        wetLowL+=tone*(wetL-wetLowL);wetLowR+=tone*(wetR-wetLowR);
+        const float mid=(wetLowL+wetLowR)*.5f,side=(wetLowL-wetLowR)*w;
+        wetL=mid+side;wetR=mid-side;
+    }
     const float mix=params.effect==0?0:clamp(params.effectMix+modulationRoutes[16]*.5f);
     return {l*(1-mix)+wetL*mix,r*(1-mix)+wetR*mix};
 }

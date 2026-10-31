@@ -25,7 +25,7 @@ public:
     const juce::String getName() const override { return "Field Studio"; }
     bool acceptsMidi() const override { return true; }
     bool producesMidi() const override { return true; }
-    double getTailLengthSeconds() const override { return 4; }
+    double getTailLengthSeconds() const override;
     int getNumPrograms() override { return 16; }
     int getCurrentProgram() override { return currentProgram+(drumMode?8:0); }
     void setCurrentProgram(int) override;
