@@ -60,7 +60,7 @@ if args.release and (dirty or juce_dirty):
 build_info={'version':version,'binary_version':base_version,'revision':revision,'juce_revision':juce_revision,'juce_source_dirty':juce_dirty,'platform':os_label,'architecture':arch,'source_dirty':dirty,'project_license_included':(root/'LICENSE').is_file(),'original_code_license':'MIT','combined_binary_license':'AGPL-3.0-only'}
 if system == 'Darwin' and arch == 'universal':
     for path in (standalone/'Field Studio.app/Contents/MacOS/Field Studio',vst/'Contents/MacOS/Field Studio',release/'AU/Field Studio.component/Contents/MacOS/Field Studio'):
-        subprocess.run(['lipo','-verify_arch','arm64','x86_64',str(path)],check=True)
+        subprocess.run(['lipo',str(path),'-verify_arch','arm64','x86_64'],check=True)
 if destination.exists():
     shutil.rmtree(destination)
 destination.mkdir()
@@ -113,7 +113,7 @@ if system == 'Linux':
     launcher=destination/'run.sh'
     launcher.write_text('#!/usr/bin/env bash\nset -euo pipefail\ncd "$(dirname "$0")"\nexec "./Standalone/Field Studio" "$@"\n')
     launcher.chmod(0o755)
-manifest={str(p.relative_to(destination)):hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(destination.rglob('*')) if p.is_file() and not p.is_symlink()}
+manifest={p.relative_to(destination).as_posix():hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(destination.rglob('*')) if p.is_file() and not p.is_symlink()}
 (destination/'SHA256.json').write_text(json.dumps(manifest,indent=2)+'\n')
 
 def archive_paths(archive,paths):
@@ -125,7 +125,7 @@ def archive_paths(archive,paths):
                 info.external_attr=(stat.S_IFLNK|0o777)<<16
                 bundle.writestr(info,os.readlink(path))
             elif path.is_file():
-                bundle.write(path,relative)
+                bundle.write(path,relative.as_posix())
     digest=hashlib.sha256(archive.read_bytes()).hexdigest()
     archive.with_suffix(archive.suffix+'.sha256').write_text(digest+'  '+archive.name+'\n')
     print(archive)
