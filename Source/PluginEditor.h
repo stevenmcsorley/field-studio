@@ -26,6 +26,10 @@ public:
     void refreshForTesting() { timerCallback(); }
     juce::String macroMidiTargetForTesting(int i) const {return i>=0&&i<4?macros[(size_t)i].getProperties()["midiTarget"].toString():juce::String{};}
     bool macroEnabledForTesting(int i) const { return i>=0&&i<4&&macros[(size_t)i].isEnabled(); }
+    void openPresetBrowserForTesting(int slot){openPresetBrowser(slot);}
+    bool presetBrowserVisibleForTesting() const {return presetBrowser;}
+    void presetFunctionForTesting(int index){functionAction(index);}
+    void selectPresetForTesting(int folder,int preset){selectPresetFolder(folder);selectPreset(preset,true);}
     void setShiftForTesting(bool value) { shiftLatched=value;setShift(value); }
 private:
     FieldProcessor& processor;
@@ -33,6 +37,29 @@ private:
     juce::ComboBox engineBox,effectBox,sequenceBox;
     juce::TextButton newButton{"New"},openButton{"Open"},saveButton{"Save"},importButton{"Import audio"},exportButton{"Export WAV"},helpButton{"?"};
     juce::OwnedArray<juce::TextButton> functionButtons,transportButtons;
+    juce::TextButton presetsButton{"Presets"},presetDone{"Load / done"},presetSave{"Save snapshot"},presetNewFolder{"New folder"},presetManage{"Manage..."},presetClose{"Close"};
+    bool presetBrowser=false,presetDrum=false,suppressSlotClick=false,heldPresetKeyboard=false;
+    int presetSlot=0,presetFolderIndex=0,presetIndex=0,heldPresetSlot=-1;
+    double presetHoldStarted=0,presetSavedUntil=0;
+    juce::StringArray presetFolders;
+    std::vector<field::PresetLibrary::Entry> presetEntries;
+    field::PresetLibrary::Entry presetClipboard;
+    juce::String presetLoadedId,presetFolderClipboard;
+    bool presetFolderClipboardDrum=false;
+    void openPresetBrowser(int slot);
+    void closePresetBrowser();
+    void refreshPresetBrowser(const juce::String& selectedId={});
+    void selectPresetFolder(int index);
+    void selectPreset(int index,bool load);
+    void loadBrowserPreset(bool close);
+    void savePresetSnapshot(int slot);
+    void configurePresetMacros();
+    void drawPresetBrowser(juce::Graphics&,juce::Rectangle<float>);
+    void presetManagement(int action);
+    void showPresetManagement();
+    void promptPresetName(const juce::String& title,const juce::String& initial,std::function<void(const juce::String&)>);
+    void updatePresetControls();
+    void tickPresetHold();
     juce::TextButton inputButton{"INPUT"},tempoButton{"CLICK"},comButton{"COM"},shiftButton{"shift"};
     std::array<juce::Slider,4> macros;
     juce::Slider volume,tempo;

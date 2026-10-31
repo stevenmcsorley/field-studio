@@ -94,16 +94,23 @@ FieldEditor::FieldEditor(FieldProcessor& p):AudioProcessorEditor(p),processor(p)
     const juce::StringArray performanceNames{"Hold brake","Hold reverse","Hold chop"};
     for(int i=0;i<3;++i){auto& button=tapePerformance[(size_t)i];button.setButtonText(performanceNames[i]);button.setWantsKeyboardFocus(false);addChildComponent(button);button.setTooltip("Hold to perform on tape; release restores normal playback");button.onStateChange=[this,i]{processor.setTapePerformance(i,tapePerformance[(size_t)i].isDown());};}
     addChildComponent(tapeEditButton);tapeEditButton.setWantsKeyboardFocus(false);tapeEditButton.onClick=[this]{showMenu();};
+    for(auto* button:{&presetsButton,&presetDone,&presetSave,&presetNewFolder,&presetManage,&presetClose}){addChildComponent(button);button->setWantsKeyboardFocus(false);}
+    presetsButton.setTooltip("Sound presets: Shift + a sound key (1–8) browses; hold a sound key for two seconds to save a snapshot");
+    presetsButton.onClick=[this]{openPresetBrowser(processor.getCurrentProgram()%8);};
+    presetDone.onClick=[this]{loadBrowserPreset(true);};presetSave.onClick=[this]{savePresetSnapshot(presetSlot);};
+    presetNewFolder.onClick=[this]{presetManagement(3);};presetManage.onClick=[this]{showPresetManagement();};presetClose.onClick=[this]{closePresetBrowser();};
+    for(int slot=0;slot<8;++slot){auto* button=functionButtons[8+slot];button->setComponentID("sound-slot-"+juce::String(slot+1));button->onStateChange=[this,slot,button]{if(button->isDown()&&mode<2&&!presetBrowser&&!shifted&&!juce::ModifierKeys::getCurrentModifiersRealtime().isShiftDown()){heldPresetKeyboard=false;heldPresetSlot=slot;presetHoldStarted=juce::Time::getMillisecondCounterHiRes();suppressSlotClick=false;}};}
     volume.setTooltip("Master volume: 1 = unity, 2 = +6 dB boost");tempo.setTooltip(juce::String::fromUTF8("Tempo · beats per minute"));steps.fill(-1);mode=processor.drumMode?1:0;configureMacros();setResizable(true,true);setResizeLimits(1000,520,1920,1000);setSize(1320,640);startTimerHz(30);
 }
 FieldEditor::~FieldEditor(){stopTimer();panic();for(auto& a:attachments)a.reset();volumeAttachment.reset();tempoAttachment.reset();setLookAndFeel(nullptr);}
 void FieldEditor::showPageForTesting(int m,int p){setMode(juce::jlimit(0,4,m));page=juce::jlimit(0,3,p);configureMacros();timerCallback();repaint();}
-void FieldEditor::setMode(int m){if(mode==2&&m!=2)processor.releaseTapePerformance();mode=m;page=0;for(auto& b:tapePerformance)b.setVisible(mode==2);tapeEditButton.setVisible(mode==2);configureMacros();resized();repaint();}
+void FieldEditor::setMode(int m){presetBrowser=false;heldPresetSlot=-1;if(mode==2&&m!=2)processor.releaseTapePerformance();mode=m;page=0;for(auto& b:tapePerformance)b.setVisible(mode==2);tapeEditButton.setVisible(mode==2);configureMacros();resized();repaint();}
 void FieldEditor::setPage(int p){page=p;if(mode>1&&mode!=3)mode=processor.drumMode?1:0;configureMacros();repaint();}
 void FieldEditor::setShift(bool s){if(shifted==s)return;shifted=s;shiftButton.setToggleState(s,juce::dontSendNotification);configureMacros();repaint();}
 void FieldEditor::configureMacros(){
     for(size_t i=0;i<4;++i){attachments[i].reset();macros[i].onValueChange=nullptr;macros[i].setTextValueSuffix("");macros[i].getProperties().set("midiTarget",juce::String{});macros[i].setEnabled(true);}
     macroLabels.clear();juce::StringArray ids;effectBox.getProperties().set("midiTarget",mode==3?"masterEffect":"effect");
+    if(presetBrowser){configurePresetMacros();lastVoiceMode=(int)processor.value("voiceMode");lastEngine=(int)processor.value("engine");lastEffect=(int)processor.value("effect");lastMasterEffect=(int)processor.value("masterEffect");lastLfo=(int)processor.value("lfo");lastElementSource=(int)processor.value("elementSource");lastLfoSync=(int)processor.value("lfoSync");return;}
     bool heldSource=mode==4&&(int)processor.value("sequencer")==4;
     if(((mode==1&&page<2)||heldSource)&&(int)processor.value("engine")==14){
         {const juce::ScopedLock lock(processor.engineLock);selectedPad=processor.engine.selectedPad();dboxState=processor.engine.dboxPad(selectedPad);}
@@ -158,6 +165,7 @@ void FieldEditor::configureMacros(){
 }
 
 void FieldEditor::updateControlAvailability(){
+    if(presetBrowser)return;
     const bool external=processor.hostSync||processor.value("midiClockMode")==1;
     tempo.setEnabled(!external);
     tempo.setTooltip(processor.hostSync?"External DAW tempo":external?"External MIDI clock tempo":"Tempo - beats per minute");
@@ -180,6 +188,7 @@ juce::Rectangle<int> FieldEditor::boundsFor(float x,float y,float w,float h) con
 void FieldEditor::resized(){
     float w=(float)getWidth();int bx=20;engineBox.setBounds(bx,31,178,28);effectBox.setBounds(208,31,146,28);sequenceBox.setBounds(364,31,148,28);
     int right=getWidth()-20;helpButton.setBounds(right-30,31,30,28);right-=38;exportButton.setBounds(right-100,31,100,28);right-=108;importButton.setBounds(right-108,31,108,28);right-=116;saveButton.setBounds(right-56,31,56,28);right-=64;openButton.setBounds(right-56,31,56,28);right-=64;newButton.setBounds(right-50,31,50,28);
+    updatePresetControls();
     for(int i=0;i<3;++i)tapePerformance[(size_t)i].setBounds(22+i*106,getHeight()-65,100,26);tapeEditButton.setBounds(340,getHeight()-65,100,26);
     float avail=(float)getHeight()-(mode==2?154:126);scale=juce::jmin((w-32)/1280.f,avail/480.f);hardware={(w-1280*scale)*.5f,83+(avail-480*scale)*.5f,1280*scale,480*scale};
     for(int i=0;i<17;++i)functionButtons[i]->setBounds(boundsFor(32+i*68.f,176,67,66));
@@ -219,6 +228,7 @@ void FieldEditor::paint(juce::Graphics& g){
         for(int i=0;i<10;++i){int note=53+blackOffsets[(size_t)i]+processor.octave*12;drawCap(g,blackKeys[(size_t)i],note>=0&&note<128&&held[(size_t)note],true);}
         for(int i=0;i<14;++i){const auto& r=whiteKeys[(size_t)i];text(g,juce::StringArray{"F","G","A","B","C","D","E"}[i%7],{r.getX(),r.getBottom()-22,r.getWidth(),12},8,ink.withAlpha(.5f));}
         drawScreen(g);
+        if(juce::Time::getMillisecondCounterHiRes()<presetSavedUntil){g.setColour(juce::Colour(0xff101716));g.fillRoundedRectangle({345,84,190,38},4);g.setColour(colours[2]);g.drawRoundedRectangle({345,84,190,38},4,1.5f);text(g,"SNAPSHOT SAVED / "+juce::String(presetSlot+1),{349,89,182,28},12,colours[1]);}
         text(g,"FIELD",{1203,293,52,28},13,ink);text(g,"STUDIO",{1203,317,52,24},10,ink);text(g,"01",{1203,352,52,34},26,ink);text(g,"STEREO",{1199,419,60,16},8,ink);
         g.setColour(juce::Colour(0xff8c9790));g.fillRoundedRectangle({1227,80,3,100},1.5f);g.setColour(colours[3]);float peak=juce::jlimit(0.f,1.f,processor.outputPeak.load());g.fillRoundedRectangle({1227,180-peak*100,3,peak*100},1.5f);
         for(auto pt:{juce::Point<float>(21,23),juce::Point<float>(1258,23),juce::Point<float>(21,450),juce::Point<float>(1258,450)}){g.setColour(juce::Colour(0xff929b94));g.fillEllipse(pt.x-2,pt.y-2,4,4);g.setColour(juce::Colour(0xff6b756d));g.drawLine(pt.x-1,pt.y,pt.x+1,pt.y,.7f);}
@@ -235,7 +245,7 @@ void FieldEditor::paint(juce::Graphics& g){
 }
 void FieldEditor::drawScreen(juce::Graphics& g){
     juce::Rectangle<float> r(304,38,271,134);g.setColour(juce::Colour(0xff3d4949));g.fillRoundedRectangle(r.expanded(1),3);g.setColour(screenBlack);g.fillRoundedRectangle(r,2);g.saveState();g.reduceClipRegion(r.toNearestInt());
-    auto content=r.reduced(12,9);if(mode==2){drawTape(g,content);g.restoreState();return;}if(mode==3){drawMixer(g,content);g.restoreState();return;}if(mode==4){drawSequence(g,content);g.restoreState();return;}
+    auto content=r.reduced(12,9);if(presetBrowser){drawPresetBrowser(g,content);g.restoreState();return;}if(mode==2){drawTape(g,content);g.restoreState();return;}if(mode==3){drawMixer(g,content);g.restoreState();return;}if(mode==4){drawSequence(g,content);g.restoreState();return;}
     const int engine=(int)processor.value("engine");
     juce::String title=mode==1?"DRUM / PAD "+juce::String(selectedPad+1):FieldProcessor::engineNames[juce::jlimit(0,14,engine)].toUpperCase();
     if(page==1)title=mode==1&&engine==14?"DYNAMIC ENVELOPE":shifted&&mode==0&&engine!=13?"PLAY MODE":"ENVELOPE";
@@ -462,6 +472,14 @@ void FieldEditor::drawSequence(juce::Graphics& g,juce::Rectangle<float> a){
     text(g,juce::String::fromUTF8("CLICK: REST / NOTE · SHIFT CLICK: +1 SEMITONE"),a.withY(a.getBottom()-11).withHeight(11),7,colours[2],juce::Justification::centredLeft);
 }
 void FieldEditor::functionAction(int i){
+    if(mode<2&&i>=8&&i<16){
+        heldPresetSlot=-1;if(suppressSlotClick){suppressSlotClick=false;return;}
+        const bool shift=shifted||juce::ModifierKeys::getCurrentModifiersRealtime().isShiftDown();
+        if(presetBrowser){presetSlot=i-8;macros[2].setValue(presetSlot+1,juce::dontSendNotification);repaint();return;}if(shift)openPresetBrowser(i-8);else{processor.recallPatchSlot(i-8);status="Sound "+juce::String(i-7)+": "+processor.soundSlotName(i-8);configureMacros();}
+        timerCallback();return;
+    }
+    if(presetBrowser&&i>=4&&i<8){presetManagement(i==4?(shifted?3:1):i==5?2:i==6?4:5);return;}
+
     if(i<4){int e=(int)processor.value("engine");if(i==0){processor.drumMode=false;if(e==14)processor.setValue("engine",(float)lastSynthEngine);}else if(i==1){if(e!=11&&e!=14){lastSynthEngine=e;processor.setValue("engine",14);}processor.drumMode=true;}setMode(i);}
     else if(i<8){if(mode==2)processor.setTrack(i-4);else setPage(i-4);}
     else if(i==8)processor.transport("in");else if(i==9)processor.transport("out");else if(i==10)processor.setValue("loop",processor.value("loop")>.5f?0:1);
@@ -472,6 +490,8 @@ void FieldEditor::functionAction(int i){
 }
 void FieldEditor::transportAction(int i){
     const bool shift=shifted||juce::ModifierKeys::getCurrentModifiersRealtime().isShiftDown();
+    if(presetBrowser&&(i==0||i==1)){presetManagement(i==0?(shift?9:6):7);return;}
+    if(!presetBrowser&&mode<2&&shift&&i==1){processor.randomizeSound();configureMacros();status="Sound randomized / hold 1–8 for two seconds to save";return;}
     const juce::StringArray actions=shift?juce::StringArray{"undo","redo","clear","record","play","stop","rewind","forward"}:juce::StringArray{"lift","drop","split","record","play","stop","back","forward"};
     if(i==3&&shift){if(processor.sampling){processor.stopSampleCapture();setMode(processor.drumMode?1:0);status="Input sample captured";}else{processor.startSampleCapture();status=juce::String::fromUTF8("Sampling input · Shift + record to finish");}}
     else if(i==7&&shift){const juce::ScopedLock lock(processor.engineLock);processor.engine.seek(processor.selectionEnd);}else processor.transport(actions[i]);
@@ -502,7 +522,7 @@ void FieldEditor::fileAction(int action){
     });
 }
 void FieldEditor::showHelp(){
-    juce::AlertWindow::showMessageBoxAsync(juce::MessageBoxIconType::InfoIcon,juce::String::fromUTF8("Field Studio · quick guide"),juce::String::fromUTF8("Play: A W S E D R F G Y H U J K O L P ; [ ' Z X C V B.\nOctave: - / +. Space: play / pause. Esc: all notes off.\n\nShift + T2 envelope knobs access Poly/Mono/Legato/Unison, portamento, bend range and patch volume.\n\nChoose SYNTH or DRUM, then T1–T4 for engine, envelope, effect and LFO. Drag the coloured encoders vertically; double-click resets. DRUM opens DBox unless a sampler kit is selected. In DBox, T1 edits two oscillators (Shift: second layer), T2 edits each pad dynamic envelope. Play a key or click a pad strip to select it.\n\nTape: choose a track with 1–4. Record starts tape capture after any configured count-in; play notes or enable INPUT to record external audio. Shift + record captures a sample (six seconds melodic / twenty seconds drum); Shift + record again finishes it. COM > Sampler > Resample main output captures the synth, effects and tape internally. IN / OUT mark a loop. Click the tape screen to seek, Shift-drag to select. Lift / drop / split edit tape; Shift changes these to undo / redo / clear. Tape edits > Tape editing adds group tracks, copy, merge, join, slide, bounce, beat snap and count-in. Hold brake / reverse / chop below the tape panel for temporary playback tricks. Tape knobs scrub, loop-out, speed and record level; Shift gives slide, loop-in, speed percent and record pan. M1 / M2 recall two mixer memos; Shift + M1 / M2 stores the current mix. COM selects among eight tape banks.\n\nMixer: T1 gives track levels (Shift: pan); T2 is EQ / drive, T3 master FX, T4 dynamics. Four encoders edit the displayed page. Click M or S in the screen to mute / solo.\n\nSequencer: select a mode, then hold a note to run. Click steps to enable / rest; Shift-click raises their pitch. M1 / M2 page through step grids; COM sets length up to 999 steps. Finger has sixteen independent banks selected by the first sixteen keys or COM; its banks support up to 32 steps. Sketch lets you draw pitch over time. Tombola turns held notes into bouncing balls that trigger on impacts. COM can latch notes. Sequencer encoders show only controls used by the current mode; Hold edits the source sound, and Off disables the four encoders. In FX, Shift + orange adjusts insert mix.\n\nNew / Open / Save preserve projects locally, including audio. Import loads your own sample. Export WAV writes a 24-bit stereo tape mix. COM > Album records a live post-master mix onto sides A / B, listens to them, and exports each side separately. Standalone Options controls audio and MIDI devices. Right-click a knob for MIDI learn; controller profiles are in COM > MIDI learn / controller mappings.\n\nLicenses and complete source are available from COM > Licenses and complete source.\n\nIndependent recreation built from public documentation. DSP and screen illustrations are original approximations; hardware-only radio, accelerometer and Bluetooth functions are not emulated. Exact sonic and visual parity are not verified."));
+    juce::AlertWindow::showMessageBoxAsync(juce::MessageBoxIconType::InfoIcon,juce::String::fromUTF8("Field Studio · quick guide"),juce::String::fromUTF8("Play: A W S E D R F G Y H U J K O L P ; [ ' Z X C V B.\nOctave: - / +. Space: play / pause. Esc: all notes off.\n\nShift + T2 envelope knobs access Poly/Mono/Legato/Unison, portamento, bend range and patch volume.\n\nChoose SYNTH or DRUM, then T1–T4 for engine, envelope, effect and LFO. Drag the coloured encoders vertically; double-click resets. DRUM opens DBox unless a sampler kit is selected. In DBox, T1 edits two oscillators (Shift: second layer), T2 edits each pad dynamic envelope. Play a key or click a pad strip to select it.\n\nTape: choose a track with 1–4. Record starts tape capture after any configured count-in; play notes or enable INPUT to record external audio. Shift + record captures a sample (six seconds melodic / twenty seconds drum); Shift + record again finishes it. COM > Sampler > Resample main output captures the synth, effects and tape internally. IN / OUT mark a loop. Click the tape screen to seek, Shift-drag to select. Lift / drop / split edit tape; Shift changes these to undo / redo / clear. Tape edits > Tape editing adds group tracks, copy, merge, join, slide, bounce, beat snap and count-in. Hold brake / reverse / chop below the tape panel for temporary playback tricks. Tape knobs scrub, loop-out, speed and record level; Shift gives slide, loop-in, speed percent and record pan. M1 / M2 recall two mixer memos; Shift + M1 / M2 stores the current mix. COM selects among eight tape banks.\n\nMixer: T1 gives track levels (Shift: pan); T2 is EQ / drive, T3 master FX, T4 dynamics. Four encoders edit the displayed page. Click M or S in the screen to mute / solo.\n\nSequencer: select a mode, then hold a note to run. Click steps to enable / rest; Shift-click raises their pitch. M1 / M2 page through step grids; COM sets length up to 999 steps. Finger has sixteen independent banks selected by the first sixteen keys or COM; its banks support up to 32 steps. Sketch lets you draw pitch over time. Tombola turns held notes into bouncing balls that trigger on impacts. COM can latch notes. Sequencer encoders show only controls used by the current mode; Hold edits the source sound, and Off disables the four encoders. In FX, Shift + orange adjusts insert mix.\n\nPresets: in Synth or Drum, sound keys 1–8 recall complete sounds. Shift + a sound key opens the blue engine/folder and ochre preset browser. Hold a sound key for two seconds to save a dated snapshot. The Presets button opens browsing; use Save snapshot, New folder and Manage below the instrument. T1 renames a preset, Shift+T1 creates a folder, T2 renames a user folder, T3 deletes a user preset and T4 deletes an empty folder. Lift / Drop copies presets between folders. Shift+Drop outside the browser randomizes the current sound. Factory sounds are original Field Studio presets.\n\nNew / Open / Save preserve projects locally, including audio. Import loads your own sample. Export WAV writes a 24-bit stereo tape mix. COM > Album records a live post-master mix onto sides A / B, listens to them, and exports each side separately. Standalone Options controls audio and MIDI devices. Right-click a knob for MIDI learn; controller profiles are in COM > MIDI learn / controller mappings.\n\nLicenses and complete source are available from COM > Licenses and complete source.\n\nIndependent recreation built from public documentation. DSP and screen illustrations are original approximations; hardware-only radio, accelerometer and Bluetooth functions are not emulated. Exact sonic and visual parity are not verified."));
 }
 void FieldEditor::showMenu(){
     juce::PopupMenu m;m.addItem(906,"Cancel background save/export",processor.fileWriteBusy());m.addSectionHeader("TAPE & CONNECTIONS");m.addItem(260,"Import details",processor.lastImportDetails.isNotEmpty());juce::PopupMenu tapeBanks;for(int i=0;i<8;++i)tapeBanks.addItem(200+i,"Tape "+juce::String(i+1),true,processor.tapeNumber()==i);m.addSubMenu("Tape bank",tapeBanks);for(int i=0;i<4;++i)m.addItem(10+i,juce::StringArray{"Studio tape","Vintage tape","Porta tape","Disc Mini tape"}[i],true,(int)processor.value("tapeStyle")==i);
@@ -570,15 +590,28 @@ void FieldEditor::showMenu(){
         else if(id>=200&&id<208){safe->processor.selectTape(id-200);safe->status="Tape bank "+juce::String(id-199);}else if(id>=100&&id<120){safe->processor.setValue("lfoTarget",(float)(id-100));safe->setPage(3);}else if(id>=120&&id<128){safe->processor.savePatchSlot(id-120);safe->status="Stored patch in slot "+juce::String(id-119);}else if(id>=140&&id<148){safe->processor.recallPatchSlot(id-140);safe->configureMacros();safe->status="Recalled patch slot "+juce::String(id-139);}else if(id>=160&&id<167){const int lens[]{16,32,64,128,256,512,999};const juce::ScopedLock lock(safe->processor.engineLock);safe->processor.engine.setSequenceLength(lens[id-160]);}else if(id==170)safe->processor.setValue("sequenceOn",safe->processor.value("sequenceOn")>.5f?0:1);else if(id==171){const juce::ScopedLock lock(safe->processor.engineLock);safe->processor.engine.clearHeldNotes();}else if(id==172){const juce::ScopedLock lock(safe->processor.engineLock);auto pad=safe->processor.engine.drumPad(safe->selectedPad);pad.reverse=!pad.reverse;safe->processor.engine.setDrumPad(safe->selectedPad,pad);}else if(id>=10&&id<14)safe->processor.setValue("tapeStyle",(float)(id-10));else if(id>=60&&id<66){safe->processor.setValue("lfo",(float)(id-60));safe->setPage(3);}else if(id>=80&&id<96){safe->processor.setCurrentProgram(id-80);safe->setMode(safe->processor.drumMode?1:0);}else if(id>=50&&id<=52){const char* params[]{"sampleLoop","sampleReverse","sampleOneShot"};auto param=params[id-50];safe->processor.setValue(param,safe->processor.value(param)>.5f?0:1);}else if(id==53||id==54){if(safe->processor.sampling)safe->processor.stopSampleCapture();else safe->processor.startSampleCapture(id==54);safe->status=safe->processor.sampling?(id==54?juce::String::fromUTF8("Resampling output · Shift + record to finish"):juce::String::fromUTF8("Sampling input · Shift + record to finish")):"Sample captured";}else if(id==20)safe->processor.hostSync=!safe->processor.hostSync;else if(id==21)safe->processor.inputMonitor=!safe->processor.inputMonitor;else if(id==22)safe->processor.metronome=!safe->processor.metronome;else if(id==23)safe->processor.setValue("loop",safe->processor.value("loop")>.5f?0:1);else if(id==30)safe->processor.transport("undo");else if(id==31)safe->processor.transport("redo");else if(id==32)safe->processor.transport("rewind");else if(id==33)safe->panic();else if(id==40)safe->showHelp();safe->grabKeyboardFocus();});
 }
 void FieldEditor::keyboardNote(int n,float velocity,bool on){if(n<0||n>127)return;held[(size_t)n]=on;if(on)processor.keyboard.noteOn(processor.keyboardMidiChannel(),n,velocity);else for(int channel=1;channel<=16;++channel)if(processor.keyboard.isGuiNoteOn(channel,n))processor.keyboard.noteOff(channel,n,0);repaint();}
-void FieldEditor::panic(){processor.releaseTapePerformance();drawingSketch=false;draggingSampleMarker=-1;typingNotes.clear();held.fill(false);mouseNote=-1;processor.transport("panic");}
+void FieldEditor::panic(){heldPresetSlot=-1;suppressSlotClick=false;processor.releaseTapePerformance();drawingSketch=false;draggingSampleMarker=-1;typingNotes.clear();held.fill(false);mouseNote=-1;processor.transport("panic");}
 bool FieldEditor::keyPressed(const juce::KeyPress& k){
-    auto code=k.getKeyCode();if(code==juce::KeyPress::escapeKey){panic();return true;}if(code==juce::KeyPress::spaceKey){processor.transport("play");return true;}
+    auto code=k.getKeyCode();
+    if(mode<2&&code>='1'&&code<='8'){
+        const int slot=code-'1';if(presetBrowser){presetSlot=slot;macros[2].setValue(slot+1,juce::dontSendNotification);repaint();return true;}if(heldPresetSlot==slot)return true;
+        if(k.getModifiers().isShiftDown()||shifted){openPresetBrowser(slot);return true;}
+        heldPresetKeyboard=true;heldPresetSlot=slot;presetHoldStarted=juce::Time::getMillisecondCounterHiRes();suppressSlotClick=false;return true;
+    }
+    if(presetBrowser){
+        if(code==juce::KeyPress::escapeKey){closePresetBrowser();return true;}
+        if(code==juce::KeyPress::returnKey){loadBrowserPreset(true);return true;}
+        if(code==juce::KeyPress::leftKey||code==juce::KeyPress::rightKey){selectPresetFolder(presetFolderIndex+(code==juce::KeyPress::leftKey?-1:1));return true;}
+        if(code==juce::KeyPress::upKey||code==juce::KeyPress::downKey){selectPreset(presetIndex+(code==juce::KeyPress::upKey?-1:1),true);return true;}
+        if((k.getModifiers().isCommandDown()||k.getModifiers().isCtrlDown())&&(code=='C'||code=='V')){presetManagement(code=='C'?(k.getModifiers().isShiftDown()?9:6):7);return true;}
+    }
+    if(code==juce::KeyPress::escapeKey){panic();return true;}if(code==juce::KeyPress::spaceKey){processor.transport("play");return true;}
     if(code=='-'||code=='='||code=='+'){panic();processor.octave=juce::jlimit(-3,3,processor.octave+(code=='-'?-1:1));status="Keyboard octave "+juce::String(processor.octave.load());return true;}
     if(k.getModifiers().isCommandDown()||k.getModifiers().isCtrlDown()){if(mode==2&&(code=='C'||code=='X'||code=='V')){processor.transport(code=='C'?"copy":code=='X'?"lift":"drop");return true;}if(code=='S'){fileAction(2);return true;}if(code=='O'){fileAction(1);return true;}if(code=='Z'){processor.transport(k.getModifiers().isShiftDown()?"redo":"undo");return true;}return false;}
     for(int i=0;i<typingKeys.size();++i)if(juce::String::charToString(k.getTextCharacter()).toLowerCase()==typingKeys[i]){if(typingNotes.count(code)==0){int n=53+i+processor.octave*12;typingNotes[code]=n;keyboardNote(n,.8f,true);}return true;}
     return false;
 }
-bool FieldEditor::keyStateChanged(bool){bool changed=false;setShift(shiftLatched||(hasKeyboardFocus(true)&&juce::ModifierKeys::getCurrentModifiersRealtime().isShiftDown()));for(auto it=typingNotes.begin();it!=typingNotes.end();){if(!juce::KeyPress::isKeyCurrentlyDown(it->first)){keyboardNote(it->second,0,false);it=typingNotes.erase(it);changed=true;}else ++it;}return changed;}
+bool FieldEditor::keyStateChanged(bool){tickPresetHold();bool changed=false;setShift(shiftLatched||(hasKeyboardFocus(true)&&juce::ModifierKeys::getCurrentModifiersRealtime().isShiftDown()));for(auto it=typingNotes.begin();it!=typingNotes.end();){if(!juce::KeyPress::isKeyCurrentlyDown(it->first)){keyboardNote(it->second,0,false);it=typingNotes.erase(it);changed=true;}else ++it;}return changed;}
 void FieldEditor::focusLost(FocusChangeType){panic();}
 juce::Point<float> FieldEditor::localPoint(juce::Point<float> p) const{return {(p.x-hardware.getX())/scale,(p.y-hardware.getY())/scale};}
 int FieldEditor::noteAt(juce::Point<float> p) const{for(int i=0;i<10;++i)if(blackKeys[(size_t)i].contains(p))return 53+blackOffsets[(size_t)i]+processor.octave*12;for(int i=0;i<14;++i)if(whiteKeys[(size_t)i].contains(p))return 53+whiteOffsets[(size_t)i]+processor.octave*12;return -1;}
@@ -596,7 +629,11 @@ void FieldEditor::mouseDown(const juce::MouseEvent& e){
     if(e.mods.isPopupMenu()){auto* component=e.originalComponent;while(component&&component!=this){const auto id=component->getProperties()["midiTarget"].toString();if(id.isNotEmpty()){showMidiMappingMenu(id);return;}component=component->getParentComponent();}return;}
 
     if(e.originalComponent!=this)return;
-    grabKeyboardFocus();auto p=localPoint(e.position);int n=noteAt(p);if(n>=0){mouseNote=n;keyboardNote(n,juce::jlimit(.25f,1.f,(p.y-240)/205),true);return;}
+    grabKeyboardFocus();auto p=localPoint(e.position);
+    if(presetBrowser&&juce::Rectangle<float>(316,47,247,116).contains(p)){
+        if(p.y>=64&&p.y<148){int row=(int)((p.y-64)/10.5f);if(p.x<454){int start=juce::jlimit(0,juce::jmax(0,presetFolders.size()-8),presetFolderIndex-3);selectPresetFolder(start+row);}else{int start=juce::jlimit(0,juce::jmax(0,(int)presetEntries.size()-8),presetIndex-3);selectPreset(start+row,true);}}return;
+    }
+    int n=noteAt(p);if(n>=0){mouseNote=n;keyboardNote(n,juce::jlimit(.25f,1.f,(p.y-240)/205),true);return;}
     juce::Rectangle<float> screen(316,47,247,116);if(!screen.contains(p))return;
     if(mode==2){const juce::ScopedLock lock(processor.engineLock);double pos=processor.snapTapeTime(juce::jlimit(0.,visibleSeconds,(double)((p.x-331)/232*visibleSeconds)));if(e.mods.isShiftDown()||shifted){draggingSelection=true;processor.selectionStart=juce::jmin(359.9,pos);processor.selectionEnd=processor.selectionStart+.1;}else processor.engine.seek(pos);}
     else if(mode==1&&page==0&&(int)processor.value("engine")==14&&p.y>screen.getBottom()-32){int pad=juce::jlimit(0,23,(int)((p.x-screen.getX())/10.25f));const juce::ScopedLock lock(processor.engineLock);processor.engine.setSelectedPad(pad);selectedPad=pad;configureMacros();}
@@ -626,6 +663,7 @@ void FieldEditor::mouseDoubleClick(const juce::MouseEvent& event){
     }
 }
 void FieldEditor::timerCallback(){
+    tickPresetHold();updatePresetControls();
     const bool writing=processor.fileWriteBusy();if(observedFileWrite&&!writing)status=processor.fileWriteStatus();observedFileWrite=writing;
     const auto operationError=processor.takeOperationError();if(operationError.isNotEmpty())status=operationError;
     const auto learning=processor.midiLearnTarget();if(observedLearnTarget.isNotEmpty()&&learning.isEmpty())status=processor.midiMappingLabel(observedLearnTarget)+" / "+processor.midiMappingDescription(observedLearnTarget);observedLearnTarget=learning;
@@ -657,6 +695,8 @@ void FieldEditor::timerCallback(){
     if(padChanged&&mode==1&&(((int)processor.value("engine")==11&&page==0)||((int)processor.value("engine")==14&&page<2)))configureMacros();
     for(int i=0;i<4;++i)functionButtons[i]->setToggleState(mode==i,juce::dontSendNotification);for(int i=4;i<8;++i)functionButtons[i]->setToggleState(mode==2?selectedTrack==i-4:page==i-4,juce::dontSendNotification);
     functionButtons[10]->setToggleState(processor.value("loop")>.5f,juce::dontSendNotification);functionButtons[11]->setToggleState(mode==4,juce::dontSendNotification);functionButtons[13]->setToggleState(processor.metronome,juce::dontSendNotification);inputButton.setToggleState(processor.inputMonitor,juce::dontSendNotification);tempoButton.setToggleState(processor.metronome,juce::dontSendNotification);transportButtons[3]->setToggleState(recording,juce::dontSendNotification);transportButtons[4]->setToggleState(playing,juce::dontSendNotification);
+    if(mode<2){for(int slot=0;slot<8;++slot){functionButtons[8+slot]->setButtonText(juce::String(slot+1));functionButtons[8+slot]->setToggleState(processor.getCurrentProgram()%8==slot,juce::dontSendNotification);functionButtons[8+slot]->setTooltip("Sound "+juce::String(slot+1)+": "+processor.soundSlotName(slot)+" / Shift: browse / Hold 2 seconds: snapshot");}}
+    else {const juce::StringArray labels{"IN","OUT","loop","seq","rev","click","M1","M2"};for(int slot=0;slot<8;++slot)functionButtons[8+slot]->setButtonText(labels[slot]);}
     transportButtons[3]->setButtonText(countInRemaining>0?"ARM":processor.sampling?"SAMPLE":juce::String::fromUTF8("●"));
     updateControlAvailability();
     repaint();

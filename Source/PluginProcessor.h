@@ -6,13 +6,15 @@
 #include "RealtimeValues.h"
 #include "MidiLearn.h"
 #include "ControlJobs.h"
+#include "PresetLibrary.h"
 #include <mutex>
 
 class FieldProcessor final : public juce::AudioProcessor, private juce::Timer, private juce::AudioProcessorParameter::Listener {
 public:
     struct SampleData {std::vector<float> left,right;double rate=44100;};
     std::shared_ptr<const SampleData> samplePreviewSnapshot(){const juce::ScopedLock lock(engineLock);return sampleData;}
-    FieldProcessor();
+    explicit FieldProcessor(juce::File presetDirectory={});
+    field::PresetLibrary presetLibrary;
     ~FieldProcessor() override;
     void prepareToPlay(double, int) override;
     void releaseResources() override {}
@@ -84,6 +86,13 @@ public:
     int tapeNumber() const { return currentTape; }
     void newProject();
     void savePatchSlot(int);
+    juce::ValueTree captureSound();
+    bool loadSound(const juce::ValueTree&,int slot,bool drum,juce::String& error);
+    field::PresetLibrary::Entry snapshotSound(int slot);
+    bool loadLibrarySound(const field::PresetLibrary::Entry&,int slot,juce::String& error);
+    juce::String soundSlotName(int slot);
+    void randomizeSound(){applyPatchAction(1);}
+
     void recallPatchSlot(int,int explicitSlot=-1);
     void storeMemo(int);
     void recallMemo(int);
@@ -128,8 +137,9 @@ private:
     void resetSampleParameters();
     std::atomic<int> pendingProgram{-1},pendingPatchAction{0};
     void applyPatchAction(int);
+    void initializeFactoryPresets();
     int currentProgram=0,currentTape=0;
-    std::array<juce::ValueTree,16> patchSlots;
+    std::array<juce::ValueTree,16> patchSlots,defaultPatchSlots;
     std::array<uint64_t,16> patchStoreRequest{};
     std::array<juce::ValueTree,2> memos;
     juce::AudioFormatManager formats;

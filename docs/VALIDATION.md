@@ -74,3 +74,9 @@ Package verification checks download SHA-256 sidecars, all embedded file hashes,
 ## Staged media preparation (0.2.1)
 
 Allocation-pause processor tests cover capture, album/tape arming, tape edits and high-rate project preparation while pilot audio continues with no skip during the paused heavy operation. Stop/new-project cancellation, prepared edit conflicts/undo and tape-budget failures are checked. Eight local suites and core ASan/UBSan pass. This does not certify the remaining short commit/UI lock or real hardware deadlines; see KNOWN_ISSUES.md.
+
+## Preset workflow implementation checks
+
+The native plugin integration suite now exercises all 45 original starter sounds for finite output, and audible output for the 36 synth sounds plus three DBox kits that do not require external input. It checks complete T1–T4 recall with global tempo/MIDI/master settings preserved, snapshot persistence through library reopen and new projects, sampled-preset audio, assigned slots in project state, protected factory entries, unsafe names, malformed parameter rejection and nested folder create/rename/copy/move/empty-only delete. Folder tests reject cycles, collisions, excess depth and foreign files. Editor checks exercise Shift-slot browsing, selected-slot assignment, factory lift/drop copying into USER, two-second save gestures, short-click recall and Shift-drop randomization.
+
+Native screenshots of the browser, snapshot list and save overlay were inspected at 1320×640. This is implementation evidence for [the documented workflow](PRESETS.md), not a controlled comparison of hardware sounds, fonts or gestures.
