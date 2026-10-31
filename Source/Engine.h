@@ -1,6 +1,8 @@
 #pragma once
 #include <algorithm>
 #include <array>
+#include <atomic>
+#include <memory>
 #include <cstdint>
 #include <deque>
 #include <utility>
@@ -74,6 +76,10 @@ struct Track {
 class Engine {
 public:
     Engine();
+    Engine(Engine&&) = default;
+    Engine& operator=(Engine&&) = default;
+    Engine(const Engine&) = delete;
+    Engine& operator=(const Engine&) = delete;
     void prepare(double sampleRate, int maxBlock);
     void setParameters(const Parameters&);
     const Parameters& parameters() const { return params; }
@@ -84,10 +90,30 @@ public:
     float currentVoicePitch() const;
     void process(float* left, float* right, const float* inputLeft,
                  const float* inputRight, int frames, float* const* stems = nullptr);
+    struct PreparedSample {
+        const std::vector<float> left, right;
+        const double sampleRate;
+    private:
+        friend class Engine;
+        const void* registryIdentity=nullptr;
+        mutable std::atomic<unsigned> references{1};
+        mutable std::atomic<bool> pendingInstall{true};
+        PreparedSample(std::vector<float> l,std::vector<float> r,double rate):left(std::move(l)),right(std::move(r)),sampleRate(rate){}
+    };
+    // Preparation/registration/collection are worker-thread operations, serialized
+    // with one another. A registered handle is pinned until installed or discarded.
+    static std::unique_ptr<PreparedSample> prepareSample(const std::vector<float>& left,const std::vector<float>& right,double sampleRate);
+    PreparedSample* registerPreparedSample(std::unique_ptr<PreparedSample>);
+    // A handle is single-use; foreign-registry handles are rejected.
+    // Moves/destruction and registry operations remain control/worker-thread only.
+    bool installPreparedSample(PreparedSample*) noexcept;
+    void discardPreparedSample(PreparedSample*) noexcept;
+    size_t collectRetiredSamples();
+    size_t retainedSampleAssets() const { return sampleAssets.size(); } // worker thread only
     void loadSample(const std::vector<float>& left, const std::vector<float>& right, double sampleRate);
-    const std::vector<float>& sampleLeft() const { return sampleL; }
-    const std::vector<float>& sampleRight() const { return sampleR; }
-    double loadedSampleRate() const { return sampleSr; }
+    const std::vector<float>& sampleLeft() const;
+    const std::vector<float>& sampleRight() const;
+    double loadedSampleRate() const { return currentSample ? currentSample->sampleRate : 44100; }
     const DrumPad& drumPad(int index) const;
     void setDrumPad(int index, const DrumPad&);
     void resetDrumPads();
@@ -193,6 +219,19 @@ public:
     double lfoPhasePosition() const { return lfoPhase; }
     void setOutputGainImmediately(float value); // Utility FX pass-through; main instrument normally smooths gain.
 private:
+    // Moving a voice or Engine transfers its retained reference exactly once.
+    // This wrapper never decrements/frees; explicit voice retirement does that.
+    struct SamplePointer {
+        const PreparedSample* value=nullptr;
+        SamplePointer()=default;
+        SamplePointer(SamplePointer&& other) noexcept:value(std::exchange(other.value,nullptr)){}
+        SamplePointer& operator=(SamplePointer&& other) noexcept {if(this!=&other)value=std::exchange(other.value,nullptr);return *this;}
+        SamplePointer(const SamplePointer&)=delete;
+        SamplePointer& operator=(const SamplePointer&)=delete;
+        SamplePointer& operator=(const PreparedSample* sample)noexcept{value=sample;return *this;}
+        operator const PreparedSample*()const noexcept{return value;}
+        const PreparedSample* operator->()const noexcept{return value;}
+    };
     struct Voice {
         bool active = false, gate = false;
         int note = 60, stage = 0, engine = 0;
@@ -201,9 +240,10 @@ private:
         float velocity = 0, env = 0, releaseStart = 0, lp = 0, hp = 0, forcedRelease = 0;
         double phase = 0, phase2 = 0, age = 0, samplePos = 0;
         float pitch=60,detune=0,stringPrevious=0;
+        SamplePointer sampleAsset;
         double sampleBegin=0, sampleFinish=0, sampleLoopBegin=0, sampleLoopFinish=0;
         bool sampleReverse=false, sampleLooped=false, sampleOneShot=false;
-        float sampleTune=0, sampleLevel=1, samplePan=0;
+        float sampleTune=0, sampleLevel=1, samplePan=0, sampleRootNote=60;
         int pad=-1, chokeGroup=0;
         DBoxPad dbox;
         float dboxLowL=0,dboxBandL=0,dboxLowR=0,dboxBandR=0;
@@ -223,11 +263,14 @@ private:
     std::array<int,128> keyStack{};
     std::array<float,128> keyVelocity{};
     int keyCount=0;
-    std::vector<float> sampleL, sampleR;
+    std::unique_ptr<unsigned char> sampleRegistryIdentity=std::make_unique<unsigned char>(0);
+    std::vector<std::unique_ptr<PreparedSample>> sampleAssets;
+    SamplePointer currentSample;
+    void releaseVoiceSample(Voice&) noexcept;
     std::array<DrumPad,24> pads;
     std::array<DBoxPad,24> dboxPads;
     int padSelected=0;
-    double sampleSr = 44100, sr = 44100, position = 0, loopBegin = 0, loopFinish = 88200;
+    double sr = 44100, position = 0, loopBegin = 0, loopFinish = 88200;
     int selected = 0;
     bool isPlaying = false, isRecording = false;
     float peakValue = 0, smoothedVolume = .65f, pitchBend = 0, modWheel = 0;

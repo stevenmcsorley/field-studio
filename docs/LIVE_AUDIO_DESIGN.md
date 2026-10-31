@@ -1,6 +1,6 @@
-# Continuous audio design — future phase 6
+# Continuous audio design — phase 6 migration
 
-Status: read-only design audit, 2026-10-30. Not implemented or verified. Preserve the user's phase order; stages 2–5 may change these boundaries before this plan is implemented. Sources inspected: `Source/Engine.{h,cpp}`, `Source/PluginProcessor.{h,cpp}`, `Source/PluginEditor.cpp`. No runtime contention benchmark or future-fix test was run.
+Status: original audit2026-10-30; staged foundations implemented2026-10-31. See AUDIO_REWRITE_PROGRESS.md. The live tape/controller ownership migration and dropout-free acceptance remain unimplemented. Preserve the user's phase order; stages 2–5 may change these boundaries before this plan is implemented. Sources inspected: `Source/Engine.{h,cpp}`, `Source/PluginProcessor.{h,cpp}`, `Source/PluginEditor.cpp`. No runtime contention benchmark or future-fix test was run.
 
 ## Current failure and ownership
 
@@ -57,7 +57,7 @@ These are proposed gates, not tests already passed:
 
 ## Follow-up audit after tape/MIDI passes
 
-No ownership migration is implemented by these findings. Besides `engineLock`, `MidiKeyboardState::processNextMidiBuffer()` takes JUCE's internal lock, and incoming CC handling calls `setValueNotifyingHost()` synchronously. An eventual no-lock callback must replace GUI keyboard injection with bounded events and defer own parameter-notification mirrors using revisions that preserve newer host automation.
+Historical audit: besides `engineLock`, the old keyboard handoff took JUCE's internal lock and incoming CC handling notified host listeners synchronously. The2026-10-31 foundation pass replaces both paths; the main engine lock remains. An eventual no-lock callback must replace GUI keyboard injection with bounded events and defer own parameter-notification mirrors using revisions that preserve newer host automation.
 
 Append-only chunks suffice for sample/album capture, but arbitrary seek/reverse overdub needs bounded COW tape storage. A concrete candidate is4096-frame stereo pages (32KiB), a fixed-depth64-way persistent tree, prefaulted page/node reserves and worker reclamation of generation-tagged handles. Save snapshots retain document roots; subsequent recording writes copy only affected pages/nodes. Do not copy entire page tables or use callback-side final shared_ptr destruction. Missing sparse pages read as zero, avoiding unbounded gap zero-fill after a seek. A full memory budget must include live media, history, pinned save generations, pending imports and writer reserves; pool exhaustion must defer/reject work or explicitly stop recording while keeping playback alive.
 

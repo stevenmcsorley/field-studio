@@ -58,3 +58,9 @@ All six local CTest suites pass after enabling plugin MIDI output. MIDI helper t
 ### Screen phase (2026-10-30)
 
 All six suites pass with the state-driven UI pass. The final native integration/screenshot run also passed after marker-ordering and capture-badge corrections. Availability tests repeatedly refresh synced LFO/manual Element/Amp/glide controls; render checks span all15engines×4pages, every patch/masterFX and6LFOsources×6shapes. Default and1000×520 screens were inspected, with representative artifacts in docs/screenshots. The latest tape/MIDI core also passes a fresh ASan+UBSan build. UI artwork and animation timing are not hardware-matched measurements; see SCREENS.md.
+
+### Ownership foundations (2026-10-31)
+
+Eight local suites pass after sample lifetime, keyboard queue and parameter notification changes. Tests check audio install/render without heap allocation or free, old voices across sample turnover and root/rate changes, foreign tickets, moved-from reuse, concurrent retirement, GUI/received-key state, overflow panic, and no synchronous parameter listener calls during MIDI processing. Save-before-mirror, unchanged-display state restore and reentrant host updates are covered. Paged tape storage has sparse/far-write, fixed-depth COW, immutable snapshot, exhaustion, truncation and20000-version concurrent stress tests. Its writer/snapshot paths also have allocation/free guards.
+
+Fresh ASan/UBSan engine, storage and queue runs pass. A core-only sanitized CMake configuration is used by the added CI job. TSan cannot start in this environment (unexpected memory mapping); race-detector certification is outstanding. The live recorder still uses vectors and processBlock still takes engineLock/clears a contended block. No whole-processor dropout-free or complete realtime claim follows from component tests. See AUDIO_REWRITE_PROGRESS.md.

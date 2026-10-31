@@ -56,7 +56,7 @@ Windows: configure with Visual Studio2022 and build `--config Release`. macOS: c
 
 ## Verification
 
-`ctest --test-dir build --output-on-failure` runs audio-core, plugin/project/UI, MIDI clock/routing, preset-format, parameter translation and Linux native VST3-host tests. Use `xvfb-run -a` on headless Linux. Core tests also pass AddressSanitizer and UndefinedBehaviorSanitizer and check that rendering does not allocate. Native VST3 tests instantiate the actual module with optional stems disabled and enabled; they are not a substitute for testing every DAW. Public preset metadata was independently checked against 167 research fixtures; its raw hardware knob values are preserved, not guessed into identical sounds.
+`ctest --test-dir build --output-on-failure` runs audio-core, plugin/project/UI, MIDI clock/routing, preset-format, parameter translation and Linux native VST3-host tests. Use `xvfb-run -a` on headless Linux. Core ownership tests also pass AddressSanitizer and UndefinedBehaviorSanitizer and check both allocation and deallocation on tested realtime paths. Native VST3 tests instantiate the actual module with optional stems disabled and enabled; they are not a substitute for testing every DAW. Public preset metadata was independently checked against 167 research fixtures; its raw hardware knob values are preserved, not guessed into identical sounds.
 
 ```sh
 xvfb-run -a build/field_plugin_tests_artefacts/Release/field_plugin_tests docs/screenshots
@@ -67,5 +67,7 @@ This renders all five modes and the synth module pages for visual inspection. Fi
 ## Current engineering limits
 
 Tape audio is held in RAM, with six minutes per track and eight banks. Long projects require substantial memory. Up to seven undo snapshots are retained, subject to a soft256MiB budget; project import has a512MiB decompressed-state limit. Undo history and hardware preset-file export are not persisted. Sequencer algorithms, DBox-style synthesis, tape colour and effects differ from the original hardware; see the parity ledger.
+
+The [audio ownership rewrite](docs/AUDIO_REWRITE_PROGRESS.md) now includes lock-free keyboard handoff, deferred MIDI parameter notifications and immutable sample lifetimes. A sparse snapshot tape backend is tested separately; the live recorder has not migrated to it yet.
 
 The wrapper uses a non-blocking audio lock. Heavy control-thread operations (sample/project loading, snapshots, tape edits or saving large projects) can cause silent skipped blocks rather than blocking the audio callback; they are not yet suitable for seamless live performance. The core render is allocation-free, but full plugin performance parity and long-session stress validation remain open. Models of radio, embedded sensors, battery/speaker hardware and device-specific USB/BLE behaviour are outside this software implementation.

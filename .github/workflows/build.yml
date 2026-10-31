@@ -39,3 +39,21 @@ jobs:
             build/FieldStudio_artefacts/Release/Standalone/
             build/FieldStudio_artefacts/Release/VST3/
             build/FieldStudio_artefacts/Release/AU/
+  core-sanitizers:
+    name: Ownership core ASan and UBSan
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure core ownership tests
+        run: >-
+          cmake -S . -B build-sanitize
+          -DFIELD_BUILD_PLUGIN=OFF -DBUILD_TESTING=ON -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_CXX_FLAGS_RELEASE="-O1 -g1 -DNDEBUG -fsanitize=address,undefined -fno-omit-frame-pointer"
+          -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined"
+      - name: Build
+        run: cmake --build build-sanitize --parallel 2
+      - name: Check core ownership and lifetime
+        env:
+          ASAN_OPTIONS: detect_leaks=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: ctest --test-dir build-sanitize --output-on-failure

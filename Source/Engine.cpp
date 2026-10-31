@@ -98,7 +98,7 @@ void Engine::prepare(double rate, int /* maxBlock */) {
     delayR.assign(delayL.size(),0);
     delayWrite=0; fxLowL=fxLowR=fxBandL=fxBandR=wetLowL=wetLowR=0;
     phaserL.fill(0); phaserR.fill(0);
-    for (auto& v : voices) v.active = false;keyCount=0;
+    for (auto& v : voices) {v.active=false;releaseVoiceSample(v);}keyCount=0;
     isRecording=false; isPlaying=false;countInRemaining=0;countInElapsed=0;reverseHeld=false;brakeHeld=false;rollHeld=false;
     seqPhase=0; seqStep=-1;seqPositionPending=-1; seqLastNote=-1;
     peakValue=0;
@@ -148,8 +148,8 @@ float Engine::currentVoicePitch()const {for(const auto& v:voices)if(v.active)ret
 void Engine::trigger(int note,float velocity){
     if(!params.drumMode&&params.engine!=14&&(params.voiceMode==1||params.voiceMode==2)){
         auto& old=voices[0];const bool held=old.active&&old.gate;const float pitch=old.active?old.pitch:(float)note;
-        if(params.voiceMode==2&&held){old.note=std::clamp(note,0,127);old.velocity=clamp(velocity);old.detune=0;if(params.glideTime<=0)old.pitch=(float)old.note;return;}
-        for(auto& v:voices)v.active=false;triggerVoice(note,velocity);if(params.glideTime>0&&held)voices[0].pitch=pitch;return;
+        if(params.voiceMode==2&&held&&!(old.engine==11&&old.sampleAsset!=currentSample)){old.note=std::clamp(note,0,127);old.velocity=clamp(velocity);old.detune=0;if(params.glideTime<=0)old.pitch=(float)old.note;return;}
+        for(auto& v:voices){v.active=false;releaseVoiceSample(v);}triggerVoice(note,velocity);if(params.glideTime>0&&held)voices[0].pitch=pitch;return;
     }
     if(!params.drumMode&&params.engine!=14&&params.voiceMode==3){for(float detune:{-.12f,-.04f,.04f,.12f})triggerVoice(note,velocity*.4f,detune);return;}
     triggerVoice(note,velocity);
@@ -172,7 +172,7 @@ void Engine::triggerVoice(int note,float velocity,float detune) {
         if (!v.active) { voice=&v; break; }
         if (v.env<voice->env || (v.env==voice->env && v.age>voice->age)) voice=&v;
     }
-    Voice& v=*voice;
+    Voice& v=*voice;releaseVoiceSample(v);
     v.active=true; v.gate=true; v.note=note;v.pitch=note+detune;v.detune=detune;v.stringPrevious=0; v.velocity=clamp(velocity);
     v.stage=0; v.env=0;v.envelopeProgress=0;if(params.lfoRetrigger){lfoPhase=0;lfoClock=0;}v.forcedRelease=0; v.phase=0; v.phase2=.173; v.age=0; v.samplePos=0;
     v.lp=v.hp=0; v.vocL1.fill(0);v.vocL2.fill(0);v.vocR1.fill(0);v.vocR2.fill(0);v.engine=params.engine; v.drum=params.drumMode || params.engine==14;
@@ -191,8 +191,10 @@ void Engine::triggerVoice(int note,float velocity,float detune) {
         const double omega=tau*cutoff/sr,alpha=std::sin(omega)/(2*(.55+v.dbox.crossMod*3)),a0=1+alpha;
         v.dboxFilter={static_cast<float>((1-std::cos(omega))*.5/a0),static_cast<float>((1-std::cos(omega))/a0),static_cast<float>((1-std::cos(omega))*.5/a0),static_cast<float>(-2*std::cos(omega)/a0),static_cast<float>((1-alpha)/a0)};
     }
-    if (v.engine==11 && !sampleL.empty()) {
-        v.sampleTune=0;v.sampleLevel=1;v.samplePan=0;v.pad=-1;v.chokeGroup=0;
+    if (v.engine==11 && currentSample && !currentSample->left.empty()) {
+        v.sampleAsset=static_cast<const PreparedSample*>(currentSample);v.sampleAsset->references.fetch_add(1,std::memory_order_relaxed);
+        const auto& sampleL=v.sampleAsset->left;
+        v.sampleTune=0;v.sampleLevel=1;v.samplePan=0;v.sampleRootNote=params.sampleRootNote;v.pad=-1;v.chokeGroup=0;
         if(v.drum){
             const auto& pad=pads[static_cast<size_t>(padIndex)];
             v.pad=padIndex;v.chokeGroup=pad.chokeGroup;
@@ -205,7 +207,7 @@ void Engine::triggerVoice(int note,float velocity,float detune) {
             v.sampleLoopBegin=sampleL.size()*params.sampleLoopIn;v.sampleLoopFinish=sampleL.size()*params.sampleLoopOut;
             v.sampleReverse=params.sampleReverse;v.sampleLooped=params.sampleLoop;v.sampleOneShot=params.sampleOneShot;
         }
-        if(v.sampleFinish-v.sampleBegin<1){v.active=false;return;}
+        if(v.sampleFinish-v.sampleBegin<1){v.active=false;releaseVoiceSample(v);return;}
         v.samplePos=v.sampleReverse?std::max(v.sampleBegin,v.sampleFinish-1):v.sampleBegin;
     }
 }
@@ -525,12 +527,12 @@ std::pair<float,float> Engine::renderVoice(Voice& v,float modulation,float inL,f
                 const float mid=(l+r)*.5f; l=mid*(1-w)+l*w; r=mid*(1-w)+r*w; break;
             }
             case 11: {
-                if(sampleL.empty() || v.sampleFinish<=v.sampleBegin){v.active=false;return {0,0};}
-                l=interpolate(sampleL,v.samplePos);r=interpolate(sampleR,v.samplePos);
+                if(!v.sampleAsset || v.sampleAsset->left.empty() || v.sampleFinish<=v.sampleBegin){v.active=false;return {0,0};}
+                l=interpolate(v.sampleAsset->left,v.samplePos);r=interpolate(v.sampleAsset->right,v.samplePos);
                 l*=v.sampleLevel*(v.samplePan>0?1-v.samplePan:1);
                 r*=v.sampleLevel*(v.samplePan<0?1+v.samplePan:1);
-                const double tune=v.sampleTune+(v.drum?0:v.pitch-params.sampleRootNote)+pitchBend+pitchMod;
-                const double inc=sampleSr/sr*std::pow(2.0,tune/12.0)*(v.sampleReverse?-1:1);
+                const double tune=v.sampleTune+(v.drum?0:v.pitch-v.sampleRootNote)+pitchBend+pitchMod;
+                const double inc=v.sampleAsset->sampleRate/sr*std::pow(2.0,tune/12.0)*(v.sampleReverse?-1:1);
                 v.samplePos+=inc;
                 const bool loop=v.sampleLooped && v.gate && v.sampleLoopFinish-v.sampleLoopBegin>=1;
                 if(loop){
@@ -680,7 +682,7 @@ void Engine::process(float* left,float* right,const float* inputLeft,const float
             }
         }
         float synthL=0,synthR=0;
-        for(auto& v:voices)if(v.active){const auto s=renderVoice(v,modulation,inL,inR);synthL+=s.first;synthR+=s.second;}
+        for(auto& v:voices){if(v.active){const auto s=renderVoice(v,modulation,inL,inR);synthL+=s.first;synthR+=s.second;}if(!v.active)releaseVoiceSample(v);}
         // Amp/input processing works without a held key, as an input engine.
         if(params.engine==13 && !params.drumMode){synthL=std::tanh(inL*(1+params.macro[0]*14))*.65f;synthR=std::tanh(inR*(1+params.macro[0]*14))*.65f;}
         if(params.monitorInput && params.engine!=13 && params.engine!=12){synthL+=inL;synthR+=inR;}
@@ -733,16 +735,34 @@ void Engine::process(float* left,float* right,const float* inputLeft,const float
     }
     midiProcessing=false;midiFrameCursor=static_cast<int>(std::min<int64_t>(2147483647,static_cast<int64_t>(midiFrameCursor)+frames));
 }
-void Engine::loadSample(const std::vector<float>& l,const std::vector<float>& r,double rate) {
-    allNotesOff();
-    // Preserve up to two minutes of stereo sample data, matching the drum
-    // sampler capacity. The wrapper can enforce melodic capture limits.
+std::unique_ptr<Engine::PreparedSample> Engine::prepareSample(const std::vector<float>& l,const std::vector<float>& r,double rate){
     const double safeRate=std::clamp(std::isfinite(rate)?rate:44100.0,8000.0,192000.0);
-    const auto limit=static_cast<size_t>(safeRate*120.0);
-    sampleL.assign(l.begin(),l.begin()+static_cast<std::ptrdiff_t>(std::min(l.size(),limit)));
-    sampleR.resize(sampleL.size());
-    for(size_t i=0;i<sampleL.size();++i){sampleL[i]=clamp(sampleL[i],-4,4);sampleR[i]=r.empty()?sampleL[i]:clamp(r[std::min(i,r.size()-1)],-4,4);}
-    sampleSr=safeRate;
+    const size_t n=std::min(l.size(),static_cast<size_t>(safeRate*120.));
+    std::vector<float> left(n),right(n);
+    for(size_t i=0;i<n;++i){left[i]=clamp(l[i],-4,4);right[i]=r.empty()?left[i]:clamp(r[std::min(i,r.size()-1)],-4,4);}
+    return std::unique_ptr<PreparedSample>(new PreparedSample(std::move(left),std::move(right),safeRate));
+}
+Engine::PreparedSample* Engine::registerPreparedSample(std::unique_ptr<PreparedSample> sample){
+    if(!sample)return nullptr;if(!sampleRegistryIdentity)sampleRegistryIdentity=std::make_unique<unsigned char>(0);sample->registryIdentity=sampleRegistryIdentity.get();auto* result=sample.get();sampleAssets.push_back(std::move(sample));return result;
+}
+bool Engine::installPreparedSample(PreparedSample* sample)noexcept{
+    if(!sample||sample->registryIdentity!=sampleRegistryIdentity.get()||!sampleRegistryIdentity)return false;if(currentSample==sample)return true;
+    bool pending=true;if(!sample->pendingInstall.compare_exchange_strong(pending,false,std::memory_order_acq_rel))return false;
+    const PreparedSample* previous=currentSample;currentSample=sample;
+    if(previous)previous->references.fetch_sub(1,std::memory_order_release);
+    return true;
+}
+void Engine::discardPreparedSample(PreparedSample* sample)noexcept{
+    if(sample&&sampleRegistryIdentity&&sample->registryIdentity==sampleRegistryIdentity.get()&&sample->pendingInstall.exchange(false,std::memory_order_acq_rel))sample->references.fetch_sub(1,std::memory_order_release);
+}
+size_t Engine::collectRetiredSamples(){
+    const size_t before=sampleAssets.size();sampleAssets.erase(std::remove_if(sampleAssets.begin(),sampleAssets.end(),[](const auto& asset){return asset->references.load(std::memory_order_acquire)==0;}),sampleAssets.end());return before-sampleAssets.size();
+}
+void Engine::releaseVoiceSample(Voice& v)noexcept{if(v.sampleAsset){v.sampleAsset->references.fetch_sub(1,std::memory_order_release);v.sampleAsset=nullptr;}}
+const std::vector<float>& Engine::sampleLeft()const{static const std::vector<float> empty;return currentSample?currentSample->left:empty;}
+const std::vector<float>& Engine::sampleRight()const{static const std::vector<float> empty;return currentSample?currentSample->right:empty;}
+void Engine::loadSample(const std::vector<float>& l,const std::vector<float>& r,double rate){
+    allNotesOff();auto sample=prepareSample(l,r,rate);installPreparedSample(registerPreparedSample(std::move(sample)));collectRetiredSamples();
 }
 void Engine::selectTrack(int i){selected=std::clamp(i,0,3);if(isRecording){tape[selected].left.reserve(maxFrames());tape[selected].right.reserve(maxFrames());}}
 void Engine::setTrackLevel(int i,float v){if(i>=0&&i<4)tape[i].level=clamp(v,0,2);}

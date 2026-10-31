@@ -3,6 +3,7 @@
 #include <atomic>
 #include <new>
 #include <memory>
+#include <thread>
 #include <limits>
 #include <cmath>
 #include <cstdlib>
@@ -10,21 +11,23 @@
 #include <vector>
 using namespace field;
 namespace {
-std::atomic<bool> watchAllocations{false};
+thread_local bool watchAllocations=false;
 std::atomic<size_t> watchedAllocations{0};
+std::atomic<size_t> watchedDeallocations{0};
 }
-void* operator new(std::size_t n){if(watchAllocations.load())++watchedAllocations;if(auto* p=std::malloc(n?n:1))return p;throw std::bad_alloc();}
+void* operator new(std::size_t n){if(watchAllocations)++watchedAllocations;if(auto* p=std::malloc(n?n:1))return p;throw std::bad_alloc();}
 void* operator new[](std::size_t n){return ::operator new(n);}
-void operator delete(void* p)noexcept{std::free(p);}
-void operator delete[](void* p)noexcept{std::free(p);}
-void operator delete(void* p,std::size_t)noexcept{std::free(p);}
-void operator delete[](void* p,std::size_t)noexcept{std::free(p);}
+void operator delete(void* p)noexcept{if(p&&watchAllocations)++watchedDeallocations;std::free(p);}
+void operator delete[](void* p)noexcept{if(p&&watchAllocations)++watchedDeallocations;std::free(p);}
+void operator delete(void* p,std::size_t)noexcept{if(p&&watchAllocations)++watchedDeallocations;std::free(p);}
+void operator delete[](void* p,std::size_t)noexcept{if(p&&watchAllocations)++watchedDeallocations;std::free(p);}
 namespace {
 void check(bool ok,const char* message){if(!ok){std::cerr<<"FAIL: "<<message<<'\n';std::exit(1);}}
 float energy(const std::vector<float>& v){double total=0;for(float x:v)total+=x*x;return static_cast<float>(total/std::max<size_t>(1,v.size()));}
-void render(Engine& e,std::vector<float>& l,std::vector<float>& r,int frames){l.resize(frames);r.resize(frames);const auto allocations=watchedAllocations.load();watchAllocations=true;
+void render(Engine& e,std::vector<float>& l,std::vector<float>& r,int frames){l.resize(frames);r.resize(frames);const auto allocations=watchedAllocations.load(),deallocations=watchedDeallocations.load();watchAllocations=true;
     e.process(l.data(),r.data(),nullptr,nullptr,frames);watchAllocations=false;
-    check(watchedAllocations.load()==allocations,"audio render performs no heap allocation");}
+    check(watchedAllocations.load()==allocations,"audio render performs no heap allocation");
+    check(watchedDeallocations.load()==deallocations,"audio render performs no heap deallocation");}
 }
 int main(){
     std::vector<float> l,r;
@@ -275,6 +278,41 @@ int main(){
         e.beginMidiBlock();e.noteOn(60,1);e.beginMidiBlock();render(e,l,r,300000);check(e.midiEventOverflowed()&&e.midiEventCount()==1&&e.midiEvents()[0].note==-1,"render queue overflow emits panic without allocation");e.allNotesOff();e.beginMidiBlock();e.beginMidiBlock();check(!e.midiEventOverflowed()&&e.midiEventCount()==0,"next MIDI block recovers from overflow");
         e.beginMidiBlock();render(e,l,r,25);e.noteOn(60,1);render(e,l,r,1);check(e.midiEventCount()==1&&e.midiEvents()[0].on&&e.midiEvents()[0].frame==25,"control-thread trigger between chunks emits at next process offset");e.allNotesOff();e.beginMidiBlock();
         e.noteOn(60,1);e.beginMidiBlock();e.setSongPosition(3);e.beginMidiBlock();check(e.midiEventCount()==1&&!e.midiEvents()[0].on,"song-position change emits previous gate release without new note");e.noteOn(64,1);render(e,l,r,1000);e.setPlaying(false);e.beginMidiBlock();check(e.midiEventCount()>0&&!e.midiEvents()[0].on,"transport stop releases active sequencer MIDI gates");
+    }
+
+    {
+        auto owner=std::make_unique<Engine>();auto& e=*owner;e.prepare(8000,64);Parameters p;p.engine=11;p.attack=.001f;p.decay=.001f;p.sustain=1;p.release=.005f;p.volume=1;p.sampleLoop=true;e.setParameters(p);e.setOutputGainImmediately(1);
+        auto oldAsset=e.registerPreparedSample(Engine::prepareSample(std::vector<float>(8000,.25f),{},8000));check(e.installPreparedSample(oldAsset),"prepared sample installs");e.noteOn(60,1);render(e,l,r,100);check(std::abs(l.back()-.25f)<1e-6,"first sample voice reads immutable asset");
+        auto newAsset=e.registerPreparedSample(Engine::prepareSample(std::vector<float>(8000,-.5f),{},8000));check(e.collectRetiredSamples()==0,"uninstalled prepared handle remains producer-pinned");const auto allocations=watchedAllocations.load(),deallocations=watchedDeallocations.load();watchAllocations=true;const bool installed=e.installPreparedSample(newAsset);watchAllocations=false;check(installed&&watchedAllocations.load()==allocations&&watchedDeallocations.load()==deallocations,"audio sample install allocates and frees nothing");
+        check(e.sampleLeft()[0]==-.5f&&e.loadedSampleRate()==8000,"current sample getters reflect installed asset");check(e.collectRetiredSamples()==0&&e.retainedSampleAssets()==2,"old held voice prevents retirement");render(e,l,r,10000);check(std::abs(l.back()-.25f)<1e-6,"old looping voice retains old audio through long sample turnover");
+        e.noteOn(64,.25f);render(e,l,r,100);check(std::abs(l.back()-.125f)<1e-5,"new notes use new sample while old notes retain old sample");e.noteOff(60);render(e,l,r,100);check(std::abs(l.back()+.125f)<1e-5,"old sample release leaves new sample playing");check(e.collectRetiredSamples()==1&&e.retainedSampleAssets()==1,"worker reclaims retired asset only after last old voice ends");
+        auto discarded=e.registerPreparedSample(Engine::prepareSample({.9f},{},8000));e.discardPreparedSample(discarded);check(e.collectRetiredSamples()==1,"cancelled producer pin retires on worker");
+        auto third=e.registerPreparedSample(Engine::prepareSample(std::vector<float>(8000,.1f),{},16000));e.installPreparedSample(third);e.allNotesOff();render(e,l,r,100);check(e.collectRetiredSamples()==1,"all-notes-off releases retained assets without callback deletion");
+        auto moved=std::make_unique<Engine>();*moved=std::move(e);moved->noteOn(60,1);render(*moved,l,r,100);check(std::abs(l.back()-.1f)<1e-5,"engine move preserves registry and active sample pointers");
+    }
+    {
+        auto owner=std::make_unique<Engine>();auto& e=*owner;e.prepare(8000,64);Parameters p;p.engine=11;p.volume=1;p.attack=.001f;p.sustain=1;p.release=.005f;e.setParameters(p);e.setOutputGainImmediately(1);
+        auto asset=e.registerPreparedSample(Engine::prepareSample(std::vector<float>(16,.2f),{},8000));e.installPreparedSample(asset);e.noteOn(60,1);auto replacement=e.registerPreparedSample(Engine::prepareSample({.3f},{},8000));e.installPreparedSample(replacement);render(e,l,r,64);check(e.activeVoiceCount()==0&&e.collectRetiredSamples()==1,"natural sample endpoint releases retired asset");
+        e.loadSample({std::numeric_limits<float>::infinity(),.2f},{-.1f},std::numeric_limits<double>::quiet_NaN());check(e.sampleLeft()[0]==-4&&e.sampleRight()[1]==-.1f&&e.loadedSampleRate()==44100,"prepared assets retain input sanitation and stereo fallback");
+    }
+
+    {
+        auto owner=std::make_unique<Engine>();auto& e=*owner;e.prepare(8000,64);Parameters p;p.engine=11;p.volume=.5f;p.attack=.001f;p.release=.005f;e.setParameters(p);
+        std::array<Engine::PreparedSample*,64> handles{};for(auto& handle:handles)handle=e.registerPreparedSample(Engine::prepareSample(std::vector<float>(512,.1f),{},8000));
+        std::atomic<bool> finished{false};std::thread collector([&]{while(!finished.load(std::memory_order_acquire)){e.collectRetiredSamples();std::this_thread::yield();}});
+        for(auto* handle:handles){const auto frees=watchedDeallocations.load();watchAllocations=true;const bool installed=e.installPreparedSample(handle);e.noteOn(60,1);watchAllocations=false;check(installed&&watchedDeallocations.load()==frees,"concurrent retirement never deletes on install/trigger thread");render(e,l,r,64);}
+        e.allNotesOff();render(e,l,r,100);finished.store(true,std::memory_order_release);collector.join();e.collectRetiredSamples();check(e.retainedSampleAssets()==1,"concurrent worker collector safely retires superseded voice assets");
+    }
+
+    {
+        auto original=std::make_unique<Engine>(),foreign=std::make_unique<Engine>();original->prepare(8000,64);foreign->prepare(8000,64);Parameters p;p.engine=11;p.attack=.001f;p.decay=.001f;p.sustain=1;p.release=.005f;p.sampleLoop=true;p.volume=1;original->setParameters(p);original->setOutputGainImmediately(1);
+        auto asset=original->registerPreparedSample(Engine::prepareSample(std::vector<float>(800,.2f),{},8000));check(!foreign->installPreparedSample(asset),"foreign engine rejects prepared install");foreign->discardPreparedSample(asset);check(original->collectRetiredSamples()==0,"foreign discard cannot release producer pin");check(original->installPreparedSample(asset),"valid owner still installs after foreign attempts");original->noteOn(60,1);render(*original,l,r,100);
+        auto pending=original->registerPreparedSample(Engine::prepareSample(std::vector<float>(800,.4f),{},8000));auto moved=std::make_unique<Engine>(std::move(*original));check(original->sampleLeft().empty(),"moved-from engine clears current sample pointer");original->prepare(8000,64);original->loadSample({.9f},{},8000);check(!original->installPreparedSample(pending),"reused moved-from engine has fresh registry identity");original->discardPreparedSample(pending);check(moved->collectRetiredSamples()==0,"moved-from reuse cannot retire destination voice or pending asset");render(*moved,l,r,100);check(std::abs(l.back()-.2f)<1e-6,"moved voice keeps original immutable asset after source reuse");check(moved->installPreparedSample(pending),"pending ticket owner identity survives engine move");moved->allNotesOff();render(*moved,l,r,100);check(moved->collectRetiredSamples()==1,"moved sample references retire exactly once");
+        *foreign=std::move(*moved);moved->prepare(8000,64);moved->loadSample({-.1f},{},8000);foreign->noteOn(60,1);render(*foreign,l,r,100);check(std::abs(l.back()-.4f)<1e-6,"move assignment and moved-from reuse retain destination asset ownership");
+    }
+    {
+        auto a=std::make_unique<Engine>(),reference=std::make_unique<Engine>();a->prepare(8000,64);reference->prepare(8000,64);Parameters p;p.engine=11;p.sampleLoop=true;p.attack=.001f;p.decay=.001f;p.sustain=1;p.release=.005f;p.volume=1;std::vector<float> wave(8000);for(size_t i=0;i<wave.size();++i)wave[i]=.3f*std::sin(i*6.283185307179586*220/8000);a->loadSample(wave,{},8000);reference->loadSample(wave,{},8000);a->setParameters(p);reference->setParameters(p);a->setOutputGainImmediately(1);reference->setOutputGainImmediately(1);a->noteOn(60,1);reference->noteOn(60,1);render(*a,l,r,1000);std::vector<float> expectedL,expectedR;render(*reference,expectedL,expectedR,1000);
+        auto replacement=a->registerPreparedSample(Engine::prepareSample(std::vector<float>(8000,.25f),{},16000));a->installPreparedSample(replacement);p.sampleRootNote=72;a->setParameters(p);render(*a,l,r,1000);render(*reference,expectedL,expectedR,1000);check(l==expectedL&&r==expectedR,"sample turnover preserves old voice rate/root/bounds, not just its audio memory");
     }
     std::cout<<"PASS: tuning, release, recording, stereo, overdub, undo/redo, lift/drop, splice, resampling, forward/reverse loops, export, mute/solo, sampler slices, engines/effects, sequencer\n";
 }

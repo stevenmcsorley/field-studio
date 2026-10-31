@@ -2,11 +2,13 @@
 #include <juce_audio_utils/juce_audio_utils.h>
 #include "Engine.h"
 #include "MidiSupport.h"
+#include "RtKeyboard.h"
+#include "RealtimeValues.h"
 
-class FieldProcessor final : public juce::AudioProcessor, private juce::Timer {
+class FieldProcessor final : public juce::AudioProcessor, private juce::Timer, private juce::AudioProcessorParameter::Listener {
 public:
     FieldProcessor();
-    ~FieldProcessor() override { stopTimer(); }
+    ~FieldProcessor() override;
     void prepareToPlay(double, int) override;
     void releaseResources() override {}
     bool isBusesLayoutSupported(const BusesLayout&) const override;
@@ -25,7 +27,7 @@ public:
     void getStateInformation(juce::MemoryBlock&) override;
     void setStateInformation(const void*,int) override;
     juce::AudioProcessorValueTreeState parameters;
-    juce::MidiKeyboardState keyboard;
+    field::RtKeyboard keyboard;
     field::Engine engine;
     void startSampleCapture(bool fromOutput=false);
     void stopSampleCapture();
@@ -44,6 +46,7 @@ public:
     void setValue(const juce::String&,float);
     field::Parameters currentParameters() const;
     void updateEngine();
+    void synchronizeParameterDisplay(){flushParameterMirrors();} // message thread only
     bool loadSampleFile(const juce::File&, juce::String& error);
     bool exportAudio(const juce::File&, juce::String& error);
     bool saveProject(const juce::File&, juce::String& error);
@@ -75,15 +78,23 @@ public:
     double selectionStart=0, selectionEnd=4;
     std::atomic<int> octave{0};
     int keyboardMidiChannel() const {int channel=(int)value("midiInputChannel");return channel==0?1:channel;}
-    std::atomic<uint64_t> midiReceived{0};
+    std::atomic<uint64_t> midiReceived{0},rejectedMidiEvents{0};
     std::atomic<int> midiLastStatus{0},midiLastData1{0},midiLastData2{0};
 private:
     enum ParamKey {P_engine,P_macro1,P_macro2,P_macro3,P_macro4,P_attack,P_decay,P_sustain,P_release,P_sampleStart,P_sampleLoopIn,P_sampleLoopOut,P_sampleEnd,P_sampleLoop,P_sampleReverse,P_sampleOneShot,P_fx1,P_fx2,P_fx3,P_fx4,P_seq1,P_seq2,P_seq3,P_seq4,P_lfoTarget,P_effect,P_effectMix,P_masterLow,P_masterMid,P_masterHigh,P_masterDrive,P_compressor,P_masterEffect,P_masterMix,P_volume,P_tempo,P_lfo,P_lfoRate,P_lfoDepth,P_sequencer,P_sequenceOn,P_tapeStyle,P_tapeSpeed,P_loop,P_masterFx1,P_masterFx2,P_masterFx3,P_masterFx4,P_seqSwing,P_seqGate,P_seqHold,P_sampleRootNote,P_voiceMode,P_glideTime,P_bendRange,P_patchGain,P_lfoWaveform,P_lfoRetrigger,P_lfoSync,P_lfoDivision,P_elementSource,P_elementManual,P_envelopeCurve,P_midiTarget1,P_midiTarget2,P_midiTarget3,P_midiTarget4,P_midiDepth1,P_midiDepth2,P_midiDepth3,P_midiDepth4,P_countInBeats,P_tapeRecordLevel,P_tapeRecordPan,P_metronomeLevel,P_midiInputChannel,P_midiOutputChannel,P_midiClockMode,P_midiThru,P_midiSendControls,P_midiRelativeControls,P_midiNotesIn,P_midiOtherIn,P_midiTransportIn,P_midiNotesOut,P_midiOtherOut,P_midiSppOrigin,P_masterLeft,P_masterRight,P_compressorRelease,P_count};
     std::array<std::atomic<float>*,P_count> rawValues{};
     std::array<juce::RangedAudioParameter*,P_count> rawTargets{};
-    float cached(int key) const { return rawValues[(size_t)key]->load(); }
-    void setNormalized(int key,float v){rawTargets[(size_t)key]->setValueNotifyingHost(v);}
-    void setPhysical(int key,float v){auto* p=rawTargets[(size_t)key];p->setValueNotifyingHost(p->convertTo0to1(v));}
+    std::array<juce::String,P_count> parameterIds;
+    field::RealtimeValues<P_count> realtimeValues;
+    float cached(int key) const {auto* p=rawTargets[(size_t)key];return p->convertFrom0to1(p->getValue());}
+    // Owned JUCE Float/Choice/Int/Bool types have atomic setValue and no-op
+    // valueChanged. Custom parameter overrides require a new realtime audit.
+    void setNormalized(int key,float v){rawTargets[(size_t)key]->setValue(v);realtimeValues.fromAudio((size_t)key,cached(key));}
+    void setPhysical(int key,float v){auto* p=rawTargets[(size_t)key];setNormalized(key,p->convertTo0to1(v));}
+    void parameterValueChanged(int,float) override;
+    void parameterGestureChanged(int,bool) override {}
+    void flushParameterMirrors();
+    juce::ValueTree copyParameterState();
     static juce::AudioProcessorValueTreeState::ParameterLayout makeLayout();
     void timerCallback() override;
     void resetSampleParameters();
@@ -104,6 +115,9 @@ private:
     struct TapeState { std::array<field::Track,4> tracks; double position=0; };
     std::array<TapeState,8> tapes;
     juce::AudioBuffer<float> inputCopy;
+    juce::MidiBuffer midiInput;
+    juce::CriticalSection sampleWorkerLock;
+    void loadLegacySample(const std::vector<float>&,const std::vector<float>&,double);
     struct MasterState { float low[2]{}, upper[2]{}, envelope=0; };
     MasterState masterState;
     field::Engine masterFx;
@@ -112,7 +126,9 @@ private:
     bool previousHostPlaying=false,hostPositionValid=false;
     double previousHostSeconds=0;
     int previousHostFrames=0;
-    field::midi::NoteState midiNotes;
+    field::midi::NoteState midiNotes,guiMidiNotes;
+    field::RtQueue<field::KeyboardEvent,512> missedReleases;
+    bool missedReleaseOverflow=false; // audio thread only
     field::midi::ClockFollower midiClockFollower;
     field::midi::ClockGenerator midiClockGenerator;
     juce::MidiBuffer midiOutput;
@@ -123,6 +139,8 @@ private:
     bool lastNotesIn=true,lastNotesOut=true;
     std::array<int,4> controllerValues{{-1,-1,-1,-1}};
     void midiController(int channel,int cc,int amount);
+    void retainSkippedReleases(const juce::MidiBuffer&) noexcept;
+    void clearMidiChannel(int);
     juce::ValueTree makeState();
     void restoreState(const juce::ValueTree&);
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(FieldProcessor)
