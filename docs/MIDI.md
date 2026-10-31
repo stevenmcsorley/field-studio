@@ -2,6 +2,8 @@
 
 Open **COM → MIDI routing & clock**. Standalone input/output ports are selected in **Options → Audio/MIDI Settings**; a plugin uses its host's MIDI routing. A physical USB/DIN adapter or OS-exposed BLE port is a host device, not emulated OP-1 hardware.
 
+Custom MIDI learn overrides these fixed CC destinations when a learned address matches. See [controller mapping](CONTROLLERS.md) for Faderfox, BeatStep, encoder modes, pickup and saved profiles.
+
 ## Routing
 
 - Choose an omni or single-channel input and an output channel1–16. Typing/clicking the app keyboard uses the chosen input channel (channel1 in omni).

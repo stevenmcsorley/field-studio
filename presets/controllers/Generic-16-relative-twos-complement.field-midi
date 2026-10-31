@@ -1,0 +1,19 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<MIDI_MAPPINGS version="1">
+  <BINDING target="macro1" channel="16" cc="20" mode="1" pickup="0" invert="0" />
+  <BINDING target="macro2" channel="16" cc="21" mode="1" pickup="0" invert="0" />
+  <BINDING target="macro3" channel="16" cc="22" mode="1" pickup="0" invert="0" />
+  <BINDING target="macro4" channel="16" cc="23" mode="1" pickup="0" invert="0" />
+  <BINDING target="attack" channel="16" cc="24" mode="1" pickup="0" invert="0" />
+  <BINDING target="decay" channel="16" cc="25" mode="1" pickup="0" invert="0" />
+  <BINDING target="sustain" channel="16" cc="26" mode="1" pickup="0" invert="0" />
+  <BINDING target="release" channel="16" cc="27" mode="1" pickup="0" invert="0" />
+  <BINDING target="fx1" channel="16" cc="28" mode="1" pickup="0" invert="0" />
+  <BINDING target="fx2" channel="16" cc="29" mode="1" pickup="0" invert="0" />
+  <BINDING target="fx3" channel="16" cc="30" mode="1" pickup="0" invert="0" />
+  <BINDING target="fx4" channel="16" cc="31" mode="1" pickup="0" invert="0" />
+  <BINDING target="masterLow" channel="16" cc="32" mode="1" pickup="0" invert="0" />
+  <BINDING target="masterMid" channel="16" cc="33" mode="1" pickup="0" invert="0" />
+  <BINDING target="masterHigh" channel="16" cc="34" mode="1" pickup="0" invert="0" />
+  <BINDING target="volume" channel="16" cc="35" mode="1" pickup="0" invert="0" />
+</MIDI_MAPPINGS>

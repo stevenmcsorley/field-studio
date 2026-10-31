@@ -24,6 +24,7 @@ public:
     void mouseDoubleClick(const juce::MouseEvent&) override;
     void showPageForTesting(int mode,int page);
     void refreshForTesting() { timerCallback(); }
+    juce::String macroMidiTargetForTesting(int i) const {return i>=0&&i<4?macros[(size_t)i].getProperties()["midiTarget"].toString():juce::String{};}
     bool macroEnabledForTesting(int i) const { return i>=0&&i<4&&macros[(size_t)i].isEnabled(); }
     void setShiftForTesting(bool value) { shiftLatched=value;setShift(value); }
 private:
@@ -82,6 +83,9 @@ private:
     double recorded=0,visibleSeconds=16;
     float scale=1;
     juce::String status=juce::String::fromUTF8("Ready · play the keys or connect MIDI");
+    juce::String observedLearnTarget;
+    void showMidiMappingMenu(const juce::String&);
+    void controllerFileAction(bool save);
     void timerCallback() override;
     void setMode(int);
     void setPage(int);

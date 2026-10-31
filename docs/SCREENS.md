@@ -20,3 +20,11 @@ Six local CTest suites pass. The UI integration suite checks availability after 
 ![Delay control preview](screenshots/delay.png)
 
 ![MIDI modulation routes](screenshots/midi-lfo.png)
+
+## Official guide comparison, 31 October 2026
+
+The supplied [official OP–1 field guide](https://teenage.engineering/guides/op-1) identifies itself as version 1.7.0. This is the same reference version retained in the research inventory. A fresh visual comparison of its envelope/play-mode illustration with the native screenshot identified a layout gap: our shifted envelope view collapsed settings into a large mode name plus a summary. It now shows the guide's four colored rows: play mode, portamento, bend range and volume. Values keep their real software units (seconds, semitones and gain), rather than inventing the hardware's parameter scale. Source artwork/fonts are not copied into the product.
+
+Further guide-backed comparison remains necessary for the tuner, record-screen details, engine/effect illustrations, input/output/COM browsers and encoder click/hold gestures. Those are not declared complete by this one layout correction. The baseline guide/provenance and privately retained reference images remain in the sibling research workspace; the release only includes original product artwork.
+
+![Guide-aligned play-mode settings, with actual software units](screenshots/envelope-play-settings.png)

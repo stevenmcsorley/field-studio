@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(FieldStudio VERSION 0.1.0 LANGUAGES C CXX)
+project(FieldStudio VERSION 0.2.0 LANGUAGES C CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 option(FIELD_BUILD_PLUGIN "Build standalone and VST3" ON)
@@ -55,7 +55,7 @@ if(FIELD_BUILD_PLUGIN)
     COPY_PLUGIN_AFTER_BUILD FALSE
     VST3_CATEGORIES Instrument Synth Sampler
     NEEDS_WEB_BROWSER FALSE NEEDS_CURL FALSE)
-  target_sources(FieldStudio PRIVATE Source/PluginProcessor.cpp Source/PluginEditor.cpp Source/MidiSupport.cpp Source/PresetFormat.cpp Source/PresetMapping.cpp Source/PresetParameters.cpp)
+  target_sources(FieldStudio PRIVATE Source/PluginProcessor.cpp Source/PluginEditor.cpp Source/MidiMapping.cpp Source/MidiSupport.cpp Source/PresetFormat.cpp Source/PresetMapping.cpp Source/PresetParameters.cpp)
   target_include_directories(FieldStudio PUBLIC Source)
   target_compile_definitions(FieldStudio PUBLIC JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_VST3_CAN_REPLACE_VST2=0 JUCE_DISPLAY_SPLASH_SCREEN=0)
   target_link_libraries(FieldStudio PRIVATE field_engine juce::juce_audio_utils PUBLIC juce::juce_recommended_config_flags)

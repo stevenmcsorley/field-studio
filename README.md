@@ -6,6 +6,14 @@ A native synthesizer, sampler and four-track stereo tape instrument inspired by 
 
 This is an independently written recreation. **Exact feature, visual and sonic parity has not been established.** No manufacturer DSP, firmware, factory samples, fonts, logos or extracted artwork are bundled. See [the parity ledger](docs/PARITY.md) for concrete differences and [research findings](docs/research/FIRMWARE_FINDINGS.md) for what the firmware inspection actually established.
 
+## Controller mapping
+
+Right-click a knob and choose **MIDI learn**, then move a control on your Faderfox, BeatStep or other MIDI controller. Absolute pickup/jump, three relative encoder modes and reversed direction are supported. Assignments save with projects/DAW state; reusable profiles are under **COM → MIDI learn / controller mappings**. See [controller setup and limits](docs/CONTROLLERS.md).
+
+## Downloads
+
+The multi-platform beta pipeline packages Windows x64 standalone/VST3, macOS universal standalone/VST3/AU and Linux x86_64 standalone/VST3, with checksums and complete corresponding source. See [beta notes](docs/RELEASE_NOTES.md) and [build/release status](docs/BUILD_STATUS.md). Binaries are unsigned development builds.
+
 ## Run the Linux build
 
 ```sh

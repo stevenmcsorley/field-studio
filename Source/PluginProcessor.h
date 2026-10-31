@@ -4,6 +4,7 @@
 #include "MidiSupport.h"
 #include "RtKeyboard.h"
 #include "RealtimeValues.h"
+#include "MidiLearn.h"
 
 class FieldProcessor final : public juce::AudioProcessor, private juce::Timer, private juce::AudioProcessorParameter::Listener {
 public:
@@ -46,6 +47,16 @@ public:
     void setValue(const juce::String&,float);
     field::Parameters currentParameters() const;
     void updateEngine();
+    juce::StringArray midiMappingTargets() const;
+    juce::String midiMappingLabel(const juce::String&) const;
+    juce::String midiMappingDescription(const juce::String&) const;
+    juce::String midiLearnTarget() const;
+    bool beginMidiLearn(const juce::String&,field::EncoderMode,bool pickup=true,bool invert=false);
+    void cancelMidiLearn(){midiLearn.cancel();}
+    void clearMidiMapping(const juce::String&);
+    void clearMidiMappings(){midiLearn.clearAll();}
+    juce::ValueTree midiMappingState() const;
+    bool restoreMidiMappingState(const juce::ValueTree&,juce::String& error);
     void synchronizeParameterDisplay(){flushParameterMirrors();} // message thread only
     bool loadSampleFile(const juce::File&, juce::String& error);
     bool exportAudio(const juce::File&, juce::String& error);
@@ -87,6 +98,12 @@ private:
     std::array<juce::RangedAudioParameter*,P_count> rawTargets{};
     std::array<juce::String,P_count> parameterIds;
     field::RealtimeValues<P_count> realtimeValues;
+    static constexpr size_t extraMidiTargets=41;
+    field::MidiLearn<P_count+extraMidiTargets> midiLearn;
+    bool parseMidiMappings(const juce::ValueTree&,std::array<field::MidiBinding,P_count+extraMidiTargets>&,juce::String&) const;
+    int midiMappingIndex(const juce::String&) const;
+    float mappedMidiValue(size_t) const noexcept;
+    void applyMappedMidi(size_t,float) noexcept;
     float cached(int key) const {auto* p=rawTargets[(size_t)key];return p->convertFrom0to1(p->getValue());}
     // Owned JUCE Float/Choice/Int/Bool types have atomic setValue and no-op
     // valueChanged. Custom parameter overrides require a new realtime audit.

@@ -1,21 +1,39 @@
 name: Build and test
-on: [push, pull_request, workflow_dispatch]
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
 jobs:
   build:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-24.04, windows-latest, macos-latest]
+        include:
+          - os: ubuntu-22.04
+            architecture: x86_64
+            cmake_args: ''
+          - os: windows-latest
+            architecture: x86_64
+            cmake_args: '-A x64'
+          - os: macos-latest
+            architecture: universal
+            cmake_args: '-DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0'
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
       - name: Linux prerequisites
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y pkg-config libasound2-dev libfreetype-dev libfontconfig1-dev libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libgl1-mesa-dev xvfb
           pkg-config --print-errors --exists freetype2 fontconfig
-          pkg-config --cflags freetype2 fontconfig
       - name: JUCE
         uses: actions/checkout@v4
         with:
@@ -23,7 +41,8 @@ jobs:
           ref: ea77444750de45e036e0279bb0291144bf8e3688
           path: vendor/JUCE
       - name: Configure
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
+        shell: bash
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON ${{ matrix.cmake_args }}
       - name: Build
         run: cmake --build build --config Release --parallel 2
       - name: Test Linux
@@ -32,13 +51,26 @@ jobs:
       - name: Test Windows and macOS
         if: runner.os != 'Linux'
         run: ctest --test-dir build -C Release --output-on-failure
+      - name: Verify release tag and licensing
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: python -c "import os,pathlib; assert pathlib.Path('LICENSE').is_file(), 'Choose project licence before release'; assert os.environ['RELEASE_TAG']=='v'+pathlib.Path('RELEASE_VERSION').read_text().strip(), 'Tag/version mismatch'"
+      - name: Package OS downloads
+        run: python scripts/package.py --architecture ${{ matrix.architecture }}
+      - name: Package complete corresponding source
+        if: runner.os == 'Linux'
+        run: python scripts/package.py --architecture x86_64 --source
+      - name: Verify packaged downloads
+        run: python scripts/verify_packages.py dist
       - uses: actions/upload-artifact@v4
+        if: hashFiles('LICENSE') != ''
         with:
-          name: Field-Studio-${{ runner.os }}
+          name: Field-Studio-${{ runner.os }}-${{ matrix.architecture }}
+          if-no-files-found: error
           path: |
-            build/FieldStudio_artefacts/Release/Standalone/
-            build/FieldStudio_artefacts/Release/VST3/
-            build/FieldStudio_artefacts/Release/AU/
+            dist/*.zip
+            dist/*.zip.sha256
   core-sanitizers:
     name: Ownership core ASan and UBSan
     runs-on: ubuntu-24.04
@@ -57,3 +89,24 @@ jobs:
           ASAN_OPTIONS: detect_leaks=1
           UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
         run: ctest --test-dir build-sanitize --output-on-failure
+  release:
+    name: Publish tested beta downloads
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [build, core-sanitizers]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: Field-Studio-*
+          path: release-downloads
+          merge-multiple: true
+      - name: Verify all target downloads
+        run: python scripts/verify_packages.py release-downloads --all-platforms
+      - name: Publish beta release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: gh release create "$RELEASE_TAG" release-downloads/*.zip release-downloads/*.sha256 --verify-tag --prerelease --title "Field Studio $RELEASE_TAG" --notes-file docs/RELEASE_NOTES.md

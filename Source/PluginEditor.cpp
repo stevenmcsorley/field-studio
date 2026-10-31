@@ -87,6 +87,9 @@ FieldEditor::FieldEditor(FieldProcessor& p):AudioProcessorEditor(p),processor(p)
     comButton.setTooltip("Connections, host sync, tape styles and panic");comButton.onClick=[this]{showMenu();};shiftButton.setTooltip(juce::String::fromUTF8("Latch Shift · alternate tape edits and mixer pan"));shiftButton.onClick=[this]{shiftLatched=!shiftLatched;setShift(shiftLatched);grabKeyboardFocus();};
     for(int i=0;i<4;++i){auto& s=macros[(size_t)i];s.setSliderStyle(juce::Slider::RotaryVerticalDrag);s.setTextBoxStyle(juce::Slider::NoTextBox,false,0,0);s.setRotaryParameters(juce::MathConstants<float>::pi*1.25f,juce::MathConstants<float>::pi*2.75f,true);s.setColour(juce::Slider::thumbColourId,colours[(size_t)i]);s.setWantsKeyboardFocus(false);s.setPopupDisplayEnabled(true,true,this);s.setDoubleClickReturnValue(true,.5);addAndMakeVisible(s);}
     for(auto* s:{&volume,&tempo}){s->setSliderStyle(juce::Slider::RotaryVerticalDrag);s->setTextBoxStyle(juce::Slider::NoTextBox,false,0,0);s->setColour(juce::Slider::thumbColourId,juce::Colour(0xffcbd0cc));s->setWantsKeyboardFocus(false);s->setPopupDisplayEnabled(true,true,this);addAndMakeVisible(s);}
+    volume.getProperties().set("midiTarget","volume");tempo.getProperties().set("midiTarget","tempo");engineBox.getProperties().set("midiTarget","engine");effectBox.getProperties().set("midiTarget","effect");sequenceBox.getProperties().set("midiTarget","sequencer");
+    for(auto* component:std::array<juce::Component*,5>{&volume,&tempo,&engineBox,&effectBox,&sequenceBox})component->addMouseListener(this,true);
+    for(auto& slider:macros){slider.setPopupMenuEnabled(false);slider.addMouseListener(this,true);}volume.setPopupMenuEnabled(false);tempo.setPopupMenuEnabled(false);
     volumeAttachment=std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(p.parameters,"volume",volume);tempoAttachment=std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(p.parameters,"tempo",tempo);
     const juce::StringArray performanceNames{"Hold brake","Hold reverse","Hold chop"};
     for(int i=0;i<3;++i){auto& button=tapePerformance[(size_t)i];button.setButtonText(performanceNames[i]);button.setWantsKeyboardFocus(false);addChildComponent(button);button.setTooltip("Hold to perform on tape; release restores normal playback");button.onStateChange=[this,i]{processor.setTapePerformance(i,tapePerformance[(size_t)i].isDown());};}
@@ -99,8 +102,8 @@ void FieldEditor::setMode(int m){if(mode==2&&m!=2)processor.releaseTapePerforman
 void FieldEditor::setPage(int p){page=p;if(mode>1&&mode!=3)mode=processor.drumMode?1:0;configureMacros();repaint();}
 void FieldEditor::setShift(bool s){if(shifted==s)return;shifted=s;shiftButton.setToggleState(s,juce::dontSendNotification);configureMacros();repaint();}
 void FieldEditor::configureMacros(){
-    for(size_t i=0;i<4;++i){attachments[i].reset();macros[i].onValueChange=nullptr;macros[i].setTextValueSuffix("");macros[i].setEnabled(true);}
-    macroLabels.clear();juce::StringArray ids;
+    for(size_t i=0;i<4;++i){attachments[i].reset();macros[i].onValueChange=nullptr;macros[i].setTextValueSuffix("");macros[i].getProperties().set("midiTarget",juce::String{});macros[i].setEnabled(true);}
+    macroLabels.clear();juce::StringArray ids;effectBox.getProperties().set("midiTarget",mode==3?"masterEffect":"effect");
     bool heldSource=mode==4&&(int)processor.value("sequencer")==4;
     if(((mode==1&&page<2)||heldSource)&&(int)processor.value("engine")==14){
         {const juce::ScopedLock lock(processor.engineLock);selectedPad=processor.engine.selectedPad();dboxState=processor.engine.dboxPad(selectedPad);}
@@ -108,6 +111,8 @@ void FieldEditor::configureMacros(){
         if(page==1){lo={{.0002,0,.005,0}};hi={{1,2,4,1}};values={{dboxState.attack,dboxState.gain,dboxState.release,dboxState.smooth}};defaults={{.001,1,.1,.1}};macroLabels={"ATTACK","GAIN","RELEASE","SMOOTH"};}
         else if(shifted){lo={{0,0,.005,0}};hi={{1,1,4,1}};values={{dboxState.frequency,dboxState.wave2,dboxState.envelope2,dboxState.cutoff}};defaults={{.3,.5,.1,.6}};macroLabels={"FREQUENCY","WAVEFORM 2","ENVELOPE 2","CUTOFF"};}
         else{lo={{0,0,.005,0}};hi={{1,1,4,1}};values={{dboxState.mix,dboxState.wave1,dboxState.envelope1,dboxState.crossMod}};defaults={{.5,0,.2,0}};macroLabels={"ENVELOPE MIX","WAVEFORM 1","ENVELOPE 1","CROSS MOD"};}
+        const char* dboxIds[3][4]{{"dboxMix","dboxWave1","dboxEnvelope1","dboxCrossMod"},{"dboxFrequency","dboxWave2","dboxEnvelope2","dboxCutoff"},{"dboxAttack","dboxGain","dboxRelease","dboxSmooth"}};
+        for(int i=0;i<4;++i)macros[(size_t)i].getProperties().set("midiTarget",dboxIds[page==1?2:shifted?1:0][i]);
         for(int i=0;i<4;++i){auto& slider=macros[(size_t)i];slider.setRange(lo[(size_t)i],hi[(size_t)i],.0001);slider.setSkewFactor((page==1&&(i==0||i==2))||(page==0&&i==2)?.35:1);slider.setValue(values[(size_t)i],juce::dontSendNotification);slider.setDoubleClickReturnValue(true,defaults[(size_t)i]);slider.onValueChange=[this,i]{const juce::ScopedLock lock(processor.engineLock);auto pad=processor.engine.dboxPad(selectedPad);float v=(float)macros[(size_t)i].getValue();if(page==1){if(i==0)pad.attack=v;else if(i==1)pad.gain=v;else if(i==2)pad.release=v;else pad.smooth=v;}else if(shifted){if(i==0)pad.frequency=v;else if(i==1)pad.wave2=v;else if(i==2)pad.envelope2=v;else pad.cutoff=v;}else{if(i==0)pad.mix=v;else if(i==1)pad.wave1=v;else if(i==2)pad.envelope1=v;else pad.crossMod=v;}processor.engine.setDboxPad(selectedPad,pad);};}
     }else if(((mode==1&&page==0)||(heldSource&&processor.drumMode))&&(int)processor.value("engine")==11){
         {const juce::ScopedLock lock(processor.engineLock);selectedPad=processor.engine.selectedPad();padState=processor.engine.drumPad(selectedPad);}
@@ -115,8 +120,11 @@ void FieldEditor::configureMacros(){
         const std::array<double,4> maxs=shifted?std::array<double,4>{{1,2,4,2}}:std::array<double,4>{{1,1,24,2}};
         const std::array<double,4> vals=shifted?std::array<double,4>{{padState.pan,(double)padState.mode,(double)padState.chokeGroup,padState.level}}:std::array<double,4>{{padState.start,padState.end,padState.tune,padState.level}};
         macroLabels=shifted?juce::StringArray{"PAD PAN","PLAY MODE","CHOKE GROUP","PAD LEVEL"}:juce::StringArray{"PAD START","PAD END","PAD TUNE","PAD LEVEL"};
+        const char* padIds[2][4]{{"padStart","padEnd","padTune","padLevel"},{"padPan","padMode","padChoke","padLevel"}};
+        for(int i=0;i<4;++i)macros[(size_t)i].getProperties().set("midiTarget",padIds[shifted?1:0][i]);
         for(int i=0;i<4;++i){auto& slider=macros[(size_t)i];slider.setRange(mins[(size_t)i],maxs[(size_t)i],shifted&&(i==1||i==2)?1.:.001);slider.setValue(vals[(size_t)i],juce::dontSendNotification);slider.setDoubleClickReturnValue(true,i==1&&!shifted?1:i==3?1:0);slider.onValueChange=[this,i]{const juce::ScopedLock lock(processor.engineLock);auto p=processor.engine.drumPad(selectedPad);float v=(float)macros[(size_t)i].getValue();if(shifted){if(i==0)p.pan=v;else if(i==1)p.mode=(int)v;else if(i==2)p.chokeGroup=(int)v;else p.level=v;}else{if(i==0)p.start=v;else if(i==1)p.end=v;else if(i==2)p.tune=v;else p.level=v;}processor.engine.setDrumPad(selectedPad,p);};}
     }else if(mode==2){
+        const juce::StringArray tapeIds{shifted?"":"tapeSeek",shifted?"loopStart":"loopEnd","tapeSpeed",shifted?"tapeRecordPan":"tapeRecordLevel"};for(int i=0;i<4;++i)macros[(size_t)i].getProperties().set("midiTarget",tapeIds[i]);
         macroLabels=shifted?juce::StringArray{"SLIDE SELECTION","LOOP IN","SPEED %","RECORD PAN"}:juce::StringArray{"SCRUB TAPE","LOOP OUT","TAPE SPEED","RECORD LEVEL"};
         macros[0].setRange(0,shifted?juce::jmax(.001,360.-(processor.selectionEnd-processor.selectionStart)):359.9,.001);macros[0].setValue(shifted?processor.selectionStart:processor.playhead.load(),juce::dontSendNotification);macros[0].setDoubleClickReturnValue(true,0);
         macros[0].onValueChange=[this]{const juce::ScopedLock lock(processor.engineLock);double value=processor.snapTapeTime(macros[0].getValue());if(shifted){const double delta=juce::jlimit(-processor.selectionStart,360.-processor.selectionEnd,value-processor.selectionStart);processor.engine.slideTracks(processor.tapeEditMask.load(),processor.selectionStart,processor.selectionEnd,delta);processor.selectionStart+=delta;processor.selectionEnd+=delta;processor.engine.setLoop(processor.selectionStart,processor.selectionEnd);}else processor.engine.seek(value);};
@@ -124,7 +132,7 @@ void FieldEditor::configureMacros(){
         macros[2].setRange(shifted?-200.:-2.,shifted?200.:2.,shifted?1.:.01);macros[2].setValue(processor.value("tapeSpeed")*(shifted?100:1),juce::dontSendNotification);macros[2].setDoubleClickReturnValue(true,shifted?100:1);if(shifted)macros[2].setTextValueSuffix("%");macros[2].onValueChange=[this]{processor.setValue("tapeSpeed",(float)(macros[2].getValue()/(shifted?100:1)));};
         attachments[3]=std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(processor.parameters,shifted?"tapeRecordPan":"tapeRecordLevel",macros[3]);macros[3].setDoubleClickReturnValue(true,shifted?0:1);
     }else if(mode==3&&page==0){
-        for(int i=0;i<4;++i){auto& s=macros[(size_t)i];s.setRange(shifted?-1.:0.,shifted?1.:2.,.001);s.setValue(shifted?pans[(size_t)i]:levels[(size_t)i],juce::dontSendNotification);s.setDoubleClickReturnValue(true,shifted?0.:1.);s.onValueChange=[this,i]{const juce::ScopedLock lock(processor.engineLock);if(shifted)processor.engine.setTrackPan(i,(float)macros[(size_t)i].getValue());else processor.engine.setTrackLevel(i,(float)macros[(size_t)i].getValue());};macroLabels.add("TRACK "+juce::String(i+1)+(shifted?juce::String::fromUTF8(" · PAN"):juce::String::fromUTF8(" · LEVEL")));}
+        for(int i=0;i<4;++i){auto& s=macros[(size_t)i];s.setRange(shifted?-1.:0.,shifted?1.:2.,.001);s.setValue(shifted?pans[(size_t)i]:levels[(size_t)i],juce::dontSendNotification);s.setDoubleClickReturnValue(true,shifted?0.:1.);s.getProperties().set("midiTarget","track"+juce::String(i+1)+(shifted?"Pan":"Level"));s.onValueChange=[this,i]{const juce::ScopedLock lock(processor.engineLock);if(shifted)processor.engine.setTrackPan(i,(float)macros[(size_t)i].getValue());else processor.engine.setTrackLevel(i,(float)macros[(size_t)i].getValue());};macroLabels.add("TRACK "+juce::String(i+1)+(shifted?juce::String::fromUTF8(" · PAN"):juce::String::fromUTF8(" · LEVEL")));}
     }else{
         if(mode==3&&page==1){ids={"masterLow","masterMid","masterHigh","masterDrive"};macroLabels={juce::String::fromUTF8("LOW · dB"),juce::String::fromUTF8("MID · dB"),juce::String::fromUTF8("HIGH · dB"),"DRIVE"};}
         else if(mode==3&&page==2){ids={"masterFx1","masterFx2","masterFx3",shifted?"masterMix":"masterFx4"};macroLabels=effectLabels((int)processor.value("masterEffect"),shifted,true);}
@@ -143,7 +151,7 @@ void FieldEditor::configureMacros(){
         else if(page==2){ids={"fx1","fx2","fx3",shifted?"effectMix":"fx4"};macroLabels=effectLabels((int)processor.value("effect"),shifted,false);}
         else if(page==3){int type=(int)processor.value("lfo");if(type==2){ids=shifted?juce::StringArray{"midiTarget1","midiTarget2","midiTarget3","midiTarget4"}:juce::StringArray{"midiDepth1","midiDepth2","midiDepth3","midiDepth4"};macroLabels=shifted?juce::StringArray{"CC1 DESTINATION","CC2 DESTINATION","CC3 DESTINATION","CC4 DESTINATION"}:juce::StringArray{"CC1 AMOUNT","CC2 AMOUNT","CC3 AMOUNT","CC4 AMOUNT"};}else if(type==1){ids=shifted?juce::StringArray{"elementSource","elementManual","lfoTarget","lfoDepth"}:juce::StringArray{"elementSource","lfoDepth","lfoTarget","volume"};macroLabels=shifted?juce::StringArray{"ELEMENT SOURCE","MANUAL INPUT","DESTINATION","AMOUNT"}:juce::StringArray{"ELEMENT SOURCE","LFO AMOUNT","DESTINATION","MASTER LEVEL"};}else if(shifted&&(type==3||type==0)){ids=type==3?juce::StringArray{"lfoWaveform","lfoDivision","lfoRetrigger","lfoSync"}:juce::StringArray{"lfoDivision","lfoRetrigger","lfoSync","volume"};macroLabels=type==3?juce::StringArray{"WAVEFORM","SYNC CYCLE","KEY RETRIGGER","TEMPO SYNC"}:juce::StringArray{"SYNC CYCLE","KEY RETRIGGER","TEMPO SYNC","MASTER LEVEL"};}else{ids={type==4?"macro4":type==5?"patchGain":"lfoRate","lfoDepth","lfoTarget","volume"};macroLabels={type==4?"VALUE":type==5?"PATCH LEVEL":"LFO RATE","LFO AMOUNT","DESTINATION","MASTER LEVEL"};}}
         else{ids={"macro1","macro2","macro3","macro4"};int e=juce::jlimit(0,14,(int)processor.value("engine"));for(auto n:names[(size_t)e])macroLabels.add(n);if(mode==1)macroLabels={"TONE","DECAY","NOISE / BODY","DRIVE"};else if(e==11&&processor.parameters.getParameter("sampleStart"))ids={"sampleStart","sampleLoopIn","sampleLoopOut","sampleEnd"};}
-        for(size_t i=0;i<4;++i){attachments[i]=std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(processor.parameters,ids[(int)i],macros[i]);auto* p=processor.parameters.getParameter(ids[(int)i]);macros[i].setDoubleClickReturnValue(true,p?p->convertFrom0to1(p->getDefaultValue()):.5f);}
+        for(size_t i=0;i<4;++i){macros[i].getProperties().set("midiTarget",ids[(int)i]);attachments[i]=std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(processor.parameters,ids[(int)i],macros[i]);auto* p=processor.parameters.getParameter(ids[(int)i]);macros[i].setDoubleClickReturnValue(true,p?p->convertFrom0to1(p->getDefaultValue()):.5f);}
     }
     updateControlAvailability();
     lastVoiceMode=(int)processor.value("voiceMode");lastEngine=(int)processor.value("engine");lastEffect=(int)processor.value("effect");lastMasterEffect=(int)processor.value("masterEffect");lastLfo=(int)processor.value("lfo");lastElementSource=(int)processor.value("elementSource");lastLfoSync=(int)processor.value("lfoSync");
@@ -218,6 +226,7 @@ void FieldEditor::paint(juce::Graphics& g){
     juce::String displayStatus=status;int albumRec=processor.albumRecording.load(),albumPlay=processor.albumPlaying.load();
     if(countInRemaining>0)displayStatus="TAPE ARMED / COUNT-IN "+juce::String((int)std::ceil(countInRemaining))+" beats / TRACK "+juce::String(selectedTrack+1);
     else if(recording)displayStatus="TAPE RECORDING / TRACK "+juce::String(selectedTrack+1);
+    const auto learning=processor.midiLearnTarget();if(learning.isNotEmpty())displayStatus="MIDI LEARN: "+processor.midiMappingLabel(learning)+" / turn a controller knob";
     if(processor.sampling)displayStatus="SAMPLE CAPTURE / "+processor.sampleName;
     if(albumRec>=0)displayStatus="ALBUM "+juce::String(albumRec==0?"A":"B")+" RECORDING / "+seconds(albumDurations[(size_t)albumRec])+" / 06:00"+(processor.sampling?" / SAMPLE CAPTURE":"");
     else if(albumPlay>=0)displayStatus="ALBUM "+juce::String(albumPlay==0?"A":"B")+" LISTEN / "+seconds(albumDurations[(size_t)albumPlay]);
@@ -229,7 +238,7 @@ void FieldEditor::drawScreen(juce::Graphics& g){
     auto content=r.reduced(12,9);if(mode==2){drawTape(g,content);g.restoreState();return;}if(mode==3){drawMixer(g,content);g.restoreState();return;}if(mode==4){drawSequence(g,content);g.restoreState();return;}
     const int engine=(int)processor.value("engine");
     juce::String title=mode==1?"DRUM / PAD "+juce::String(selectedPad+1):FieldProcessor::engineNames[juce::jlimit(0,14,engine)].toUpperCase();
-    if(page==1)title=mode==1&&engine==14?"DYNAMIC ENVELOPE":"ENVELOPE";
+    if(page==1)title=mode==1&&engine==14?"DYNAMIC ENVELOPE":shifted&&mode==0&&engine!=13?"PLAY MODE":"ENVELOPE";
     else if(page==2)title=FieldProcessor::effectNames[juce::jlimit(0,FieldProcessor::effectNames.size()-1,(int)processor.value("effect"))].toUpperCase();
     else if(page==3)title=FieldProcessor::lfoNames[juce::jlimit(0,5,(int)processor.value("lfo"))].toUpperCase()+" LFO";
     text(g,title,content.withHeight(16),11,colours[(size_t)page],juce::Justification::centredLeft);
@@ -246,9 +255,10 @@ void FieldEditor::drawScreen(juce::Graphics& g){
         text(g,"ADSR DOES NOT GATE INPUT",area.withY(area.getBottom()-25).withHeight(12),8,colours[2]);
         footer="SHIFT: PATCH LEVEL "+juce::String(processor.value("patchGain"),2);
     }else if(page==1&&shifted&&mode==0){
-        text(g,juce::StringArray{"POLY","MONO","LEGATO","UNISON"}[juce::jlimit(0,3,(int)processor.value("voiceMode"))],area.withHeight(30),23,colours[0]);
-        text(g,"GLIDE "+juce::String(processor.value("glideTime"),2)+" s / BEND "+juce::String(processor.value("bendRange"),0)+" st",area.withTrimmedTop(35).withHeight(13),8,colours[1]);
-        footer="PATCH LEVEL "+juce::String(processor.value("patchGain"),2);
+        const juce::StringArray labels{"PLAY MODE","PORTAMENTO","BEND RANGE","VOLUME"};
+        const juce::StringArray values{juce::StringArray{"POLY","MONO","LEGATO","UNISON"}[juce::jlimit(0,3,(int)processor.value("voiceMode"))],juce::String(processor.value("glideTime"),2)+" s",juce::String(processor.value("bendRange"),0)+" st",juce::String(processor.value("patchGain"),2)+"x"};
+        const float rowHeight=area.getHeight()/4;for(int i=0;i<4;++i){auto row=area.withY(area.getY()+i*rowHeight).withHeight(rowHeight);text(g,labels[i],row.withWidth(row.getWidth()*.63f),10,colours[(size_t)i],juce::Justification::centredLeft);text(g,values[i],row.withTrimmedLeft(row.getWidth()*.64f),11,colours[(size_t)i],juce::Justification::centredRight);}
+        footer="SHIFT / PATCH PLAY SETTINGS";
     }else if(page==1){
         juce::Path path;
         if(mode==1&&engine==14){
@@ -491,6 +501,7 @@ void FieldEditor::showMenu(){
     const juce::StringArray clockNames{"Internal","Receive MIDI clock","Send MIDI clock"};for(int i=0;i<3;++i)clockModes.addItem(610+i,clockNames[i],true,(int)processor.value("midiClockMode")==i);midiMenu.addSubMenu("Clock source / output",clockModes);
     const char* midiIds[]{"midiThru","midiSendControls","midiRelativeControls","midiNotesIn","midiOtherIn","midiTransportIn","midiNotesOut","midiOtherOut"};const juce::StringArray midiLabels{"MIDI thru","Controller output (notes + encoders)","Relative encoders (two's complement)","Receive notes / sustain","Receive other channel messages","Receive transport / clock","Send notes / sustain","Send other messages"};for(int i=0;i<8;++i)midiMenu.addItem(620+i,midiLabels[i],true,processor.value(midiIds[i])>.5f);
     midiMenu.addItem(630,"Set outgoing SPP origin at playhead");midiMenu.addItem(631,"Reset outgoing SPP origin");midiMenu.addItem(640,"MIDI monitor / settings");m.addSubMenu("MIDI routing & clock",midiMenu);
+    juce::PopupMenu mappingMenu;mappingMenu.addItem(805,"Cancel MIDI learn");mappingMenu.addItem(806,"Clear all learned mappings");mappingMenu.addItem(807,"Save controller profile...");mappingMenu.addItem(808,"Load controller profile...");mappingMenu.addSeparator();const auto mappingIds=processor.midiMappingTargets();for(int start=0;start<mappingIds.size();start+=16){juce::PopupMenu group;for(int i=start;i<juce::jmin(start+16,mappingIds.size());++i)group.addItem(1000+i,processor.midiMappingLabel(mappingIds[i]));mappingMenu.addSubMenu("Controls "+juce::String(start+1)+" - "+juce::String(juce::jmin(start+16,mappingIds.size())),group);}m.addSubMenu("MIDI learn / controller mappings",mappingMenu);
     juce::PopupMenu lfos;for(int i=0;i<FieldProcessor::lfoNames.size();++i)lfos.addItem(60+i,FieldProcessor::lfoNames[i],true,(int)processor.value("lfo")==i);m.addSubMenu("Modulation type",lfos);
     juce::PopupMenu targets;auto targetsNames=FieldProcessor::lfoTargetNames;for(int i=0;i<targetsNames.size();++i)targets.addItem(100+i,targetsNames[i],true,(int)processor.value("lfoTarget")==i);m.addSubMenu("Modulation destination",targets);
     juce::PopupMenu curves;curves.addItem(400,"Linear",true,processor.value("envelopeCurve")==0);curves.addItem(401,"Exponential",true,processor.value("envelopeCurve")==1);m.addSubMenu("Envelope curve",curves);
@@ -509,7 +520,11 @@ void FieldEditor::showMenu(){
     if(processor.parameters.getParameter("sampleLoop")){juce::PopupMenu sampler;sampler.addItem(50,"Loop sample",true,processor.value("sampleLoop")>.5f);sampler.addItem(51,"Reverse sample",true,processor.value("sampleReverse")>.5f);sampler.addItem(52,"One-shot playback",true,processor.value("sampleOneShot")>.5f);sampler.addItem(53,processor.sampling?"Finish sampling":"Record input sample");sampler.addItem(54,processor.sampling?"Finish sampling":"Resample main output");m.addSubMenu("Sampler",sampler);}
     m.addSeparator();m.addItem(20,"Follow DAW transport and tempo",true,processor.hostSync);m.addItem(21,"Monitor audio input",true,processor.inputMonitor);m.addItem(22,"Metronome",true,processor.metronome);m.addItem(23,"Loop selection",true,processor.value("loop")>.5f);m.addSeparator();m.addItem(30,"Undo tape edit");m.addItem(31,"Redo tape edit");m.addItem(32,"Rewind to start");m.addItem(33,"All notes off");m.addSeparator();m.addItem(40,"Quick guide & implementation notes");
     m.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(&comButton),[safe=juce::Component::SafePointer<FieldEditor>(this)](int id){if(!safe)return;
-        if(id>=660&&id<=676)safe->processor.setValue("midiInputChannel",(float)(id-660));
+        if(id>=1000&&id<1000+safe->processor.midiMappingTargets().size())safe->showMidiMappingMenu(safe->processor.midiMappingTargets()[id-1000]);
+        else if(id==805)safe->processor.cancelMidiLearn();
+        else if(id==806){safe->processor.clearMidiMappings();safe->status="Learned MIDI mappings cleared";}
+        else if(id==807||id==808)safe->controllerFileAction(id==807);
+        else if(id>=660&&id<=676)safe->processor.setValue("midiInputChannel",(float)(id-660));
         else if(id>=701&&id<=716)safe->processor.setValue("midiOutputChannel",(float)(id-700));
         else if(id>=610&&id<=612)safe->processor.setValue("midiClockMode",(float)(id-610));
         else if(id>=620&&id<=627){const char* ids[]{"midiThru","midiSendControls","midiRelativeControls","midiNotesIn","midiOtherIn","midiTransportIn","midiNotesOut","midiOtherOut"};safe->processor.setValue(ids[id-620],safe->processor.value(ids[id-620])>.5f?0:1);}
@@ -557,6 +572,9 @@ void FieldEditor::appendSketchPoint(juce::Point<float> p){
     processor.engine.setSketchLength(sketchCount);status="Drawing Sketch: "+juce::String(sketchCount)+" / 256 points";repaint();
 }
 void FieldEditor::mouseDown(const juce::MouseEvent& e){
+    if(e.mods.isPopupMenu()){auto* component=e.originalComponent;while(component&&component!=this){const auto id=component->getProperties()["midiTarget"].toString();if(id.isNotEmpty()){showMidiMappingMenu(id);return;}component=component->getParentComponent();}return;}
+
+    if(e.originalComponent!=this)return;
     grabKeyboardFocus();auto p=localPoint(e.position);int n=noteAt(p);if(n>=0){mouseNote=n;keyboardNote(n,juce::jlimit(.25f,1.f,(p.y-240)/205),true);return;}
     juce::Rectangle<float> screen(316,47,247,116);if(!screen.contains(p))return;
     if(mode==2){const juce::ScopedLock lock(processor.engineLock);double pos=processor.snapTapeTime(juce::jlimit(0.,visibleSeconds,(double)((p.x-331)/232*visibleSeconds)));if(e.mods.isShiftDown()||shifted){draggingSelection=true;processor.selectionStart=juce::jmin(359.9,pos);processor.selectionEnd=processor.selectionStart+.1;}else processor.engine.seek(pos);}
@@ -574,9 +592,10 @@ void FieldEditor::mouseDown(const juce::MouseEvent& e){
 
     timerCallback();repaint();
 }
-void FieldEditor::mouseDrag(const juce::MouseEvent& e){auto p=localPoint(e.position);if(draggingSampleMarker>=0){moveSampleMarker(p.x);return;}if(drawingSketch){appendSketchPoint(p);return;}if(draggingSelection){processor.selectionEnd=juce::jlimit(processor.selectionStart+.1,360.,processor.snapTapeTime((double)((p.x-331)/232*visibleSeconds)));repaint();return;}int n=noteAt(p);if(n!=mouseNote){if(mouseNote>=0)keyboardNote(mouseNote,0,false);mouseNote=n;if(n>=0)keyboardNote(n,.8f,true);}}
-void FieldEditor::mouseUp(const juce::MouseEvent&){if(draggingSampleMarker>=0){draggingSampleMarker=-1;configureMacros();}if(drawingSketch){drawingSketch=false;status="Sketch saved: "+juce::String(sketchCount)+" points";}if(mouseNote>=0)keyboardNote(mouseNote,0,false);mouseNote=-1;if(draggingSelection){const juce::ScopedLock lock(processor.engineLock);processor.engine.setLoop(processor.selectionStart,processor.selectionEnd);draggingSelection=false;}}
+void FieldEditor::mouseDrag(const juce::MouseEvent& e){if(e.originalComponent!=this)return;auto p=localPoint(e.position);if(draggingSampleMarker>=0){moveSampleMarker(p.x);return;}if(drawingSketch){appendSketchPoint(p);return;}if(draggingSelection){processor.selectionEnd=juce::jlimit(processor.selectionStart+.1,360.,processor.snapTapeTime((double)((p.x-331)/232*visibleSeconds)));repaint();return;}int n=noteAt(p);if(n!=mouseNote){if(mouseNote>=0)keyboardNote(mouseNote,0,false);mouseNote=n;if(n>=0)keyboardNote(n,.8f,true);}}
+void FieldEditor::mouseUp(const juce::MouseEvent& event){if(event.originalComponent!=this)return;if(draggingSampleMarker>=0){draggingSampleMarker=-1;configureMacros();}if(drawingSketch){drawingSketch=false;status="Sketch saved: "+juce::String(sketchCount)+" points";}if(mouseNote>=0)keyboardNote(mouseNote,0,false);mouseNote=-1;if(draggingSelection){const juce::ScopedLock lock(processor.engineLock);processor.engine.setLoop(processor.selectionStart,processor.selectionEnd);draggingSelection=false;}}
 void FieldEditor::mouseDoubleClick(const juce::MouseEvent& event){
+    if(event.originalComponent!=this)return;
     const auto point=localPoint(event.position);
     if((mode==0||mode==1)&&page==0&&(int)processor.value("engine")==11&&samplePreviewReady&&samplePlotBounds().contains(point)){
         draggingSampleMarker=-1;
@@ -586,6 +605,8 @@ void FieldEditor::mouseDoubleClick(const juce::MouseEvent& event){
     }
 }
 void FieldEditor::timerCallback(){
+    const auto learning=processor.midiLearnTarget();if(observedLearnTarget.isNotEmpty()&&learning.isEmpty())status=processor.midiMappingLabel(observedLearnTarget)+" / "+processor.midiMappingDescription(observedLearnTarget);observedLearnTarget=learning;
+
     bool padChanged=false;
 
     ++tick;keyStateChanged(false);for(int n=0;n<128;++n)held[(size_t)n]=processor.keyboard.isNoteOnForChannels(0xffff,n);
@@ -614,4 +635,13 @@ void FieldEditor::timerCallback(){
     transportButtons[3]->setButtonText(countInRemaining>0?"ARM":processor.sampling?"SAMPLE":juce::String::fromUTF8("●"));
     updateControlAvailability();
     repaint();
+}
+
+void FieldEditor::showMidiMappingMenu(const juce::String& target){
+    juce::PopupMenu menu;menu.addSectionHeader(processor.midiMappingLabel(target));menu.addSectionHeader(processor.midiMappingDescription(target));const juce::StringArray modes{"Absolute CC (pickup / no jump)","Absolute CC (jump)","Relative CC (two's complement)","Relative CC (offset 64)","Relative CC (sign/magnitude)"};for(int i=0;i<5;++i)menu.addItem(i+1,"Learn "+modes[i]);juce::PopupMenu reversed;for(int i=0;i<5;++i)reversed.addItem(i+6,modes[i]);menu.addSubMenu("Learn with reversed direction",reversed);menu.addSeparator();menu.addItem(20,"Remove assignment");menu.addItem(21,"Cancel MIDI learn");
+    menu.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(this),[safe=juce::Component::SafePointer<FieldEditor>(this),target](int choice){if(!safe)return;if(choice>=1&&choice<=10){const int kind=(choice-1)%5+1;auto mode=kind<=2?field::EncoderMode::absolute:(field::EncoderMode)(kind-2);safe->processor.beginMidiLearn(target,mode,kind==1,choice>5);safe->status="MIDI learn: turn the hardware knob for "+safe->processor.midiMappingLabel(target);}else if(choice==20){safe->processor.clearMidiMapping(target);safe->status="MIDI mapping removed";}else if(choice==21)safe->processor.cancelMidiLearn();});
+}
+void FieldEditor::controllerFileAction(bool save){
+    chooser=std::make_unique<juce::FileChooser>(save?"Save controller profile":"Load controller profile",juce::File{},"*.field-midi");
+    chooser->launchAsync((save?juce::FileBrowserComponent::saveMode|juce::FileBrowserComponent::warnAboutOverwriting:juce::FileBrowserComponent::openMode)|juce::FileBrowserComponent::canSelectFiles,[safe=juce::Component::SafePointer<FieldEditor>(this),save](const juce::FileChooser& selected){if(!safe)return;auto file=selected.getResult();if(file==juce::File{})return;if(save){file=file.withFileExtension("field-midi");auto xml=safe->processor.midiMappingState().createXml();safe->status=xml&&file.replaceWithText(xml->toString())?"Controller profile saved":"Could not save controller profile";}else{juce::String error;if(file.getSize()>1024*1024){safe->status="Controller profile exceeds 1 MiB";return;}auto xml=juce::XmlDocument::parse(file);const auto tree=xml?juce::ValueTree::fromXml(*xml):juce::ValueTree{};safe->status=safe->processor.restoreMidiMappingState(tree,error)?"Controller profile loaded":error;}});
 }
