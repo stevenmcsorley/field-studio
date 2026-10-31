@@ -1,7 +1,7 @@
 #include "CwoScreen.h"
 #include <cmath>
 namespace field {
-void drawCwoScreen(juce::Graphics& g,juce::Rectangle<float> bounds,const std::array<float,4>& macros,float phase){
+void drawCwoScreen(juce::Graphics& g,juce::Rectangle<float> bounds,const std::array<float,4>& macros,const CwoAnimation& motion){
     juce::Graphics::ScopedSaveState save(g);g.reduceClipRegion(bounds.toNearestInt());g.addTransform(juce::AffineTransform::scale(bounds.getWidth()/604.f,bounds.getHeight()/292.f).translated(bounds.getX(),bounds.getY()));
     const juce::Colour blue{0xff486da2},ochre{0xffa78137},grey{0xff78858b},white{0xffb3b7b4},red{0xffff0800},purple{0xff777088},teal{0xff00636c};
     const float frequency=juce::jlimit(0.f,1.f,macros[0]),delay=juce::jlimit(0.f,1.f,macros[1]),feedback=juce::jlimit(0.f,1.f,macros[2]),sideband=juce::jlimit(0.f,1.f,macros[3]);
@@ -26,16 +26,31 @@ void drawCwoScreen(juce::Graphics& g,juce::Rectangle<float> bounds,const std::ar
     detail.startNewSubPath(252,185);detail.lineTo(249,206);detail.lineTo(239,241);detail.lineTo(239,264);detail.startNewSubPath(238,181);detail.lineTo(231,211);detail.lineTo(233,247);detail.lineTo(230,261);detail.startNewSubPath(407,187);detail.lineTo(401,221);detail.lineTo(398,234);detail.startNewSubPath(420,183);detail.cubicTo(414,201,420,218,428,226);
     g.strokePath(detail,juce::PathStrokeType(1.7f));g.setColour(white);g.fillEllipse(173,72,3,3);
 
-    // Internal signal paths and the four colour-coded control motifs.
-    for(int wire=0;wire<3;++wire){float y=92+wire*7.f;juce::Path path;path.startNewSubPath(183,y);path.cubicTo(213,y,217,y+29,245,y+29);g.setColour(purple);g.strokePath(path,juce::PathStrokeType(1.7f));path.clear();path.addTriangle(238,y+25,246,y+29,238,y+32);g.fillPath(path);}
+    // Anatomy is fixed. The signal mechanisms move with control-dependent
+    // phases; their exact hardware timing remains unmeasured.
+    constexpr float tau=juce::MathConstants<float>::twoPi;
+    for(int wire=0;wire<3;++wire){float y=92+wire*7.f;juce::Path path;path.startNewSubPath(183,y);path.cubicTo(213,y,217,y+29,245,y+29);g.setColour(purple);g.strokePath(path,juce::PathStrokeType(1.7f));
+        const float progress=std::fmod(motion.flowTurns+wire/3.f,1.f);const auto point=path.getPointAlongPath(path.getLength()*progress);g.setColour(ochre);g.fillEllipse(point.x-1.7f,point.y-1.7f,3.4f,3.4f);
+    }
     g.setColour(purple);g.drawEllipse(270,92,93,91,2);
     g.setColour(juce::Colours::black);g.fillRect(253.f,112.f,28.f,64.f);g.fillRect(349.f,119.f,39.f,32.f);
-    g.setColour(ochre);g.drawEllipse(253,98,35,35,2);g.drawLine(270,106,270,124,2);g.drawLine(261,115,279,115,2);
-    g.setColour(purple);g.drawLine(270,133,270,142,2);g.drawEllipse(253,139,35,35,2);g.setColour(ochre);g.fillEllipse(266,147,7,7);g.fillEllipse(266,162,7,7);g.setColour(blue);g.fillEllipse(258,155,7,7);g.setColour(teal);g.fillEllipse(274,155,7,7);
-    g.setColour(red);juce::Path oscillation;oscillation.startNewSubPath(359,124);for(int step=0;step<3;++step){float x=359+step*22.f;oscillation.lineTo(x+7,124);oscillation.quadraticTo(x+12,124,x+12,119);oscillation.lineTo(x+12,105);oscillation.quadraticTo(x+12,101,x+17,101);oscillation.quadraticTo(x+22,101,x+22,106);oscillation.lineTo(x+22,120);}g.strokePath(oscillation,juce::PathStrokeType(2));
-    for(int col=0;col<5;++col){g.setColour(col%2?ochre:purple);float x=292+col*13.f;for(int dash=0;dash<5;++dash)g.drawLine(x,111+dash*12.f,x,118+dash*12.f,1.6f);}
+    // Ochre flow valve: its rate decreases as Delay increases.
+    g.setColour(ochre);g.drawEllipse(253,98,35,35,2);const float valve=motion.flowTurns*tau;
+    g.drawLine(270-std::cos(valve)*9,115-std::sin(valve)*9,270+std::cos(valve)*9,115+std::sin(valve)*9,2);
+    g.setColour(purple);g.drawLine(270,133,270,142,2);g.drawEllipse(253,139,35,35,2);
+    const juce::Colour mixerColours[]{ochre,blue,ochre,teal};for(int dot=0;dot<4;++dot){const float at=motion.frequencyTurns*tau+dot*tau/4;g.setColour(mixerColours[dot]);g.fillEllipse(270+std::cos(at)*7-3.5f,157+std::sin(at)*7-3.5f,7,7);}
+    // The red oscillator keeps its amplitude; Sideband changes the blend
+    // indication in the right-hand chamber, not a fictitious output level.
+    g.setColour(red);juce::Path oscillation;const float amplitude=23;
+    oscillation.startNewSubPath(359,124);for(int step=0;step<3;++step){float x=359+step*22.f;oscillation.lineTo(x+7,124);oscillation.quadraticTo(x+12,124,x+12,119);oscillation.lineTo(x+12,124-amplitude+4);oscillation.quadraticTo(x+12,124-amplitude,x+17,124-amplitude);oscillation.quadraticTo(x+22,124-amplitude,x+22,128-amplitude);oscillation.lineTo(x+22,120);}g.strokePath(oscillation,juce::PathStrokeType(2));
+    {juce::Graphics::ScopedSaveState rotation(g);juce::Path circle;circle.addEllipse(274,96,85,83);g.reduceClipRegion(circle);g.addTransform(juce::AffineTransform::rotation(motion.frequencyTurns*tau,316.5f,137.5f));
+        for(int col=0;col<5;++col){g.setColour(col%2?ochre:purple);float x=292+col*13.f;for(int dash=0;dash<5;++dash)g.drawLine(x,111+dash*12.f,x,118+dash*12.f,1.6f);}
+    }
+    // Grey Feedback increases return-loop activity, rather than changing the
+    // cow's silhouette. This visualization is an inferred design choice.
+    for(int particle=0;particle<(int)std::round(feedback*8);++particle){const float at=(motion.flowTurns+particle/8.f)*tau;g.setColour(white.withAlpha(.35f+feedback*.6f));g.fillEllipse(316.5f+std::cos(at)*46-1.6f,137.5f+std::sin(at)*45-1.6f,3.2f,3.2f);}
     g.setColour(purple);g.drawLine(359,143,371,148,2);g.drawLine(359,151,371,156,2);g.drawEllipse(371,135,36,36,2);
-    for(int line=0;line<5;++line){g.setColour(line%2?ochre:purple);g.drawLine(377,141+line*5.f,401,141+line*5.f,1.2f);}
-    for(int tick=0;tick<29;++tick){float x=30+tick*19.f;float height=4+5*(.5f+.5f*std::sin(tick*1.7f+delay*4+phase*.15f));g.setColour(teal);g.drawLine(x,272,x,272-height,1.4f);}
+    for(int line=0;line<5;++line){g.setColour((line%2?red:purple).withAlpha(.2f+sideband*.8f));g.drawLine(377,141+line*5.f,401,141+line*5.f,1.2f);}
+    for(int tick=0;tick<29;++tick){float x=30+tick*19.f;float height=4+5*(.5f+.5f*std::sin(tick*1.7f+delay*4));g.setColour(teal);g.drawLine(x,272,x,272-height,1.4f);}
 }
 }

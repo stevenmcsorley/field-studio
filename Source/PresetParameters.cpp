@@ -87,12 +87,13 @@ bool translateParameters(const juce::var& metadata,ParameterTranslation& output,
     result.sourceEffect=lookup(effect,effectNames);
     if(result.effectActive&&result.sourceEffect>0){
         add(result,"effect",(float)result.sourceEffect);result.mapped.add("fx_type -> effect selection");
+        if(effect=="cwo"||effect=="delay"){add(result,"effectMix",1);result.mapped.add("CWO/Delay native signal path -> full module output; no extra software dry blend");result.unsupported.add("Exact hardware time, frequency, feedback and buffer-colour curves remain unmeasured.");}
         if(effect=="fazer")result.unsupported.add("Fazer raw control travel is not established by the current fixture profile; its parameter array remains unapplied.");
         else if(auto* values=fx.getArray()){
             for(int i=0;i<4;++i)position(result,"fx."+effect,i,(double)(*values)[i],"fx"+juce::String(i+1));
             if(effect=="grid"||effect=="mother"||effect=="spring"||effect=="terminal"){
                 auto bounds=range("fx."+effect,3);const auto mix=std::clamp(((double)(*values)[3]-bounds.minimum)/(bounds.maximum-bounds.minimum),0.,1.);add(result,"effectMix",(float)mix);result.mapped.add("Documented FX MIX control -> software wet/dry position");
-            }else result.unsupported.add("The source FX has no established software-equivalent wet/dry law; software blend remains at its current default.");
+            }else if(effect!="cwo"&&effect!="delay")result.unsupported.add("The source FX has no established software-equivalent wet/dry law; software blend remains at its current default.");
         }else result.unsupported.add("Active effect has no parameter array; software effect defaults remain in use.");
     }else {
         add(result,"effect",0);

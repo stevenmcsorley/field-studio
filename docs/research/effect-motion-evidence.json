@@ -1,0 +1,104 @@
+{
+  "sources": [
+    {
+      "effect": "delay",
+      "url": "https://www.youtube.com/watch?v=jU0upSQLuuY",
+      "title": "OP-1 field TUTORIAL // How the DELAY works!",
+      "uploader": "SON WU",
+      "upload_date": "20220803",
+      "duration_seconds": 576,
+      "inspected_format": "18 / 640x360",
+      "media_sha256": "35db146df70992c28a78a4a53278245b45a36e9158f691e750fb88c65a819c62",
+      "firmware_version": "not disclosed",
+      "inspection": "Perspective-corrected frame comparisons and original English captions; source media kept outside repository."
+    },
+    {
+      "effect": "cwo",
+      "url": "https://www.youtube.com/watch?v=INzzjy-GiMY",
+      "title": "OP-1 field TUTORIAL // What is the CWO effect?",
+      "uploader": "SON WU",
+      "upload_date": "20220727",
+      "duration_seconds": 646,
+      "inspected_format": "18 / 640x360",
+      "media_sha256": "50b9402c67161e6a4357e59608fa723121dd83603dec391d5fe74350121d9b57",
+      "firmware_version": "not disclosed",
+      "inspection": "Perspective-corrected frame comparisons and original English captions; source media kept outside repository."
+    }
+  ],
+  "delay_observed": {
+    "range_change_times": [
+      175,
+      200,
+      215
+    ],
+    "range_ms": [
+      250,
+      500,
+      1000
+    ],
+    "rectified_circle_radii_approx": [
+      39.7,
+      51.0,
+      62.2
+    ],
+    "measurement_units": "pixels in manually rectified 320x156 research crops; not hardware pixels",
+    "speed_only_times": [
+      155,
+      160,
+      162,
+      165,
+      170
+    ],
+    "speed_readouts": [
+      99,
+      45,
+      29,
+      16,
+      0
+    ],
+    "range_circle_observation": "Selected ring and centre remain stable during this speed sweep. Range changes select different ring sizes/centres.",
+    "input_behavior": "Closing input stops fresh delay injection; dry remains and previously captured feedback decays.",
+    "fidelity_behavior": "The demonstration compares similar echo timing with low-range/slow-speed and higher-range/faster-speed settings; the former is darker/rate-reduced."
+  },
+  "cwo_observed": {
+    "sideband_times": [
+      115,
+      124,
+      127
+    ],
+    "frequency_times": [
+      135,
+      145,
+      165,
+      175,
+      185
+    ],
+    "feedback_times": [
+      310,
+      320,
+      330,
+      340
+    ],
+    "delay_times": [
+      385,
+      395,
+      405,
+      415
+    ],
+    "source_chapters": "42s sideband; 130s frequency; 270s feedback/dry interaction; 360s delay",
+    "signal_behavior": "Lower and upper sideband endpoints, both at intermediate positions. Feedback zero leaves processed sound; raising it also introduces original sound.",
+    "visual_observation": "Internal coloured mechanism changes orientation; exact timing/binding cannot be recovered from this recording."
+  },
+  "implementation_inferences": [
+    "CWO wheel/flow rate interpolation, feedback particles and sideband chamber cue are original UI choices, not recovered animation code.",
+    "CWO feedback-to-dry gain curve is a bounded interpolation, not measured from hardware.",
+    "Delay slow-clock colour uses a prefiltered hold model, not a recovered firmware buffer implementation."
+  ],
+  "still_unverified": [
+    "Complete hardware range table and raw encoder travel",
+    "Exact frequency/time/gain curves",
+    "Exact firmware animation rates and all bindings",
+    "Hardware filter/sample-rate-reduction response",
+    "Current firmware equivalence and pixel-accurate matching"
+  ]
+}

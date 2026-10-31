@@ -1,5 +1,6 @@
 #include "RtKeyboard.h"
 #include "ControlJobs.h"
+#include "EffectAnimation.h"
 #include <chrono>
 #include "RealtimeValues.h"
 #include "MidiLearn.h"
@@ -18,6 +19,8 @@ void operator delete(void* p,std::size_t)noexcept{::operator delete(p);}
 void operator delete[](void* p,std::size_t)noexcept{::operator delete(p);}
 static void check(bool ok,const char* text){if(!ok){std::cerr<<"FAIL: "<<text<<'\n';std::exit(1);}}
 int main(){
+    {field::CwoAnimation slow,fast,longDelay;slow.advance(0,0,.2);fast.advance(1,0,.2);longDelay.advance(0,1,.2);check(fast.frequencyTurns>slow.frequencyTurns,"CWO frequency changes wheel rate");check(longDelay.flowTurns<slow.flowTurns,"CWO delay changes flow rate");auto held=fast;fast.advance(1,1,0);check(fast.frequencyTurns==held.frequencyTurns&&fast.flowTurns==held.flowTurns,"zero elapsed time cannot move animation");for(int i=0;i<10000;++i)fast.advance(1,0,.1);check(fast.frequencyTurns>=0&&fast.frequencyTurns<1&&fast.flowTurns>=0&&fast.flowTurns<1,"CWO phases wrap safely");field::CwoAnimation chunks,one;for(int i=0;i<10;++i)chunks.advance(.6f,.3f,.02);one.advance(.6f,.3f,.2);check(std::abs(chunks.frequencyTurns-one.frequencyTurns)<1e-6&&std::abs(chunks.flowTurns-one.flowTurns)<1e-6,"animation rates do not depend on timer chunk size");const auto small=field::delayCircle(125),middle=field::delayCircle(250),large=field::delayCircle(1000);check(small.radius<middle.radius&&middle.radius<large.radius&&small.x>middle.x&&middle.x>large.x,"Delay Range changes selected ring and red centre together");}
+
     {field::ControlJobs jobs;std::atomic<bool> entered{false},release{false},published{false};
     auto wait=[&](auto predicate){auto deadline=std::chrono::steady_clock::now()+std::chrono::seconds(5);while(!predicate()){check(std::chrono::steady_clock::now()<deadline,"background job timeout");std::this_thread::yield();}};
     check(jobs.submit("save",[&]{entered=true;while(!release.load())std::this_thread::yield();if(jobs.beginCommit())published=true;}),"admit file job");
