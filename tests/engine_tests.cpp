@@ -39,7 +39,7 @@ int main(){
             const auto allocations=watchedAllocations.load(),frees=watchedDeallocations.load();watchAllocations=true;fx->process(left.data(),right.data(),source.data(),source.data(),frames);watchAllocations=false;
             check(watchedAllocations.load()==allocations&&watchedDeallocations.load()==frees,"CWO processing allocates/frees no heap storage");for(int i=0;i<frames;++i){check(std::isfinite(left[(size_t)i])&&std::abs(left[(size_t)i])<=1,"CWO feedback bounded");check(left[(size_t)i]==right[(size_t)i],"CWO preserves equal stereo inputs");}return left;
         };
-        auto power=[](const std::vector<float>& signal,double frequency){double real=0,imaginary=0;for(size_t i=2000;i<signal.size();++i){const double phase=i*6.28318530717958647692*frequency/rate;real+=signal[i]*std::cos(phase);imaginary+=signal[i]*std::sin(phase);}return real*real+imaginary*imaginary;};
+        auto power=[rate](const std::vector<float>& signal,double frequency){double real=0,imaginary=0;for(size_t i=2000;i<signal.size();++i){const double phase=i*6.28318530717958647692*frequency/rate;real+=signal[i]*std::cos(phase);imaginary+=signal[i]*std::sin(phase);}return real*real+imaginary*imaginary;};
         auto shifted=processCwo(0,0,1,false),plain=processCwo(0,0,0,false);
         check(power(shifted,1200)>100*power(shifted,800)&&power(shifted,1200)>100*power(shifted,1000),"CWO produces a shifted upper sideband rather than symmetric ring modulation");
         check(power(plain,1000)>100*power(plain,1200),"CWO sideband amount zero retains delayed source frequency");
