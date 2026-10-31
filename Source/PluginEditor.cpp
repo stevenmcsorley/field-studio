@@ -1,4 +1,5 @@
 #include "PluginEditor.h"
+#include "DimensionScreen.h"
 #include <cmath>
 #include <algorithm>
 
@@ -247,6 +248,7 @@ void FieldEditor::drawScreen(juce::Graphics& g){
     juce::Rectangle<float> r(304,38,271,134);g.setColour(juce::Colour(0xff3d4949));g.fillRoundedRectangle(r.expanded(1),3);g.setColour(screenBlack);g.fillRoundedRectangle(r,2);g.saveState();g.reduceClipRegion(r.toNearestInt());
     auto content=r.reduced(12,9);if(presetBrowser){drawPresetBrowser(g,content);g.restoreState();return;}if(mode==2){drawTape(g,content);g.restoreState();return;}if(mode==3){drawMixer(g,content);g.restoreState();return;}if(mode==4){drawSequence(g,content);g.restoreState();return;}
     const int engine=(int)processor.value("engine");
+    if(mode==0&&page==0&&engine==5){field::drawDimensionScreen(g,r,processor.value("macro1"),processor.value("macro2"),processor.value("macro3"),processor.value("macro4"),processor.getSampleRate()>0?processor.getSampleRate():44100.,tick/30.f);g.restoreState();return;}
     juce::String title=mode==1?"DRUM / PAD "+juce::String(selectedPad+1):FieldProcessor::engineNames[juce::jlimit(0,14,engine)].toUpperCase();
     if(page==1)title=mode==1&&engine==14?"DYNAMIC ENVELOPE":shifted&&mode==0&&engine!=13?"PLAY MODE":"ENVELOPE";
     else if(page==2)title=FieldProcessor::effectNames[juce::jlimit(0,FieldProcessor::effectNames.size()-1,(int)processor.value("effect"))].toUpperCase();
@@ -398,7 +400,7 @@ void FieldEditor::drawEngine(juce::Graphics& g,juce::Rectangle<float> a){
         text(g,"ROUTING "+juce::String(topology+1)+" / RATIO CONTROL "+juce::String(n,2),a.withY(a.getBottom()-9).withHeight(9),7,colours[2]);return;
     }
     if(e==9){int count=16+(int)(n*40);for(int i=0;i<count;++i){float u=i/(float)juce::jmax(1,count-1),x=a.getX()+u*a.getWidth(),noise=std::sin(i*12.17f+z*7)*w*5,v=std::sin(u*(8+z*12))*a.getHeight()*(.15f+m*.25f);g.setColour(colours[0]);g.fillEllipse(x-1,a.getCentreY()+v+noise-1,2,2);g.setColour(colours[3]);g.fillEllipse(x-1,a.getCentreY()-v-noise-1,2,2);if(i%3==0){g.setColour(colours[2].withAlpha(.25f+z*.4f));g.drawLine(x,a.getCentreY()-v,x,a.getCentreY()+v,.8f);}}return;}
-    if(e==5){for(int i=0;i<5;++i){float rad=12+i*(3+z*5.f);g.setColour(colours[(size_t)(i%4)].withAlpha(.7f));g.drawEllipse(a.getCentreX()-rad*2+std::sin(i+m*6)*n*17,a.getCentreY()-rad*.7f,rad*4,rad*(.8f+w*.8f),1);}return;}
+    if(e==5){field::drawDimensionScreen(g,a,m,n,z,w,processor.getSampleRate()>0?processor.getSampleRate():44100.,tick/30.f);return;}
     if(e==6){for(int k=0;k<6;++k){juce::Path string;for(int i=0;i<180;++i){float u=i/179.f,x=a.getX()+u*a.getWidth(),y=a.getY()+k*11+std::sin(u*juce::MathConstants<float>::pi)*std::sin(u*(7+m*20+k*(.2f+z*2))+w*3)*8*(.2f+m)*std::exp(-u*(.1f+n*3));if(i==0)string.startNewSubPath(x,y);else string.lineTo(x,y);}g.setColour(colours[(size_t)(k%4)]);g.strokePath(string,juce::PathStrokeType(.8f));}return;}
     if(e==10){for(int k=0;k<2;++k){auto r=juce::Rectangle<float>(a.getX()+k*126,a.getY()+5,114,a.getHeight()-10);g.setColour(colours[(size_t)k].withAlpha(.25f+(k==0?1-m:m)*.65f));g.drawRoundedRectangle(r,3,.8f);juce::Path wave;for(int i=0;i<100;++i){float u=i/99.f,ph=u*(2+n*5)+std::sin(u*15)*w,signal=std::sin(ph*juce::MathConstants<float>::twoPi)*std::exp(-u/(.1f+z*2));float x=r.getX()+u*r.getWidth(),y=r.getCentreY()+signal*r.getHeight()*.35f;if(i==0)wave.startNewSubPath(x,y);else wave.lineTo(x,y);}g.strokePath(wave,juce::PathStrokeType(1.3f));text(g,k==0?"SOURCE A":"SOURCE B",r.withHeight(11),7,colours[(size_t)k]);}return;}
     if(e==12||e==13){
