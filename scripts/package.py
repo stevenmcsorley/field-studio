@@ -28,7 +28,7 @@ if version_file.exists():
     version = version_file.read_text().strip()
     if not re.fullmatch(r'\d+\.\d+\.\d+(?:-[a-zA-Z0-9.-]+)?', version):
         raise SystemExit('Invalid RELEASE_VERSION')
-if args.release and not (root/'LICENSE').is_file():
+if args.release and not all((root/name).is_file() for name in ('LICENSE','LICENSING.md','LICENSES/AGPL-3.0.txt')):
     raise SystemExit('Choose a project licence and add LICENSE before distributing a release.')
 release = root / args.build_dir / 'FieldStudio_artefacts' / 'Release'
 system = platform.system()
@@ -51,12 +51,13 @@ if not module_version or module_version.group(1)!=base_version:
 revision=subprocess.check_output(['git','rev-parse','HEAD'],cwd=root,text=True).strip()
 dirty=bool(subprocess.check_output(['git','status','--porcelain'],cwd=root,text=True).strip())
 juce_revision=subprocess.check_output(['git','rev-parse','HEAD'],cwd=root/'vendor/JUCE',text=True).strip()
+juce_dirty=bool(subprocess.check_output(['git','status','--porcelain'],cwd=root/'vendor/JUCE',text=True).strip())
 expected_juce=re.search(r'GIT_TAG ([a-f0-9]{40})',cmake_text).group(1)
 if juce_revision!=expected_juce:
     raise SystemExit('vendor/JUCE is not the pinned dependency revision.')
-if args.release and dirty:
+if args.release and (dirty or juce_dirty):
     raise SystemExit('Release packages require a clean, committed source tree.')
-build_info={'version':version,'binary_version':base_version,'revision':revision,'juce_revision':juce_revision,'platform':os_label,'architecture':arch,'source_dirty':dirty,'project_license_included':(root/'LICENSE').is_file()}
+build_info={'version':version,'binary_version':base_version,'revision':revision,'juce_revision':juce_revision,'juce_source_dirty':juce_dirty,'platform':os_label,'architecture':arch,'source_dirty':dirty,'project_license_included':(root/'LICENSE').is_file(),'original_code_license':'MIT','combined_binary_license':'AGPL-3.0-only'}
 if system == 'Darwin' and arch == 'universal':
     for path in (standalone/'Field Studio.app/Contents/MacOS/Field Studio',vst/'Contents/MacOS/Field Studio',release/'AU/Field Studio.component/Contents/MacOS/Field Studio'):
         subprocess.run(['lipo','-verify_arch','arm64','x86_64',str(path)],check=True)
@@ -70,9 +71,11 @@ if system == 'Darwin':
     if not (release/'AU').is_dir():
         raise SystemExit('macOS release must include AU as well as VST3.')
     shutil.copytree(release/'AU',destination/'AU',symlinks=True)
-for name in ('README.md','LICENSE','RELEASE_VERSION'):
+for name in ('README.md','LICENSE','LICENSING.md','RELEASE_VERSION'):
     if (root/name).exists():
         shutil.copy2(root/name,destination/name)
+if (root/'LICENSES').is_dir():
+    shutil.copytree(root/'LICENSES',destination/'LICENSES')
 shutil.copytree(root/'docs',destination/'docs',symlinks=True)
 shutil.copytree(root/'presets',destination/'Controller profiles') if (root/'presets').exists() else None
 instructions = {
@@ -86,7 +89,7 @@ Windows x64 build. If Windows reports missing Microsoft runtime DLLs, install Mi
 Universal Apple Silicon + Intel build; macOS 11 or newer. This beta is not Developer ID signed or notarized. macOS or a DAW may refuse it. If macOS offers an exception after verifying the download, use System Settings > Privacy & Security > Open Anyway for this app; do not disable Gatekeeper globally. We have not validated loading in Logic or other commercial DAWs.
 '''
 }
-(destination/'INSTALL.md').write_text('# Field Studio '+version+'\n\n'+instructions[system]+'''
+(destination/'INSTALL.md').write_text('# Field Studio '+version+'\n\nOriginal Field Studio code: MIT. Combined app/plugin binaries with JUCE: AGPLv3; matching complete source is provided alongside the binaries. Read LICENSING.md and LICENSES/AGPL-3.0.txt before redistributing.\n\n'+instructions[system]+'''
 Connect a MIDI controller by USB (or a MIDI interface). Select its input under Options > Audio/MIDI Settings in the standalone, or route MIDI to the plugin in the DAW. Right-click a knob and choose MIDI learn; see docs/CONTROLLERS.md. Controller profiles and learned assignments can be saved.
 
 This is a development beta. Heavy edits, record preparation and project loading can interrupt audio; it is not yet certified for seamless live performance. Back up projects. See docs/AUDIO_REWRITE_PROGRESS.md and docs/BUILD_STATUS.md for tested scope and limits.

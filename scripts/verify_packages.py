@@ -10,6 +10,7 @@ import zipfile
 parser=argparse.ArgumentParser(description=__doc__)
 parser.add_argument('directory',type=Path)
 parser.add_argument('--all-platforms',action='store_true')
+parser.add_argument('--require-license',action='store_true')
 args=parser.parse_args()
 archives=sorted(args.directory.glob('*.zip'))
 if not archives:
@@ -33,7 +34,7 @@ for archive in archives:
         root=next(iter(roots))+'/'
         metadata=json.loads(bundle.read(root+'BUILD_INFO.json'))
         revisions.add(metadata['revision']);versions.add(metadata['version'])
-        if args.all_platforms and (metadata['source_dirty'] or root+'LICENSE' not in names):
+        if (args.all_platforms or args.require_license) and (metadata['source_dirty'] or metadata.get('juce_source_dirty',True) or any(root+name not in names for name in ('LICENSE','LICENSING.md','LICENSES/AGPL-3.0.txt'))):
             raise SystemExit(f'Release source is dirty or project licence missing: {archive.name}')
         if archive.name.endswith('-source.zip'):
             required=['CMakeLists.txt','Source/PluginProcessor.cpp','vendor/JUCE/CMakeLists.txt','vendor/JUCE/LICENSE.md','scripts/build.sh']

@@ -12,7 +12,7 @@ Right-click a knob and choose **MIDI learn**, then move a control on your Faderf
 
 ## Downloads
 
-The multi-platform beta pipeline packages Windows x64 standalone/VST3, macOS universal standalone/VST3/AU and Linux x86_64 standalone/VST3, with checksums and complete corresponding source. See [beta notes](docs/RELEASE_NOTES.md) and [build/release status](docs/BUILD_STATUS.md). Binaries are unsigned development builds.
+[Field Studio 0.2.0 beta 1 downloads](https://github.com/stevenmcsorley/field-studio/releases/tag/v0.2.0-beta.1) are published after all automated release gates pass. The pipeline packages Windows x64 standalone/VST3, macOS universal standalone/VST3/AU and Linux x86_64 standalone/VST3, with checksums and complete corresponding source. See [beta notes](docs/RELEASE_NOTES.md) and [build/release status](docs/BUILD_STATUS.md). Binaries are unsigned development builds.
 
 ## Run the Linux build
 
@@ -79,3 +79,7 @@ Tape audio is held in RAM, with six minutes per track and eight banks. Long proj
 The [audio ownership rewrite](docs/AUDIO_REWRITE_PROGRESS.md) now includes lock-free keyboard handoff, deferred MIDI parameter notifications and immutable sample lifetimes. Live tape, undo history, albums and sample capture now use paged snapshot storage. Saves flatten tape/capture generations and mix exports render after releasing the engine lock; the full ownership migration remains in progress.
 
 The wrapper uses a non-blocking audio lock. Heavy control-thread operations (sample/project loading, snapshots, tape edits or saving large projects) can cause silent skipped blocks rather than blocking the audio callback; they are not yet suitable for seamless live performance. The core render is allocation-free, but full plugin performance parity and long-session stress validation remain open. Models of radio, embedded sensors, battery/speaker hardware and device-specific USB/BLE behaviour are outside this software implementation.
+
+## License
+
+Our original code and graphics are **MIT licensed**: free to use, change, share and sell with the notice retained. Packaged binaries include JUCE and are distributed under **AGPLv3**, with complete corresponding source alongside the downloads. JUCE's terms still apply to the combined app. See [LICENSING.md](LICENSING.md) and [LICENSE](LICENSE).
