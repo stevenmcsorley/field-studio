@@ -28,3 +28,5 @@ The supplied [official OP–1 field guide](https://teenage.engineering/guides/op
 Further guide-backed comparison remains necessary for the tuner, record-screen details, engine/effect illustrations, input/output/COM browsers and encoder click/hold gestures. Those are not declared complete by this one layout correction. The baseline guide/provenance and privately retained reference images remain in the sibling research workspace; the release only includes original product artwork.
 
 ![Guide-aligned play-mode settings, with actual software units](screenshots/envelope-play-settings.png)
+
+Mixer T1 and EQ T2 now use the full reference-inspired LCD. Mixer needles read separate tape-track peaks; EQ has band and Amount controls with persistent bypass. See [mixer and EQ controls](MIXER_EQ.md) for meter/filter limits and native screenshots.

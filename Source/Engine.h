@@ -142,6 +142,7 @@ public:
     void setTrackMute(int, bool);
     void setTrackSolo(int, bool);
     float trackLevel(int i) const;
+    std::array<float,4> trackPeaks{}; // Last render segment, post level/pan/mute, pre master.
     float trackPan(int i) const;
     bool trackMute(int i) const;
     bool trackSolo(int i) const;

@@ -277,6 +277,7 @@ int main(){
     }
     {
         auto owner=std::make_unique<Engine>();auto& e=*owner;e.prepare(8000,64);Parameters p;p.tempo=120;p.volume=1;e.setParameters(p);e.setOutputGainImmediately(1);e.tracks()[0].audio.assign(16000,.2f,.2f);e.seek(.5);e.setPlaying(true);
+        render(e,l,r,80);check(std::abs(e.trackPeaks[0]-.2f)<1e-6f&&e.trackPeaks[1]==0,"Mixer meters do not measure separate tape tracks");e.setTrackMute(0,true);render(e,l,r,80);check(e.trackPeaks[0]==0,"Muted track retains invented meter activity");e.setTrackMute(0,false);e.seek(.5);
         e.setTapeBrake(true);render(e,l,r,400);check(e.positionSeconds()==.5&&energy(l)==0,"momentary break freezes and silences tape");e.setTapeBrake(false);e.setTapeReverse(true);render(e,l,r,400);check(std::abs(e.positionSeconds()-.45)<1e-8,"momentary reverse changes tape direction");e.setTapeReverse(false);
         e.setTapeRoll(true,.25f);render(e,l,r,2500);check(e.positionSeconds()>=.45&&e.positionSeconds()<.575,"tempo roll repeats bounded window from press point");e.setTapeRoll(false);const double before=e.positionSeconds();render(e,l,r,400);check(std::abs(e.positionSeconds()-before-.05)<1e-8,"roll release resumes continuous tape advance");e.setTapeBrake(true);e.setPlaying(false);e.setPlaying(true);render(e,l,r,80);check(e.positionSeconds()>before+.05,"stop clears momentary tape tricks");
     }

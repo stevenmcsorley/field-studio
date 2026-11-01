@@ -655,6 +655,7 @@ std::pair<float,float> Engine::effect(float l,float r) {
 }
 void Engine::process(float* left,float* right,const float* inputLeft,const float* inputRight,int frames,float* const* stems) {
     if(!left || !right || frames<=0)return;
+    trackPeaks.fill(0);
     const bool anySolo=std::any_of(tape.begin(),tape.end(),[](const Track& t){return t.solo;});
     midiProcessing=true;midiFrame=midiFrameCursor;
     if(pendingMidiOverflow){midiEventBuffer[0]={-1,0,false,midiFrame};midiEventSize=1;midiOverflow=true;}
@@ -717,6 +718,7 @@ void Engine::process(float* left,float* right,const float* inputLeft,const float
                     const float panL=t.pan>0?1-t.pan:1,panR=t.pan<0?1+t.pan:1;
                     const float trackL=brakeHeld?0:t.audio.interpolate(0,position)*t.level*panL;
                     const float trackR=brakeHeld?0:t.audio.interpolate(1,position)*t.level*panR;
+                    trackPeaks[track]=std::max(trackPeaks[track],std::max(std::abs(trackL),std::abs(trackR)));
                     mixL+=trackL;mixR+=trackR;
                     if(stems){if(stems[track*2])stems[track*2][i]=trackL;if(stems[track*2+1])stems[track*2+1][i]=trackR;}
                 }

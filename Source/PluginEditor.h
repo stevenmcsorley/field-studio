@@ -93,7 +93,7 @@ private:
     std::array<bool,128> sequencerHeld{};
     std::array<std::vector<float>,4> waves;
     std::array<std::vector<double>,4> trackCuts;
-    std::array<float,4> levels{{1,1,1,1}},pans{};
+    std::array<float,4> levels{{1,1,1,1}},pans{},trackPeaks{};
     std::array<double,4> trackDurations{};
     std::array<bool,4> mutes{},solos{};
     std::array<int,16> steps{};

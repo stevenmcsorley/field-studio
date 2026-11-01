@@ -74,3 +74,7 @@ Function-row legends are now drawn as vectors, including permanent 1–8 numberi
 ## Tape LCD and trick keys — November 2026
 
 Full-LCD reel rendering now follows the supplied tape reference, with transport-driven hubs, speed/timecode, loop markers, recording control position and compact track extents/splice markers. Tape keys 4–6 now invoke momentary brake/reverse/chop, replacing sequencer/metronome shortcuts in Tape mode. Normal/Shift encoder roles are retained. Rendering and pointer seek share timeline geometry. See [tape controls and precise remaining gaps](TAPE_EDITING.md). This does not establish complete hardware tape/take/arming or mechanical-animation parity.
+
+## Mixer/EQ LCD — beta 2
+
+Reference-based full-LCD mixer meters/pan/levels and EQ faders/curve/Amount are implemented, along with Shift-track mute and persistent EQ band/overall bypass. Exact meter calibration, hardware EQ response, knob laws and MAX/CLEAN gestures remain unverified. See [controls and limits](MIXER_EQ.md).

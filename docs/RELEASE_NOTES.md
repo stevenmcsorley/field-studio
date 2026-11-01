@@ -1,4 +1,4 @@
-# Field Studio 0.2.2 beta 1
+# Field Studio 0.2.2 beta 2
 
 Reliability update to the portable multi-platform beta of the independent synthesizer, sampler and four-track stereo tape instrument. Exact OP-1 field sound, feature and visual parity is not established.
 
@@ -15,7 +15,15 @@ Original Field Studio code/graphics: **MIT**. Combined app/plugin binaries with 
 
 Each download has a SHA-256 sidecar. Binary bundles include installation instructions, dependency notices and a per-file hash manifest. These are portable archives, not signed installers. Windows binaries are unsigned; macOS binaries are not Developer ID signed/notarized. Commercial DAWs, physical audio devices and MIDI controllers still need hands-on validation.
 
-## Added and fixed in this beta
+## Added in beta 2
+
+- Recreated the full-LCD mixer: four audio-driven track meters, pan indicators, coloured level readouts and mute/solo indication. Shift + T1–T4 toggles track mutes on the mixer page. Click a channel to mute; Shift-click to solo.
+- Recreated the EQ LCD with three band faders, a control-response illustration and red Amount fader. Orange now controls EQ Amount; per-band/overall toggles affect audio and persist in projects/DAW state. Shift + orange retains the existing drive extension. Click band columns to toggle, Amount column to bypass, MAX EQ for full amount and CLEAN for zero amount.
+- Includes the new tape reel LCD, position-driven motion, loop/time/speed controls and panel keys 4–6 for momentary brake/reverse/chop.
+
+The EQ response illustration and meter scales are original approximations, not measured hardware responses or calibrated VU meters. Existing filter crossovers, drive and dynamics algorithms remain unchanged. See docs/MIXER_EQ.md for controls and limits.
+
+## Retained from beta 1
 
 - Recreated CWO cow LCD, Dimension and DSynth screens, Delay circles, and permanent panel button legends, including secondary icons on sound keys 1–8. The README now shows CWO.
 - CWO now blends lower/upper frequency-shifted sidebands, includes both at midpoint, and introduces dry sound as Feedback rises. Its internal mechanisms respond to controls with continuous motion.
