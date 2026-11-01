@@ -86,3 +86,7 @@ Master Out, Grid and Mother now use reference-inspired full LCDs. Master Out has
 ## String, Voltage, Pulse and Sampler — beta 4
 
 Dedicated reference-based LCDs and corrected synth control roles are implemented. Melodic Sampler has actual stereo previews, marker zoom and persistent Shift direction/fine-tune/crossfade/gain controls. The synth DSP, stereo detune, crossfade law, native parameter conversion and hardware gestures still differ or remain unverified; region bounds are latched at note start. See [precise scope and compatibility](INSTRUMENT_SCREENS.md).
+
+## Sequencer update — beta 5
+
+Arpeggio, Endless, Hold, Pattern and Finger now have dedicated LCDs and mode-specific normal/Shift controls. Pattern/Endless and Finger store up to eight pitches per step with project round-trip coverage. Divisions, masks, direction, rotation, manual Endless advance, play modes and Hold split/mono controls are implemented as original interpretations. Exact hardware timing/gestures, independent synth/drum memories, per-note velocities and full Endless keyboard step-entry remain unverified or absent. See [the current sequencer guide](SEQUENCERS.md) for the authoritative control matrix and limits.

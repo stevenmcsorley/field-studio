@@ -19,3 +19,5 @@ build-output.log
 *.key
 __pycache__/
 .vscode/
+
+.venv-mcp/

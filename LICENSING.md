@@ -16,6 +16,10 @@ Each binary release is accompanied at the same release/download location by a co
 
 A distributor wanting a proprietary combined build would need an appropriate commercial JUCE licence (and compliance with other dependency terms), or a replacement for JUCE. No commercial JUCE entitlement is granted by this repository. No manufacturer code, factory sound library or extracted manufacturer artwork is bundled.
 
+## Windows ASIO backend
+
+Windows builds enable JUCE's bundled ASIO headers. We select their **GPL version 3** licensing alternative, not Steinberg's proprietary agreement. The bundled notice is retained in [LICENSES/Steinberg-ASIO.txt](LICENSES/Steinberg-ASIO.txt), with the [GPLv3 text](LICENSES/GPL-3.0.txt). The corresponding source archive includes the pinned JUCE ASIO source/headers and notices. GPLv3 section 13 addresses combination with AGPLv3; the combined JUCE-based application remains distributed under AGPLv3 as described above. Third-party interface drivers are not included.
+
 ## Primary licensing references
 
 - [JUCE licence at the exact pinned revision](https://github.com/juce-framework/JUCE/blob/ea77444750de45e036e0279bb0291144bf8e3688/LICENSE.md)

@@ -1,4 +1,4 @@
-# Field Studio 0.2.2 beta 4
+# Field Studio 0.2.2 beta 5
 
 Reliability update to the portable multi-platform beta of the independent synthesizer, sampler and four-track stereo tape instrument. Exact OP-1 field sound, feature and visual parity is not established.
 
@@ -15,7 +15,17 @@ Original Field Studio code/graphics: **MIT**. Combined app/plugin binaries with 
 
 Each download has a SHA-256 sidecar. Binary bundles include installation instructions, dependency notices and a per-file hash manifest. These are portable archives, not signed installers. Windows binaries are unsigned; macOS binaries are not Developer ID signed/notarized. The project owner reports working plugin operation, automation, Faderfox assignment and BeatStep use; DAW/OS/model details were not recorded. Broader device/host coverage remains open.
 
-## Added in beta 4
+## Added in beta 5
+
+- Dedicated Arpeggio, Endless, Hold, Pattern and melodic/drum Finger LCDs and mode-specific normal/Shift controls. Six new native screenshots and a sequencer guide accompany this release.
+- Up to eight pitches per Pattern/Endless or Finger step, with saved chord and velocity state; divisions, trigger masks, direction, rotation, manual stepping, play modes and Hold split/mono controls. Existing parameter IDs remain stable.
+- Optional local MCP integration with two discoverable tools, bounded operation batches and Linux sandboxed JavaScript Code Mode. Portable plans support Windows/macOS/Linux. Enable explicitly from COM; client registration is documented, not automatic.
+- Windows ASIO backend enabled using JUCE's bundled headers under their GPLv3 option. macOS retains CoreAudio; plugins use their host's driver. Physical ASIO hardware and latency remain untested.
+- Automated native MCP tests, authorization checks, chord/state regression tests and backend factory checks. Complete source, integration, licensing notices and setup guides ship in the archives.
+
+Hardware algorithms, exact sequencer gestures/timing, separate synth/drum sequence memories and full Endless keyboard entry remain open. See docs/SEQUENCERS.md, docs/MCP.md and docs/AUDIO_BACKENDS.md. The shared audio-engine lock remains a live-performance limitation.
+
+## Retained from beta 4
 
 - Full-LCD String, Voltage and Pulse screens with original parameter-driven vector illustrations matching the supplied reference layouts.
 - Corrected their four-control roles: String uses ochre for decay, grey for stereo detune and orange for impulse type; Voltage has dedicated modulation/noise/phase-filter/detune behaviour; Pulse separates amplitude, second pulse and modulation from its blue filter.

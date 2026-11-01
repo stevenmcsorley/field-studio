@@ -2,7 +2,7 @@
 
 A native synthesizer, sampler and four-track stereo tape instrument inspired by the OP–1 field workflow. Builds a standalone application and VST3 from the same C++ audio engine; macOS also builds AU.
 
-**[Download the latest beta](https://github.com/stevenmcsorley/field-studio/releases/tag/v0.2.2-beta.4)** · [VST3 setup](#vst3-and-daw-workflow) · [Recent features and screenshots](#recent-improvements) · [Controller mapping](#controller-mapping)
+**[Download the latest beta](https://github.com/stevenmcsorley/field-studio/releases/tag/v0.2.2-beta.5)** · [VST3 setup](#vst3-and-daw-workflow) · [Recent features and screenshots](#recent-improvements) · [Controller mapping](#controller-mapping)
 
 ![Field Studio running on Linux, showing the CWO cow effect, four coloured encoders and two-octave keyboard](docs/screenshots/field-studio.png)
 
@@ -13,12 +13,18 @@ This is an independently written recreation. **Exact feature, visual and sonic p
 Play synths and drums, import samples, build a sequence, record it onto four stereo tape tracks, then mix and export the result. The standalone app and plugin share the same instrument and `.field` projects.
 
 - **Sound design:** synth engines, DBox drums, stereo sampling, ADSR, modulation, insert effects and a separate master effect. Includes 45 original starter presets.
-- **Sequencing:** editable Endless/Pattern grids, sixteen Finger pattern banks with up to 32 steps each, plus Arpeggio, Hold, Sketch and Tombola. Endless supports up to 999 steps.
+- **Sequencing:** polyphonic Endless/Pattern storage and an editable Pattern grid, sixteen Finger pattern banks with up to 32 steps each, plus Arpeggio, Hold, Sketch and Tombola. Endless supports up to 999 steps.
 - **Tape and arrangement:** eight tape banks, four stereo tracks per bank, six minutes per track at normal speed, overdubbing, loops, lift/drop/split, grouped edits, bounce and momentary tape tricks.
 - **Mixing:** track levels/pans/mutes/solos, three-band master EQ with Amount and band bypass, master effects, dynamics and stereo WAV export. Record the live output to Album sides A/B too.
 - **Presets and controllers:** eight synth and eight drum sound slots, dated snapshots, preset browsing, nested user folders, MIDI learn and reusable controller profiles.
 
 ## Recent improvements
+
+**Sequencers:** new Arpeggio, Endless, Hold, Pattern and melodic/drum Finger LCDs, with mode-specific normal/Shift encoder roles. Pattern and Finger store up to eight notes per step; projects preserve chords and step velocities. Added divisions, trigger masks, direction, manual Endless stepping, rotation, play modes and Hold split/mono controls. [Sequencer guide and remaining differences](docs/SEQUENCERS.md).
+
+**AI control through MCP:** an optional local integration exposes just two tools, `search` and `execute`, following the Cloudflare Code Mode approach. Find schemas on demand, then batch parameter changes, chords, notes and transport commands. Portable operation plans work on all platforms; sandboxed JavaScript composition currently requires Linux. Enable local AI control from COM and configure your MCP client using the [setup guide](docs/MCP.md). It is packaged with downloads, not automatically registered in your client.
+
+**Audio drivers:** Windows standalone builds now enable ASIO alongside the existing backends. macOS uses native CoreAudio; VST3/AU use the audio driver selected by your DAW. [Driver setup and testing limits](docs/AUDIO_BACKENDS.md).
 
 **String, Voltage, Pulse and Sampler:** dedicated full-LCD synth illustrations now follow the guide layouts. String has independent decay/stereo-detune and impulse types; Voltage has modulation, ground noise, phase filtering and detune; Pulse has independent filter, amplitude, second pulse and modulation. Sampler displays actual stereo audio with coloured boundaries and loop-fade shading. Hold Shift for direction, fine tune, loop fade and gain; zoom around any marker from its knob's right-click menu or the LCD header. Fine tune, fade and gain support host automation, MIDI learn and project/preset state. [Controls and compatibility](docs/INSTRUMENT_SCREENS.md).
 
@@ -49,6 +55,13 @@ These are native screenshots of Field Studio. Screen artwork and DSP remain inde
 | [![Pulse](docs/screenshots/pulse-reference.png)](docs/screenshots/pulse-reference.png) | [![Stereo Sampler](docs/screenshots/sampler-reference.png)](docs/screenshots/sampler-reference.png) |
 | **Dimension synth** | **DSynth** |
 | [![Dimension](docs/screenshots/dimension-reference.png)](docs/screenshots/dimension-reference.png) | [![DSynth](docs/screenshots/dsynth-reference.png)](docs/screenshots/dsynth-reference.png) |
+
+| **Arpeggio** | **Endless** |
+| [![Arpeggio sequencer](docs/screenshots/arpeggio-reference.png)](docs/screenshots/arpeggio-reference.png) | [![Endless sequencer](docs/screenshots/endless-reference.png)](docs/screenshots/endless-reference.png) |
+| **Hold** | **Pattern** |
+| [![Hold sequencer](docs/screenshots/hold-reference.png)](docs/screenshots/hold-reference.png) | [![Pattern sequencer](docs/screenshots/pattern-reference.png)](docs/screenshots/pattern-reference.png) |
+| **Finger** | **Finger drum** |
+| [![Finger sequencer](docs/screenshots/finger-reference.png)](docs/screenshots/finger-reference.png) | [![Finger drum sequencer](docs/screenshots/finger-drum-reference.png)](docs/screenshots/finger-drum-reference.png) |
 
 <details>
 <summary>CWO and Delay animated previews</summary>
@@ -107,7 +120,7 @@ Right-click a knob and choose **MIDI learn**, then move a control on your Faderf
 
 ## Downloads
 
-[Field Studio 0.2.2 beta 4 downloads](https://github.com/stevenmcsorley/field-studio/releases/tag/v0.2.2-beta.4) are available for Windows, macOS and Linux. All automated release gates passed. The pipeline packages Windows x64 standalone/VST3, macOS universal standalone/VST3/AU and Linux x86_64 standalone/VST3, with checksums and complete corresponding source. See [beta notes](docs/RELEASE_NOTES.md) and [build/release status](docs/BUILD_STATUS.md). Binaries are unsigned development builds.
+[Field Studio 0.2.2 beta 4 downloads](https://github.com/stevenmcsorley/field-studio/releases/tag/v0.2.2-beta.5) are available for Windows, macOS and Linux. All automated release gates passed. The pipeline packages Windows x64 standalone/VST3, macOS universal standalone/VST3/AU and Linux x86_64 standalone/VST3, with checksums and complete corresponding source. See [beta notes](docs/RELEASE_NOTES.md) and [build/release status](docs/BUILD_STATUS.md). Binaries are unsigned development builds.
 
 ## Run the Linux build
 

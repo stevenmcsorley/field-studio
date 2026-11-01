@@ -99,6 +99,8 @@ private:
     std::array<double,4> trackDurations{};
     std::array<bool,4> mutes{},solos{};
     std::array<int,16> steps{};
+    std::array<std::bitset<128>,16> sequenceChordSnapshot;
+    std::array<bool,32> fingerSnapshot{};
     std::array<std::pair<float,float>,256> sketchPoints{};
     std::array<field::BallState,24> balls{};
     int sketchCount=0,sketchWriteIndex=0,fingerBank=0,lastSequencer=-1,tombolaSides=6;

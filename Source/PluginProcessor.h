@@ -6,11 +6,16 @@
 #include "RealtimeValues.h"
 #include "MidiLearn.h"
 #include "ControlJobs.h"
+#include "ControlBridge.h"
 #include "PresetLibrary.h"
 #include <mutex>
 
 class FieldProcessor final : public juce::AudioProcessor, private juce::Timer, private juce::AudioProcessorParameter::Listener {
 public:
+    void enableControl(bool);
+    void pollControlForTesting(){if(controlBridge)controlBridge->poll();}
+    juce::String controlEndpoint() const;
+    juce::var invokeControl(const juce::String&,const juce::var&);
     struct SampleData {std::vector<float> left,right;double rate=44100;};
     std::shared_ptr<const SampleData> samplePreviewSnapshot(){const juce::ScopedLock lock(engineLock);return sampleData;}
     explicit FieldProcessor(juce::File presetDirectory={});
@@ -113,12 +118,12 @@ public:
     std::atomic<uint64_t> midiReceived{0},rejectedMidiEvents{0};
     std::atomic<int> midiLastStatus{0},midiLastData1{0},midiLastData2{0};
 private:
-    enum ParamKey {P_engine,P_macro1,P_macro2,P_macro3,P_macro4,P_attack,P_decay,P_sustain,P_release,P_sampleStart,P_sampleLoopIn,P_sampleLoopOut,P_sampleEnd,P_sampleLoop,P_sampleReverse,P_sampleOneShot,P_fx1,P_fx2,P_fx3,P_fx4,P_seq1,P_seq2,P_seq3,P_seq4,P_lfoTarget,P_effect,P_effectMix,P_masterLow,P_masterMid,P_masterHigh,P_masterDrive,P_compressor,P_masterEffect,P_masterMix,P_volume,P_tempo,P_lfo,P_lfoRate,P_lfoDepth,P_sequencer,P_sequenceOn,P_tapeStyle,P_tapeSpeed,P_loop,P_masterFx1,P_masterFx2,P_masterFx3,P_masterFx4,P_seqSwing,P_seqGate,P_seqHold,P_sampleRootNote,P_voiceMode,P_glideTime,P_bendRange,P_patchGain,P_lfoWaveform,P_lfoRetrigger,P_lfoSync,P_lfoDivision,P_elementSource,P_elementManual,P_envelopeCurve,P_midiTarget1,P_midiTarget2,P_midiTarget3,P_midiTarget4,P_midiDepth1,P_midiDepth2,P_midiDepth3,P_midiDepth4,P_countInBeats,P_tapeRecordLevel,P_tapeRecordPan,P_metronomeLevel,P_midiInputChannel,P_midiOutputChannel,P_midiClockMode,P_midiThru,P_midiSendControls,P_midiRelativeControls,P_midiNotesIn,P_midiOtherIn,P_midiTransportIn,P_midiNotesOut,P_midiOtherOut,P_midiSppOrigin,P_masterLeft,P_masterRight,P_compressorRelease,P_eqAmount,P_eqLowOn,P_eqMidOn,P_eqHighOn,P_eqOn,P_sampleFineTune,P_sampleLoopFade,P_sampleGain,P_count};
+    enum ParamKey {P_engine,P_macro1,P_macro2,P_macro3,P_macro4,P_attack,P_decay,P_sustain,P_release,P_sampleStart,P_sampleLoopIn,P_sampleLoopOut,P_sampleEnd,P_sampleLoop,P_sampleReverse,P_sampleOneShot,P_fx1,P_fx2,P_fx3,P_fx4,P_seq1,P_seq2,P_seq3,P_seq4,P_lfoTarget,P_effect,P_effectMix,P_masterLow,P_masterMid,P_masterHigh,P_masterDrive,P_compressor,P_masterEffect,P_masterMix,P_volume,P_tempo,P_lfo,P_lfoRate,P_lfoDepth,P_sequencer,P_sequenceOn,P_tapeStyle,P_tapeSpeed,P_loop,P_masterFx1,P_masterFx2,P_masterFx3,P_masterFx4,P_seqSwing,P_seqGate,P_seqHold,P_sampleRootNote,P_voiceMode,P_glideTime,P_bendRange,P_patchGain,P_lfoWaveform,P_lfoRetrigger,P_lfoSync,P_lfoDivision,P_elementSource,P_elementManual,P_envelopeCurve,P_midiTarget1,P_midiTarget2,P_midiTarget3,P_midiTarget4,P_midiDepth1,P_midiDepth2,P_midiDepth3,P_midiDepth4,P_countInBeats,P_tapeRecordLevel,P_tapeRecordPan,P_metronomeLevel,P_midiInputChannel,P_midiOutputChannel,P_midiClockMode,P_midiThru,P_midiSendControls,P_midiRelativeControls,P_midiNotesIn,P_midiOtherIn,P_midiTransportIn,P_midiNotesOut,P_midiOtherOut,P_midiSppOrigin,P_masterLeft,P_masterRight,P_compressorRelease,P_eqAmount,P_eqLowOn,P_eqMidOn,P_eqHighOn,P_eqOn,P_sampleFineTune,P_sampleLoopFade,P_sampleGain,P_seqDivision,P_seqTriggerPattern,P_seqDirection,P_seqRotate,P_seqPlayMode,P_seqTranspose,P_seqCursor,P_seqErase,P_seqManual,P_seqSkipRest,P_arpTriggerMode,P_holdBreak,P_holdMono,P_holdLatch,P_count};
     std::array<std::atomic<float>*,P_count> rawValues{};
     std::array<juce::RangedAudioParameter*,P_count> rawTargets{};
     std::array<juce::String,P_count> parameterIds;
     field::RealtimeValues<P_count> realtimeValues;
-    static constexpr size_t extraMidiTargets=41;
+    static constexpr size_t extraMidiTargets=42;
     field::MidiLearn<P_count+extraMidiTargets> midiLearn;
     bool parseMidiMappings(const juce::ValueTree&,std::array<field::MidiBinding,P_count+extraMidiTargets>&,juce::String&) const;
     int midiMappingIndex(const juce::String&) const;
@@ -150,6 +155,7 @@ private:
     void prepareTapeOperation(field::TapeEditAction,double delta=0,bool absolute=false);
     void reportOperationError(const juce::String&);
     field::ControlJobs fileJobs;
+    std::unique_ptr<ControlBridge> controlBridge;
     std::mutex mediaEncodeMutex;
     juce::CriticalSection operationErrorLock;
     juce::String operationError;

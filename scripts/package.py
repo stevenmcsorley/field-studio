@@ -77,16 +77,18 @@ for name in ('README.md','LICENSE','LICENSING.md','RELEASE_VERSION'):
 if (root/'LICENSES').is_dir():
     shutil.copytree(root/'LICENSES',destination/'LICENSES')
 shutil.copytree(root/'docs',destination/'docs',symlinks=True)
+if (root/'integrations').is_dir():
+    shutil.copytree(root/'integrations',destination/'integrations',ignore=shutil.ignore_patterns('__pycache__','*.pyc','.venv*'))
 shutil.copytree(root/'presets',destination/'Controller profiles') if (root/'presets').exists() else None
 instructions = {
     'Linux': '''Run ./run.sh on a graphical desktop. Copy the entire VST3/Field Studio.vst3 bundle to ~/.vst3/ and rescan plugins in your DAW.
 Built on Ubuntu 22.04 x86_64; requires glibc 2.35 or newer and standard ALSA, X11, FreeType/fontconfig and OpenGL runtime libraries. Other distributions have not been device-tested.
 ''',
     'Windows': '''Run Standalone/Field Studio.exe. Copy the entire VST3/Field Studio.vst3 bundle to C:\\Program Files\\Common Files\\VST3\\ (administrator permission) or a VST3 directory supported by your DAW, then rescan plugins.
-Windows x64 build. If Windows reports missing Microsoft runtime DLLs, install Microsoft's Visual C++ 2015-2022 x64 Redistributable from https://learn.microsoft.com/cpp/windows/latest-supported-vc-redist . This portable beta has no installer or code signature. Check the publisher/source before opening any security prompt; do not disable Windows security globally.
+Windows x64 build with ASIO enabled. Install your interface vendor's 64-bit ASIO driver and select ASIO under Options > Audio/MIDI Settings in the standalone. VST3 uses the DAW audio driver. If Windows reports missing Microsoft runtime DLLs, install Microsoft's Visual C++ 2015-2022 x64 Redistributable from https://learn.microsoft.com/cpp/windows/latest-supported-vc-redist . This portable beta has no installer or code signature. Check the publisher/source before opening any security prompt; do not disable Windows security globally.
 ''',
     'Darwin': '''Drag Standalone/Field Studio.app to Applications. Copy VST3/Field Studio.vst3 to ~/Library/Audio/Plug-Ins/VST3/ and AU/Field Studio.component to ~/Library/Audio/Plug-Ins/Components/, then rescan plugins/restart the DAW.
-Universal Apple Silicon + Intel build; macOS 11 or newer. This beta is not Developer ID signed or notarized. macOS or a DAW may refuse it. If macOS offers an exception after verifying the download, use System Settings > Privacy & Security > Open Anyway for this app; do not disable Gatekeeper globally. We have not validated loading in Logic or other commercial DAWs.
+Universal Apple Silicon + Intel build; macOS 11 or newer. The standalone uses native CoreAudio; ASIO is a Windows backend. VST3/AU use the DAW audio device. This beta is not Developer ID signed or notarized. macOS or a DAW may refuse it. If macOS offers an exception after verifying the download, use System Settings > Privacy & Security > Open Anyway for this app; do not disable Gatekeeper globally. We have not validated loading in Logic or other commercial DAWs.
 '''
 }
 (destination/'INSTALL.md').write_text('# Field Studio '+version+'\n\nOriginal Field Studio code: MIT. Combined app/plugin binaries with JUCE: AGPLv3; matching complete source is provided alongside the binaries. Read LICENSING.md and LICENSES/AGPL-3.0.txt before redistributing.\n\n'+instructions[system]+'''

@@ -1,6 +1,7 @@
 #pragma once
 #include <algorithm>
 #include <array>
+#include <bitset>
 #include <atomic>
 #include <memory>
 #include <cstdint>
@@ -38,6 +39,8 @@ struct Parameters {
     bool sequenceOn = false;
     float seqSwing=0,seqGate=.65f;
     bool seqHold=false;
+    int seqDivision=4,seqTriggerPattern=0,seqDirection=0,seqRotate=0,seqPlayMode=0,seqTranspose=0,arpTriggerMode=0,holdBreak=50;
+    bool seqManual=false,seqSkipRest=false,holdMono=false,holdLatch=true;
     int tapeStyle = 0;
     float tapeSpeed = 1;
     float tapeRecordLevel = 1, tapeRecordPan = 0;
@@ -199,10 +202,14 @@ public:
     // Explicit step editing for Pattern/Finger/Sketch. -1 is rest, notes 0..127.
     void setSequenceStep(int step, int note, float velocity = .8f);
     int sequenceStep(int step) const;
+    void setSequenceNote(int step,int note,bool enabled);
+    const std::bitset<128>& sequenceNotes(int step) const {return stepChords[(size_t)std::clamp(step,0,998)];}
     float sequenceVelocity(int step) const;
     void setSequenceLength(int steps);
     int sequenceLength() const { return seqLength; }
     void clearHeldNotes();
+    void advanceSequence(){if(params.sequenceOn&&params.sequencer==2&&params.seqManual)tickSequence();}
+    static double sequenceBeats(int index){constexpr double values[]{4,2,1,.5,.25,.125,.75,.375,.1875};return values[std::clamp(index,0,8)];}
     int heldNoteCount() const { return heldCount; }
     int heldNote(int index) const { return index>=0&&index<heldCount?heldNotes[static_cast<size_t>(index)]:-1; }
     void setSketchPoint(int index,float x,float y);
@@ -219,6 +226,8 @@ public:
     int fingerPattern() const { return fingerSelected; }
     void setFingerStep(int pattern,int step,int note,float velocity=.8f);
     int fingerStep(int pattern,int step) const;
+    void setFingerNote(int bank,int step,int note,bool enabled);
+    const std::bitset<128>& fingerNotes(int bank,int step) const {return fingerBanks[(size_t)std::clamp(bank,0,15)].chords[(size_t)std::clamp(step,0,31)];}
     float fingerVelocity(int pattern,int step) const;
     void setFingerLength(int pattern,int length);
     int fingerLength(int pattern) const;
@@ -315,8 +324,9 @@ private:
     int seqLength=16;
     int seqPositionPending=-1;
     std::array<int, 999> steps{};
+    std::array<std::bitset<128>,999> stepChords;
     std::array<float,999> stepVelocity{};
-    struct FingerBank { std::array<int,32> note{};std::array<float,32> velocity{};int length=16; };
+    struct FingerBank { std::array<std::bitset<128>,32> chords;std::array<int,32> note{};std::array<float,32> velocity{};int length=16; };
     std::array<FingerBank,16> fingerBanks;
     int fingerSelected=0;
     std::array<Point,256> sketch;
@@ -327,7 +337,8 @@ private:
     uint64_t ballTriggers=0;
     struct NoteGate { int note=-1;double remaining=0; };
     std::array<NoteGate,64> noteGates;
-    bool sequenceGateOpen=true;
+    bool sequenceGateOpen=true,sequenceFinished=false;
+    int seqBounce=1,seqTicks=0;
     uint64_t tapeFailures=0;
     std::array<Track,4> clipboard;
     unsigned clipboardMask = 0;
