@@ -28,6 +28,9 @@ public:
  juce::StringArray devices();
  bool start(int index,double rate,juce::String& error);
  void stop();
+ // Caller owns the processor engine guard, so an earlier consumer has finished.
+ // Device shutdown can then happen off that guard without racing the ring reader.
+ void suspend() noexcept {running.store(false,std::memory_order_release);}
  bool active()const noexcept{return running.load();}
  void read(float* l,float* r,int frames) noexcept {bridge.read(ring,l,r,(size_t)frames);}
  CaptureRing ring;CaptureClockBridge bridge;

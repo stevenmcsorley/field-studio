@@ -34,6 +34,15 @@ int main(){
     jobs.submit("failure",[]{throw std::runtime_error("disk full");});wait([&]{return !jobs.busy();});check(jobs.status()=="failure: disk full","worker reports exceptions");
     jobs.shutdown();check(!jobs.submit("closed",[]{}),"shutdown rejects new work");}
 
+    {field::ControlJobs jobs;std::atomic<bool> staged{false},published{false};const auto control=std::this_thread::get_id();
+     auto wait=[&](auto predicate){const auto deadline=std::chrono::steady_clock::now()+std::chrono::seconds(5);while(!predicate()){check(std::chrono::steady_clock::now()<deadline,"staged job timeout");std::this_thread::yield();}};
+     check(jobs.submit("load",[&]{staged=true;jobs.applyOnControl([&]{check(std::this_thread::get_id()==control,"commit ran on worker");published=true;});}),"admit staged job");
+     wait([&]{return staged.load();});check(jobs.cancel(),"cancel staged preparation");wait([&]{jobs.serviceCommit();return !jobs.busy();});check(!published&&jobs.status()=="load cancelled","cancelled staged job published");
+     staged=false;check(jobs.submit("edit",[&]{staged=true;check(jobs.applyOnControl([&]{check(!jobs.cancel(),"cancel admitted halfway through commit");published=true;}),"commit rejected");}),"reuse staged worker");
+     wait([&]{return staged.load();});wait([&]{jobs.serviceCommit();return !jobs.busy();});check(published&&jobs.status()=="edit finished","staged publication did not finish");
+     check(jobs.submit("failure",[&]{jobs.applyOnControl([]{throw std::runtime_error("commit failed");});}),"admit failing staged job");wait([&]{jobs.serviceCommit();return !jobs.busy();});check(jobs.status()=="failure: commit failed","commit exception not returned to worker");
+     staged=false;check(jobs.submit("shutdown",[&]{staged=true;jobs.applyOnControl([]{});}),"admit shutdown job");wait([&]{return staged.load();});jobs.shutdown();check(!jobs.busy(),"shutdown did not reject pending commit");}
+
     {field::RtQueue<int,8> queue;int value=-1;check(!queue.pop(value),"empty queue");for(int i=0;i<8;++i)check(queue.push(i),"fill queue");check(!queue.push(99),"backpressure");for(int i=0;i<8;++i){check(queue.pop(value)&&value==i,"FIFO preserves full payload");}for(int i=0;i<200;++i){check(queue.push(i)&&queue.pop(value)&&value==i,"indices wrap");}queue.push(1);queue.discardPending();check(!queue.pop(value),"consumer discard");}
     {struct Item{uint64_t sequence,inverse;};field::RtQueue<Item,256> queue;std::atomic<bool> intact{true};constexpr uint64_t count=500000;
     std::thread producer([&]{for(uint64_t i=0;i<count;++i)while(!queue.push({i,~i}))std::this_thread::yield();});

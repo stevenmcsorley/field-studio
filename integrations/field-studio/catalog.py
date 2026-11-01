@@ -4,14 +4,14 @@ def schema(properties=None, required=()):
 def number(lo,hi,integer=False):return {'type':'integer' if integer else 'number','minimum':lo,'maximum':hi}
 OPS={
  'list_instances':('List enabled, responsive local Field Studio instances; choose an instance_id.',schema()),
- 'get_state':('Read project, tempo, transport and sequencer state.',schema()),
+ 'get_state':('Read latest published project/transport/sequencer telemetry (about 30 Hz); not a queued-command completion barrier.',schema()),
  'list_parameters':('Discover parameter IDs, values, ranges and enum choices. Search before setting values.',schema({'query':{'type':'string'},'limit':number(1,64,True)})),
  'set_parameters':('Set up to 64 discovered parameters in their actual units. Validates all values before edits.',schema({'values':{'type':'object','additionalProperties':{'type':'number'},'maxProperties':64}},('values',))),
  'get_sequence':('Read paginated notes/velocities; omit bank for Endless/Pattern or choose Finger bank 0–15.',schema({'start':number(0,998,True),'count':number(1,128,True),'bank':number(0,15,True)})),
  'set_sequence':('Edit bounded step notes (-1 rest) and optional length; choose bank for Finger. No audio files affected.',schema({'steps':{'type':'array','maxItems':999,'items':schema({'index':number(0,998,True),'note':number(-1,127,True),'notes':{'type':'array','maxItems':8,'items':number(0,127,True)},'velocity':number(0,1)},('index',))},'length':number(1,999,True),'bank':number(0,15,True)},('steps',))),
- 'transport':('Play/stop/rewind tape or panic (clear held notes). Recording and destructive edits are not exposed.',schema({'action':{'type':'string','enum':['play','stop','rewind','panic']}},('action',))),
+ 'transport':('Queue play/stop/rewind tape or panic. queued=true acknowledges admission; read later telemetry for results. Recording/destructive edits are not exposed.',schema({'action':{'type':'string','enum':['play','stop','rewind','panic']}},('action',))),
  'notes':('Press/release up to 16 MIDI notes to audition or drive sequencers. Latches may need transport panic.',schema({'notes':{'type':'array','maxItems':16,'items':number(0,127,True)},'velocity':number(0,1),'on':{'type':'boolean'}},('notes','on'))),
- 'manual_step':('Advance Endless once when manual mode is enabled.',schema()),
+ 'manual_step':('Queue one manual Endless advance. Returns queued=true; read a later get_state for the applied step.',schema()),
 }
 TOOLS=[
  {'name':'search','description':'Discover Field Studio operations and exact schemas by keyword. No app edits. Search before execute; do not guess parameter IDs. Only matched schemas enter context.','inputSchema':schema({'query':{'type':'string'},'limit':number(1,9,True)},('query',))},

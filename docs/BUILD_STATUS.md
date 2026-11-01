@@ -1,10 +1,12 @@
 # Current release status
 
+Beta 10 passes eight native suites and nine MCP tests locally; three core ASan/UBSan suites also pass. It adds staged control/media jobs, paused-host save checks, queued-edit conflict checks and capture transitions. Publication is gated on the three-platform builds/tests/package checks and core ASan/UBSan. Beta 9 passed all release gates in [run 41343936088](https://github.com/stevenmcsorley/field-studio/actions/runs/41343936088). The final engine guard and physical validation remain open.
+
 Beta 9 passes eight native suites, nine MCP tests and three core sanitizer suites locally. Its tag pipeline gates publication on all platform builds, tests and package verification. Physical-device latency and long-session reliability remain unverified. [Performance details](PERFORMANCE.md).
 
 The CWO/Delay fixes passed Linux, Windows x64, macOS universal build/tests and core ASan/UBSan in [run 41246239489](https://github.com/stevenmcsorley/field-studio/actions/runs/41246239489). All eight local suites and three sanitizer suites also passed.
 
-Version 0.2.2 beta 9 includes those fixes, preset management, screen improvements and background save/export. Its tag pipeline rebuilds and tests all three platforms, verifies packages/checksums and publishes only after every gate succeeds. [Release downloads](https://github.com/stevenmcsorley/field-studio/releases/tag/v0.2.2-beta.9) contain Windows x64, Linux x86_64, macOS universal and complete corresponding source. Downloads remain unsigned. The project owner reports working plugin operation, DAW automation, Faderfox assignment and BeatStep use on 1 November 2026; exact DAW/OS/controller details were not supplied. Broader device/host coverage remains open.
+Version 0.2.2 beta 10 includes those fixes, preset management, screen improvements and background save/export. Its tag pipeline rebuilds and tests all three platforms, verifies packages/checksums and publishes only after every gate succeeds. [Release downloads](https://github.com/stevenmcsorley/field-studio/releases/tag/v0.2.2-beta.10) contain Windows x64, Linux x86_64, macOS universal and complete corresponding source. Downloads remain unsigned. The project owner reports working plugin operation, DAW automation, Faderfox assignment and BeatStep use on 1 November 2026; exact DAW/OS/controller details were not supplied. Broader device/host coverage remains open.
 
 The live-engine commit/UI lock can still cause a contended callback to produce silence. Exact hardware equivalence is not established. See [known issues](KNOWN_ISSUES.md) and [release notes](RELEASE_NOTES.md).
 

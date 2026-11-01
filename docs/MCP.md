@@ -91,3 +91,7 @@ Validation includes stdio MCP startup/discovery, live native-engine parameter/ch
 ## Tempo and sync parameters
 
 Search `tempo`, `sync`, `clock` or `metronome` to discover parameter operations. `list_parameters` exposes `tempo`, `midiClockMode`, `tempoTapeLink`, `midiClockRelay`, `metronomeLevel` and `metronomeSound`. `get_state` includes effective tempo, actual tape speed, clock lock, mode, relay and tape-link values. Choose routing in the standalone/DAW first; MCP does not enumerate or connect hardware ports. See [tempo setup](TEMPO_SYNC.md).
+
+## Beta 10 timing semantics
+
+`get_state` reads the latest published telemetry (approximately 30 Hz while audio runs), without acquiring the live engine guard. Project/source labels in that snapshot are bounded UTF-8 strings. Parameter values may be newer than the effective render telemetry. Transport and `manual_step` return `queued: true`; this acknowledges admission, not completion. `manual_step` no longer returns a synchronously applied step. Read a later state to observe the result; batching a state query immediately after a queued command is not a completion barrier. Stop/panic remain admissible with a full ordinary control queue. The tool set stays `search` / `execute`; sequence bulk operations still use the engine guard.

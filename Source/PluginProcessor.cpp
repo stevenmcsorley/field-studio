@@ -78,7 +78,7 @@ struct MirrorNotification {const FieldProcessor* owner=nullptr;int key=-1;float 
 thread_local MirrorNotification activeMirror;
 }
 FieldProcessor::FieldProcessor(juce::File presetDirectory) : AudioProcessor(BusesProperties().withInput("Input",juce::AudioChannelSet::stereo(),true).withOutput("Output",juce::AudioChannelSet::stereo(),true).withOutput("Tape 1",juce::AudioChannelSet::stereo(),false).withOutput("Tape 2",juce::AudioChannelSet::stereo(),false).withOutput("Tape 3",juce::AudioChannelSet::stereo(),false).withOutput("Tape 4",juce::AudioChannelSet::stereo(),false)), presetLibrary(presetDirectory), parameters(*this,nullptr,"PARAMETERS",makeLayout()) { formats.registerBasicFormats();const char* ids[]{"engine","macro1","macro2","macro3","macro4","attack","decay","sustain","release","sampleStart","sampleLoopIn","sampleLoopOut","sampleEnd","sampleLoop","sampleReverse","sampleOneShot","fx1","fx2","fx3","fx4","seq1","seq2","seq3","seq4","lfoTarget","effect","effectMix","masterLow","masterMid","masterHigh","masterDrive","compressor","masterEffect","masterMix","volume","tempo","lfo","lfoRate","lfoDepth","sequencer","sequenceOn","tapeStyle","tapeSpeed","loop","masterFx1","masterFx2","masterFx3","masterFx4","seqSwing","seqGate","seqHold","sampleRootNote","voiceMode","glideTime","bendRange","patchGain","lfoWaveform","lfoRetrigger","lfoSync","lfoDivision","elementSource","elementManual","envelopeCurve","midiTarget1","midiTarget2","midiTarget3","midiTarget4","midiDepth1","midiDepth2","midiDepth3","midiDepth4","countInBeats","tapeRecordLevel","tapeRecordPan","metronomeLevel","midiInputChannel","midiOutputChannel","midiClockMode","midiThru","midiSendControls","midiRelativeControls","midiNotesIn","midiOtherIn","midiTransportIn","midiNotesOut","midiOtherOut","midiSppOrigin","masterLeft","masterRight","compressorRelease","eqAmount","eqLowOn","eqMidOn","eqHighOn","eqOn","sampleFineTune","sampleLoopFade","sampleGain","seqDivision","seqTriggerPattern","seqDirection","seqRotate","seqPlayMode","seqTranspose","seqCursor","seqErase","seqManual","seqSkipRest","arpTriggerMode","holdBreak","holdMono","holdLatch","tempoTapeLink","midiClockRelay","metronomeSound","inputGain","captureThreshold","captureLength","captureKeyGate","captureSource"};for(int i=0;i<P_count;++i){rawValues[(size_t)i]=parameters.getRawParameterValue(ids[i]);rawTargets[(size_t)i]=parameters.getParameter(ids[i]);jassert(rawValues[(size_t)i]!=nullptr);parameterIds[(size_t)i]=ids[i];realtimeValues.initialize((size_t)i,rawValues[(size_t)i]->load());rawTargets[(size_t)i]->addListener(this);}initializeFactoryPresets();refreshSlotNameCache();startTimerHz(60); }
-FieldProcessor::~FieldProcessor(){stopTimer();externalCapture.stop();controlBridge.reset();fileJobs.shutdown();for(auto* parameter:rawTargets)parameter->removeListener(this);}
+FieldProcessor::~FieldProcessor(){stopTimer();controlBridge.reset();mediaJobs.shutdown();fileJobs.shutdown();externalCapture.stop();for(auto* parameter:rawTargets)parameter->removeListener(this);}
 double FieldProcessor::getTailLengthSeconds() const {
     const double rate=getSampleRate()>0?getSampleRate():44100.;
     auto feedbackTail=[&](int effect,int mix,int range,int time,int feedback){
@@ -127,14 +127,14 @@ void FieldProcessor::tapTempo(double milliseconds){
  double total=0;for(int i=0;i<tempoTapCount;++i)total+=tempoTapIntervals[(size_t)i];setValue("tempo",(float)(60000.*tempoTapCount/total));
 }
 field::UiTelemetry FieldProcessor::makeUiTelemetry() const {
- field::UiTelemetry s;s.lfoPhase=(float)engine.lfoPhasePosition();s.modulation=engine.modulationAt((int)cached(P_lfoTarget));s.playing=engine.playing();s.recording=engine.recording();s.externalInput=externalCapture.active();s.pad=engine.selectedPad();s.drumPad=engine.drumPad(s.pad);s.dboxPad=engine.dboxPad(s.pad);s.track=engine.selectedTrack();s.recorded=engine.recordedSeconds();s.countIn=engine.countInRemainingBeats();s.rate=engine.sampleRate();s.tapeFailures=engine.tapeWriteFailures();s.sampleIdentity=(uintptr_t)sampleData.get();for(int i=0;i<2;++i)s.albumDurations[(size_t)i]=albums[(size_t)i].audio.size()/std::max(1.,albums[(size_t)i].rate);s.fingerBank=engine.fingerPattern();s.sequenceLength=(int)cached(P_sequencer)==3?engine.fingerLength(s.fingerBank):engine.sequenceLength();s.sequenceStep=engine.currentSequenceStep();
+ field::UiTelemetry s;projectName.copyToUTF8(s.projectLabel.data(),s.projectLabel.size());externalSourceName.copyToUTF8(s.sourceLabel.data(),s.sourceLabel.size());s.activeVoices=engine.activeVoiceCount();s.heldCount=engine.heldNoteCount();s.position=engine.positionSeconds();s.tempo=engine.parameters().tempo;s.tapeSpeed=engine.parameters().tapeSpeed;s.lfoPhase=(float)engine.lfoPhasePosition();s.modulation=engine.modulationAt((int)cached(P_lfoTarget));s.playing=engine.playing();s.recording=engine.recording();s.externalInput=externalCapture.active();s.pad=engine.selectedPad();s.drumPad=engine.drumPad(s.pad);s.dboxPad=engine.dboxPad(s.pad);s.track=engine.selectedTrack();s.recorded=engine.recordedSeconds();s.countIn=engine.countInRemainingBeats();s.rate=engine.sampleRate();s.tapeFailures=engine.tapeWriteFailures();s.sampleIdentity=(uintptr_t)sampleData.get();for(int i=0;i<2;++i)s.albumDurations[(size_t)i]=albums[(size_t)i].audio.size()/std::max(1.,albums[(size_t)i].rate);s.fingerBank=engine.fingerPattern();s.sequenceLength=(int)cached(P_sequencer)==3?engine.fingerLength(s.fingerBank):engine.sequenceLength();s.sequenceStep=engine.currentSequenceStep();
  for(int i=0;i<4;++i){s.levels[(size_t)i]=engine.trackLevel(i);s.pans[(size_t)i]=engine.trackPan(i);s.peaks[(size_t)i]=engine.trackPeaks[(size_t)i];s.mutes[(size_t)i]=engine.trackMute(i);s.solos[(size_t)i]=engine.trackSolo(i);s.durations[(size_t)i]=engine.tracks()[(size_t)i].audio.size()/s.rate;}
  for(int i=0;i<engine.heldNoteCount();++i){int note=engine.heldNote(i);if(note>=0&&note<128)s.held[(size_t)note]=true;}
  if(uiMode.load(std::memory_order_relaxed)==4){const int cursor=juce::jlimit(0,s.sequenceLength-1,(int)cached(P_seqCursor)),offset=cursor/16*16;for(int i=0;i<16;++i){s.sequenceChords[(size_t)i]=(int)cached(P_sequencer)==3?engine.fingerNotes(s.fingerBank,offset+i):engine.sequenceNotes(offset+i);s.steps[(size_t)i]=(int)cached(P_sequencer)==3?engine.fingerStep(s.fingerBank,offset+i):engine.sequenceStep(offset+i);}for(int i=0;i<32;++i)s.finger[(size_t)i]=engine.fingerNotes(s.fingerBank,i).any();s.sketchCount=engine.sketchLength();for(int i=0;i<s.sketchCount;++i)s.sketch[(size_t)i]=engine.sketchPoint(i);s.balls=engine.tombolaBalls();s.tombolaRotation=engine.tombolaRotation();s.tombolaSides=engine.tombolaSides();s.tombolaTriggers=engine.tombolaTriggerCount();}
  return s;
 }
 void FieldProcessor::updateEngine(){if((int)cached(P_engine)==14)drumMode=true;engine.setParameters(currentParameters());engine.setCountInBeats((int)cached(P_countInBeats));}
-void FieldProcessor::prepareToPlay(double sr,int block){callbackRate=sr>0?sr:44100;preparedRate=callbackRate;const juce::ScopedLock lock(engineLock);if(std::abs(engine.sampleRate()-sr)>.5){externalCapture.stop();externalSourceName="Device / DAW input";}++documentEpoch;++sampleRequest;++controlRevision;
+void FieldProcessor::prepareToPlay(double sr,int block){invalidateLiveControls();mediaJobs.cancel();const std::lock_guard<std::mutex> deviceGuard(captureDeviceMutex);callbackRate=sr>0?sr:44100;preparedRate=callbackRate;const juce::ScopedLock lock(engineLock);if(std::abs(engine.sampleRate()-sr)>.5){externalCapture.stop();externalSourceName="Device / DAW input";}++documentEpoch;++sampleRequest;++controlRevision;
     double old=engine.sampleRate();albumRecording=-1;albumPlaying=-1;engine.prepare(sr,block);masterFx.prepare(sr,block);masterFx.setOutputGainImmediately(1);masterState={};sampling=false;captureArmed=false;captureAutoStop=false;captureAudio=field::TapeAudio{};captureExhausted=false;
     if(old!=sr)for(auto& bank:tapes)for(auto& t:bank.tracks)t.audio.resample(sr/old,(size_t)(sr*360));
     midiClockFollower.prepare(sr);midiClockGenerator.prepare(sr);missedReleases.discardPending();missedReleaseOverflow=false;midiNotes.resetAll();guiMidiNotes.resetAll();midiSampleClock=0;midiPositionValid=false;midiTransportPpq=0;lastSppOrigin=cached(P_midiSppOrigin);midiOutput.ensureSize(65536);midiInput.ensureSize(65536);keyboard.clearIncoming();lastClockMode=(int)cached(P_midiClockMode);lastNotesIn=cached(P_midiNotesIn)>.5f;lastNotesOut=cached(P_midiNotesOut)>.5f;lastInputChannel=(int)cached(P_midiInputChannel);lastOutputChannel=(int)cached(P_midiOutputChannel);controllerValues.fill(-1);
@@ -148,8 +148,9 @@ void FieldProcessor::processBlock(juce::AudioBuffer<float>& buffer,juce::MidiBuf
     if(buffer.getNumSamples()<=0){retainSkippedReleases(midi);midi.clear();return;}
     const juce::ScopedTryLock lock(engineLock);
     if(!lock.isLocked()){for(int ch=0;ch<2;++ch){outputChannelPeaks[(size_t)ch].store(0);masterPrePeaks[(size_t)ch].store(0);}retainSkippedReleases(midi);buffer.clear();midi.clear();midiSampleClock+=buffer.getNumSamples();++skippedBlocks;return;}
-    midiOutput.clear();engine.beginMidiBlock();midiClockFollower.advance(midiSampleClock);updateEngine();
+    midiOutput.clear();engine.beginMidiBlock();midiClockFollower.advance(midiSampleClock);updateEngine();applyLiveCommands();
     const int inputChannel=(int)cached(P_midiInputChannel),outputChannel=(int)cached(P_midiOutputChannel);
+    if(keyboard.consumePanic()){engine.allNotesOff();midiNotes.resetAll();guiMidiNotes.resetAll();keyboard.clearIncoming();midiOutput.addEvent(juce::MidiMessage::allNotesOff(outputChannel),0);}
     if((int)cached(P_midiClockMode)!=lastClockMode){if(lastClockMode==2)midiOutput.addEvent(juce::MidiMessage::midiStop(),0);lastClockMode=(int)cached(P_midiClockMode);midiClockFollower.reset();midiClockGenerator.reset();updateEngine();}
     if(inputChannel!=lastInputChannel||(cached(P_midiNotesIn)>.5f)!=lastNotesIn){engine.allNotesOff();midiNotes.resetAll();guiMidiNotes.resetAll();lastInputChannel=inputChannel;lastNotesIn=cached(P_midiNotesIn)>.5f;keyboard.clearIncoming();midiOutput.addEvent(juce::MidiMessage::allNotesOff(outputChannel),0);}
     if((cached(P_midiNotesOut)>.5f)!=lastNotesOut){midiOutput.addEvent(juce::MidiMessage::allNotesOff(outputChannel),0);lastNotesOut=cached(P_midiNotesOut)>.5f;}
@@ -233,21 +234,22 @@ void FieldProcessor::processBlock(juce::AudioBuffer<float>& buffer,juce::MidiBuf
     if(sampling)captureBlock(captureFromOutput?buffer.getReadPointer(0):inputCopy.getReadPointer(0),captureFromOutput?buffer.getReadPointer(1):inputCopy.getReadPointer(1),n,captureKeyDown);
     const auto bands=engine.vocoderLevels();for(size_t i=0;i<bands.size();++i)vocoderMeters[i]=bands[i];
     for(int ch=0;ch<2;++ch)outputChannelPeaks[(size_t)ch].store(buffer.getMagnitude(ch,0,n));
-    uiPublishFrames+=n;if(uiPublishFrames>=engine.sampleRate()/30){uiPublishFrames=0;publishMaintenanceState();if(uiMode.load(std::memory_order_relaxed)>=0)uiTelemetry.publish(makeUiTelemetry());}
+    uiPublishFrames+=n;if(uiPublishFrames>=engine.sampleRate()/30){uiPublishFrames=0;publishMaintenanceState();if(uiMode.load(std::memory_order_relaxed)>=0||controlTelemetryRequested.load(std::memory_order_relaxed))uiTelemetry.publish(makeUiTelemetry());}
     midi.clear();midi.addEvents(midiOutput,0,n,0);outputPeak.store(std::max(buffer.getMagnitude(0,0,n),buffer.getMagnitude(1,0,n)));playhead.store(engine.positionSeconds());
 }
 juce::String FieldProcessor::performanceReport() const {
- const double rate=preparedRate.load();return "Audio rate: "+juce::String(rate,0)+" Hz\nCallback block: "+juce::String(actualBlockSize.load())+" frames ("+juce::String(actualBlockSize.load()/rate*1000,2)+" ms)\nRender load: "+juce::String(callbackLoad.load()*100,1)+"% mean / "+juce::String(callbackPeak.load()*100,1)+"% peak\nCallbacks exceeding their time budget: "+juce::String((juce::int64)callbackOverruns.load())+"\nCallbacks dropped on shared lock / oversize input: "+juce::String(skippedBlocks.load())+"\nExternal input queued: "+juce::String(externalCapture.active()?externalCapture.ring.available()/rate*1000:0,2)+" ms\nExternal input dropped frames: "+juce::String((juce::int64)externalCapture.ring.dropped.load())+"\nExternal input underrun frames: "+juce::String((juce::int64)externalCapture.bridge.underruns.load())+"\nCapture latency recoveries: "+juce::String((juce::int64)externalCapture.bridge.recoveries.load())+"\nCapture clock ratio: "+juce::String(externalCapture.bridge.ratioReading.load(),6);
+ const double rate=preparedRate.load();return "Audio rate: "+juce::String(rate,0)+" Hz\nCallback block: "+juce::String(actualBlockSize.load())+" frames ("+juce::String(actualBlockSize.load()/rate*1000,2)+" ms)\nRender load: "+juce::String(callbackLoad.load()*100,1)+"% mean / "+juce::String(callbackPeak.load()*100,1)+"% peak\nCallbacks exceeding their time budget: "+juce::String((juce::int64)callbackOverruns.load())+"\nCallbacks dropped on shared lock / oversize input: "+juce::String(skippedBlocks.load())+"\nRejected live controls: "+juce::String((juce::int64)rejectedLiveCommands.load())+"\nExternal input queued: "+juce::String(externalCapture.active()?externalCapture.ring.available()/rate*1000:0,2)+" ms\nExternal input dropped frames: "+juce::String((juce::int64)externalCapture.ring.dropped.load())+"\nExternal input underrun frames: "+juce::String((juce::int64)externalCapture.bridge.underruns.load())+"\nCapture latency recoveries: "+juce::String((juce::int64)externalCapture.bridge.recoveries.load())+"\nCapture clock ratio: "+juce::String(externalCapture.bridge.ratioReading.load(),6);
 }
 void FieldProcessor::publishMaintenanceState(){for(int i=0;i<4;++i)livePoolIdentities[(size_t)i].store((uintptr_t)engine.tracks()[(size_t)i].audio.poolHandle().get(),std::memory_order_release);for(int i=0;i<2;++i)livePoolIdentities[(size_t)i+4].store((uintptr_t)albums[(size_t)i].audio.poolHandle().get(),std::memory_order_release);livePoolIdentities[6].store((uintptr_t)captureAudio.poolHandle().get(),std::memory_order_release);retiredTapePending.store(engine.hasRetiredTape(),std::memory_order_release);}
 void FieldProcessor::timerCallback(){
+    mediaJobs.serviceCommit();
     if(controlBridge)controlBridge->poll();
     flushParameterMirrors();std::deque<std::array<field::Track,4>> retired;
     bool changed=retiredTapePending.load(std::memory_order_acquire);for(size_t i=0;i<maintenancePools.size();++i)changed=changed||livePoolIdentities[i].load(std::memory_order_acquire)!=(uintptr_t)maintenancePools[i].get();
     if(changed){const juce::ScopedTryLock lock(engineLock);if(lock.isLocked()){for(int i=0;i<4;++i)maintenancePools[(size_t)i]=engine.tracks()[(size_t)i].audio.poolHandle();for(int i=0;i<2;++i)maintenancePools[(size_t)i+4]=albums[(size_t)i].audio.poolHandle();maintenancePools[6]=captureAudio.poolHandle();if(engine.hasRetiredTape())retired=engine.takeRetiredTape();retiredTapePending=false;}}
     for(auto& pool:maintenancePools)if(pool)pool->collect(64);retired.clear();
     {const juce::ScopedTryLock lock(sampleWorkerLock);if(lock.isLocked())engine.collectRetiredSamples();}
-    int program=pendingProgram.exchange(-1);if(program>=0)setCurrentProgram(program);int action=pendingPatchAction.exchange(0);if(action)applyPatchAction(action);if(captureAutoStop.exchange(false))stopSampleCapture();
+    int program=pendingProgram.exchange(-1);if(program>=0)setCurrentProgram(program);int action=pendingPatchAction.exchange(0);if(action)applyPatchAction(action);if(captureAutoStop.exchange(false)&&!requestStopSampleCapture())captureAutoStop=true;
 }
 void FieldProcessor::clearMidiChannel(int channel){if(channel<1||channel>16)return;const auto hostReleased=midiNotes.resetChannel(channel),guiReleased=guiMidiNotes.resetChannel(channel);std::array<bool,128> released{};for(int i=0;i<hostReleased.count;++i)released[(size_t)hostReleased.notes[(size_t)i]]=true;for(int i=0;i<guiReleased.count;++i)released[(size_t)guiReleased.notes[(size_t)i]]=true;for(int note=0;note<128;++note)if(released[(size_t)note]&&!midiNotes.heldAnywhere(note)&&!guiMidiNotes.heldAnywhere(note))engine.noteOff(note);keyboard.observe((uint8_t)(0xb0+channel-1),123,0);}
 void FieldProcessor::midiController(int channel,int cc,int amount){
@@ -308,8 +310,9 @@ bool FieldProcessor::loadSampleFile(const juce::File& file,juce::String& error){
     juce::AudioBuffer<float> audio(2,(int)r->lengthInSamples);if(!r->read(&audio,0,audio.getNumSamples(),0,true,true)){error="Could not read audio.";return false;}
     std::vector<float> l(audio.getReadPointer(0),audio.getReadPointer(0)+audio.getNumSamples()),rr(audio.getReadPointer(r->numChannels>1?1:0),audio.getReadPointer(r->numChannels>1?1:0)+audio.getNumSamples());
     auto prepared=field::Engine::prepareSample(l,rr,r->sampleRate);auto nextSample=std::make_shared<SampleData>();nextSample->rate=r->sampleRate;nextSample->left=std::move(l);nextSample->right=std::move(rr);std::shared_ptr<const SampleData> retiredSample;field::TapeAudio retiredCapture;
+    bool accepted=true;const bool committed=mediaJobs.applyOnControl([&]{
     const juce::ScopedLock lock(engineLock);
-    if(request!=sampleRequest){error="Sample import superseded by a newer operation.";return false;}
+    if(request!=sampleRequest){error="Sample import superseded by a newer operation.";accepted=false;return;}
     sampling=false;captureArmed=false;captureAutoStop=false;retiredCapture=std::move(captureAudio);captureLimit=0;{const juce::ScopedLock worker(sampleWorkerLock);auto* handle=engine.registerPreparedSample(std::move(prepared));engine.installPreparedSample(handle);}retiredSample=std::move(sampleData);sampleData=std::move(nextSample);sampleRateFile=r->sampleRate;sampleName=file.getFileName();importedPresetMetadata=metadata;
     resetSampleParameters();engine.resetDrumPads();
     if(mapping.sampled){
@@ -327,12 +330,13 @@ bool FieldProcessor::loadSampleFile(const juce::File& file,juce::String& error){
         lastImportDetails="Known control positions and selectors are transferred into the software engine. Original raw values remain attached. Timing, gain and DSP-response equivalence are unverified; see the detailed mapping report. Embedded preview audio is not treated as a substitute for the modeled synth sound.";
     }else {setValue("engine",11);lastImportSummary="Audio imported: "+file.getFileName();lastImportDetails="Ordinary audio loaded with neutral sampler settings. The current synth/drum mode was retained.";}
     if(preset){for(const auto& parameter:translation.parameterValues)setValue(parameter.id,parameter.value);lastImportDetails+="\n\nCONTROL TRANSLATION\n"+translation.sourceProfile+"\n"+translation.mapped.joinIntoString("\n")+"\n\nUNVERIFIED / RETAINED\n"+translation.unsupported.joinIntoString("\n");}
-    updateEngine();return true;
+    updateEngine();publishControlUiState();
+    });if(!committed)error="Cancelled";return committed&&accepted;
 }
 bool FieldProcessor::exportAudio(const juce::File& file,juce::String& error){
     const std::lock_guard<std::mutex> encode(mediaEncodeMutex);try{
     std::array<field::Track,4> tracks;field::Parameters mixParameters;double rate;
-    {const juce::ScopedLock lock(engineLock);tracks=engine.tracks();mixParameters=engine.parameters();rate=engine.sampleRate();}
+    {const juce::ScopedLock lock(engineLock);flushLiveControls();tracks=engine.tracks();mixParameters=engine.parameters();rate=engine.sampleRate();}
     auto mix=field::Engine::exportMix(tracks,mixParameters);
     if(mix.first.empty()){error="Record to tape before exporting.";return false;}
     MasterState master;auto offlineFx=std::make_unique<field::Engine>();offlineFx->prepare(rate,512);offlineFx->setOutputGainImmediately(1);processMaster(mix.first.data(),mix.second.data(),(int)mix.first.size(),rate,master,*offlineFx);
@@ -349,24 +353,33 @@ bool FieldProcessor::exportAudio(const juce::File& file,juce::String& error){
 void FieldProcessor::reportOperationError(const juce::String& message){const juce::ScopedLock lock(operationErrorLock);operationError=message;}
 juce::String FieldProcessor::takeOperationError(){const juce::ScopedLock lock(operationErrorLock);auto result=operationError;operationError.clear();return result;}
 void FieldProcessor::startTapeRecording(){
-    field::TapeAudio base;std::deque<std::array<field::Track,4>> retired;double rate;int track,bank;uint64_t revision,epoch;
-    {const juce::ScopedLock lock(engineLock);revision=++controlRevision;if(engine.recording()){engine.setRecording(false);return;}base=engine.tracks()[(size_t)engine.selectedTrack()].audio;track=engine.selectedTrack();bank=currentTape;rate=engine.sampleRate();epoch=documentEpoch;}
-    try {auto prepared=base.preparedCopy((size_t)(rate*360));const juce::ScopedLock lock(engineLock);if(epoch!=documentEpoch||revision!=controlRevision||currentTape!=bank||engine.selectedTrack()!=track||rate!=engine.sampleRate()||!base.sameGeneration(engine.tracks()[(size_t)track].audio)){reportOperationError("Recording preparation cancelled: the tape changed. Try Record again.");return;}updateEngine();engine.startPreparedRecording(std::move(prepared));if(engine.hasRetiredTape())retired=engine.takeRetiredTape();}
+    field::TapeAudio base;std::deque<std::array<field::Track,4>> retired;double rate;int track,bank;uint64_t revision,epoch,queuedRevision;
+    {const juce::ScopedLock lock(engineLock);queuedRevision=liveCommands.producerPosition();flushLiveControls();revision=++controlRevision;if(engine.recording()){engine.setRecording(false);return;}base=engine.tracks()[(size_t)engine.selectedTrack()].audio;track=engine.selectedTrack();bank=currentTape;rate=engine.sampleRate();epoch=documentEpoch;}
+    try {auto prepared=base.preparedCopy((size_t)(rate*360));mediaJobs.applyOnControl([&]{const juce::ScopedLock lock(engineLock);if(queuedRevision!=liveCommands.producerPosition()||epoch!=documentEpoch||revision!=controlRevision||currentTape!=bank||engine.selectedTrack()!=track||rate!=engine.sampleRate()||!base.sameGeneration(engine.tracks()[(size_t)track].audio)){reportOperationError("Recording preparation cancelled: the tape changed. Try Record again.");return;}updateEngine();engine.startPreparedRecording(std::move(prepared));if(engine.hasRetiredTape())retired=engine.takeRetiredTape();});}
     catch(const std::exception& error){reportOperationError(error.what());}
 }
 void FieldProcessor::prepareTapeOperation(field::TapeEditAction action,double delta,bool absolute){
-    field::TapeEditState base;double start,end;unsigned mask;uint64_t epoch,revision;int bank;std::deque<std::array<field::Track,4>> retired;
-    {const juce::ScopedLock lock(engineLock);revision=++controlRevision;epoch=documentEpoch;bank=currentTape;base=engine.captureTapeEdit();start=selectionStart;end=selectionEnd;mask=tapeEditMask.load();if(absolute)delta-=start;delta=juce::jlimit(-start,360.-end,delta);}
-    try {auto result=field::Engine::prepareTapeEdit(base,action,mask,start,end,delta);const juce::ScopedLock lock(engineLock);
-        if(revision!=controlRevision||epoch!=documentEpoch||bank!=currentTape||start!=selectionStart||end!=selectionEnd||!engine.commitTapeEdit(base,std::move(result))){reportOperationError("Tape edit cancelled: its source changed during preparation. Stop recording and retry.");return;}
+    field::TapeEditState base;double start,end;unsigned mask;uint64_t epoch,revision,queuedRevision;int bank;std::deque<std::array<field::Track,4>> retired;
+    {const juce::ScopedLock lock(engineLock);queuedRevision=liveCommands.producerPosition();flushLiveControls();revision=++controlRevision;epoch=documentEpoch;bank=currentTape;base=engine.captureTapeEdit();start=selectionStart;end=selectionEnd;mask=tapeEditMask.load();if(absolute)delta-=start;delta=juce::jlimit(-start,360.-end,delta);}
+    try {auto result=field::Engine::prepareTapeEdit(base,action,mask,start,end,delta);mediaJobs.applyOnControl([&]{const juce::ScopedLock lock(engineLock);
+        if(queuedRevision!=liveCommands.producerPosition()||revision!=controlRevision||epoch!=documentEpoch||bank!=currentTape||start!=selectionStart||end!=selectionEnd||!engine.commitTapeEdit(base,std::move(result))){reportOperationError("Tape edit cancelled: its source changed during preparation. Stop recording and retry.");return;}
         if(action==field::TapeEditAction::slide){selectionStart+=delta;selectionEnd+=delta;engine.setLoop(selectionStart,selectionEnd);}if(engine.hasRetiredTape())retired=engine.takeRetiredTape();publishControlUiState();
-    }catch(const std::exception& error){reportOperationError(error.what());}
+    });}catch(const std::exception& error){reportOperationError(error.what());}
 }
+juce::StringArray FieldProcessor::captureDevices(){const std::lock_guard<std::mutex> guard(captureDeviceMutex);externalSourceNames=externalCapture.devices();return externalSourceNames;}
 bool FieldProcessor::selectCaptureDevice(int index,juce::String& error){
- const juce::ScopedLock lock(engineLock);if(sampling){error="Finish or cancel sampling before changing input devices";return false;}
- if(!externalCapture.start(index,engine.sampleRate(),error)){externalSourceName="Device / DAW input";return false;}externalSourceName=index>=0&&index<externalSourceNames.size()?externalSourceNames[index]:"External input";inputMonitor=false;return true;
+ const std::lock_guard<std::mutex> guard(captureDeviceMutex);double rate;
+ {const juce::ScopedLock lock(engineLock);if(sampling){error="Finish sampling before changing input devices";return false;}externalCapture.suspend();rate=engine.sampleRate();}
+ const bool ok=externalCapture.start(index,rate,error);
+ {const juce::ScopedLock lock(engineLock);externalSourceName=ok&&index>=0&&index<externalSourceNames.size()?externalSourceNames[index]:"Device / DAW input";inputMonitor=false;}
+ return ok;
 }
-void FieldProcessor::useDeviceInput(){const juce::ScopedLock lock(engineLock);externalCapture.stop();externalSourceName="Device / DAW input";inputMonitor=false;}
+void FieldProcessor::useDeviceInput(){
+ const std::lock_guard<std::mutex> guard(captureDeviceMutex);
+ {const juce::ScopedLock lock(engineLock);externalCapture.suspend();externalSourceName="Device / DAW input";inputMonitor=false;}
+ externalCapture.stop();
+}
+void FieldProcessor::stopSuspendedCapture(){const std::lock_guard<std::mutex> guard(captureDeviceMutex);if(!externalCapture.active())externalCapture.stop();}
 void FieldProcessor::captureBlock(const float* left,const float* right,int frames,bool keyDown){
  float peak=0;for(int i=0;i<frames;++i)peak=std::max(peak,std::max(std::abs(left[i]),std::abs(right[i])));capturePeak=peak;
  if(captureAutoStop)return;
@@ -376,9 +389,9 @@ void FieldProcessor::captureBlock(const float* left,const float* right,int frame
  captureSeconds=captureAudio.size()/engine.sampleRate();if(captureAudio.size()>=captureLimit)captureAutoStop=true;
 }
 void FieldProcessor::startSampleCapture(bool fromOutput){
-    setValue("captureSource",fromOutput?1:0);
+    if(!mediaJobs.onWorker())setValue("captureSource",fromOutput?1:0);
     double rate;size_t frames;uint64_t request,epoch;{const juce::ScopedLock lock(engineLock);rate=engine.sampleRate();frames=(size_t)(rate*(value("captureLength")==0?6:value("captureLength")==1?20:value("captureLength")==2?60:120));request=++sampleRequest;epoch=documentEpoch;}
-    try {field::TapeAudio prepared;prepared.prepareWrite(frames);field::TapeAudio retired;const juce::ScopedLock lock(engineLock);if(request!=sampleRequest||epoch!=documentEpoch)return;retired=std::move(captureAudio);captureAudio=std::move(prepared);engine.allNotesOff();midiNotes.resetAll();guiMidiNotes.resetAll();captureRate=rate;captureLimit=frames;captureMaxSeconds=frames/rate;captureExhausted=false;sampling=true;captureFromOutput=fromOutput;captureTriggered=false;captureArmed=true;captureSeconds=0;captureAutoStop=false;publishMaintenanceState();}
+    try {field::TapeAudio prepared;prepared.prepareWrite(frames);field::TapeAudio retired;mediaJobs.applyOnControl([&]{const juce::ScopedLock lock(engineLock);if(request!=sampleRequest||epoch!=documentEpoch)return;retired=std::move(captureAudio);captureAudio=std::move(prepared);engine.allNotesOff();midiNotes.resetAll();guiMidiNotes.resetAll();captureRate=rate;captureLimit=frames;captureMaxSeconds=frames/rate;captureExhausted=false;sampling=true;captureFromOutput=fromOutput;captureTriggered=false;captureArmed=true;captureSeconds=0;captureAutoStop=false;publishMaintenanceState();});}
     catch(const std::exception& error){reportOperationError(error.what());}
 }
 void FieldProcessor::stopSampleCapture(){
@@ -386,8 +399,8 @@ void FieldProcessor::stopSampleCapture(){
     {const juce::ScopedLock lock(engineLock);request=++sampleRequest;if(!sampling)return;sampling=false;captureArmed=false;captureAutoStop=false;captured=std::move(captureAudio);rate=captureRate;epoch=documentEpoch;publishMaintenanceState();}
     if(captured.empty()){reportOperationError("No audio captured; previous sample retained");return;}
     try {auto next=std::make_shared<SampleData>();next->rate=rate;next->left=captured.exportChannel(0);next->right=captured.exportChannel(1);auto prepared=field::Engine::prepareSample(next->left,next->right,rate);std::shared_ptr<const SampleData> retired;
-        const juce::ScopedLock lock(engineLock);if(request!=sampleRequest||epoch!=documentEpoch)return;{const juce::ScopedLock worker(sampleWorkerLock);auto* handle=engine.registerPreparedSample(std::move(prepared));engine.installPreparedSample(handle);}retired=std::move(sampleData);sampleData=std::move(next);sampleRateFile=rate;sampleName=captureFromOutput?"Output resample":"Input recording";resetSampleParameters();importedPresetMetadata=juce::var{};lastImportSummary="Sample captured";lastImportDetails="Captured audio uses neutral sampler settings.";setValue("engine",11);
-    }catch(const std::exception& error){reportOperationError(error.what());}
+        mediaJobs.applyOnControl([&]{const juce::ScopedLock lock(engineLock);if(request!=sampleRequest||epoch!=documentEpoch)return;{const juce::ScopedLock worker(sampleWorkerLock);auto* handle=engine.registerPreparedSample(std::move(prepared));engine.installPreparedSample(handle);}retired=std::move(sampleData);sampleData=std::move(next);sampleRateFile=rate;sampleName=captureFromOutput?"Output resample":"Input recording";resetSampleParameters();importedPresetMetadata=juce::var{};lastImportSummary="Sample captured";lastImportDetails="Captured audio uses neutral sampler settings.";setValue("engine",11);
+    });}catch(const std::exception& error){reportOperationError(error.what());}
 }
 void FieldProcessor::processMaster(float* l,float* r,int n,double sr,MasterState& state,field::Engine& fx){
     const int effect=(int)cached(P_masterEffect);
@@ -412,7 +425,7 @@ void FieldProcessor::processMaster(float* l,float* r,int n,double sr,MasterState
 }
 void FieldProcessor::startAlbumRecording(int side){
     side=juce::jlimit(0,1,side);double rate;uint64_t epoch,revision;{const juce::ScopedLock lock(engineLock);rate=engine.sampleRate();epoch=documentEpoch;revision=++controlRevision;}
-    try {AlbumSide prepared;prepared.rate=rate;const size_t frames=(size_t)(rate*360);prepared.audio.prepareWrite(frames);AlbumSide retired;const juce::ScopedLock lock(engineLock);if(epoch!=documentEpoch||revision!=controlRevision)return;retired=std::move(albums[(size_t)side]);albums[(size_t)side]=std::move(prepared);albumPlaying=-1;albumHead=0;albumLimit=frames;captureExhausted=false;albumRecording=side;}
+    try {AlbumSide prepared;prepared.rate=rate;const size_t frames=(size_t)(rate*360);prepared.audio.prepareWrite(frames);AlbumSide retired;mediaJobs.applyOnControl([&]{const juce::ScopedLock lock(engineLock);if(epoch!=documentEpoch||revision!=controlRevision)return;retired=std::move(albums[(size_t)side]);albums[(size_t)side]=std::move(prepared);albumPlaying=-1;albumHead=0;albumLimit=frames;captureExhausted=false;albumRecording=side;});}
     catch(const std::exception& error){reportOperationError(error.what());}
 }
 bool FieldProcessor::playAlbum(int side){const juce::ScopedLock lock(engineLock);++controlRevision;side=juce::jlimit(0,1,side);if(albums[(size_t)side].audio.empty())return false;albumRecording=-1;engine.setPlaying(false);engine.allNotesOff();midiNotes.resetAll();guiMidiNotes.resetAll();albumHead=0;albumPlaying=side;return true;}
@@ -420,7 +433,8 @@ void FieldProcessor::stopAlbum(){const juce::ScopedLock lock(engineLock);++contr
 void FieldProcessor::clearAlbum(int side){AlbumSide retired;const juce::ScopedLock lock(engineLock);++controlRevision;side=juce::jlimit(0,1,side);if(albumPlaying==side)albumPlaying=-1;if(albumRecording==side)albumRecording=-1;retired=std::move(albums[(size_t)side]);albums[(size_t)side]=AlbumSide{};}
 double FieldProcessor::albumDuration(int side) const {const juce::ScopedLock lock(engineLock);const auto& a=albums[(size_t)juce::jlimit(0,1,side)];return a.audio.size()/a.rate;}
 bool FieldProcessor::exportAlbum(int side,const juce::File& file,juce::String& error){const std::lock_guard<std::mutex> encode(mediaEncodeMutex);try{AlbumSide audio;{const juce::ScopedLock lock(engineLock);audio=albums[(size_t)juce::jlimit(0,1,side)];}if(audio.audio.empty()){error="Record this album side before exporting.";return false;}juce::TemporaryFile temp(file);auto stream=temp.getFile().createOutputStream();if(!stream){error="Cannot write destination.";return false;}auto* raw=stream.release();juce::WavAudioFormat wav;std::unique_ptr<juce::AudioFormatWriter> writer(wav.createWriterFor(raw,audio.rate,2,24,{},0));if(!writer){delete raw;error="Cannot create album WAV.";return false;}auto left=audio.audio.exportChannel(0),right=audio.audio.exportChannel(1);const float* channels[]{left.data(),right.data()};bool ok=writer->writeFromFloatArrays(channels,2,(int)left.size());writer.reset();if(!fileJobs.beginCommit()){error="Cancelled";return false;}if(!ok||!temp.overwriteTargetFileWithTemporary()){error="Could not finish writing album WAV.";return false;}return true;}catch(const std::exception& failure){error=failure.what();return false;}}
-void FieldProcessor::transport(const juce::String& action){std::deque<std::array<field::Track,4>> retired;const juce::StringArray edits{"copy","lift","drop","merge","join","slideBack","slideForward","bounce","clear","split"};int edit=edits.indexOf(action);if(edit>=0){const field::TapeEditAction kinds[]{field::TapeEditAction::copy,field::TapeEditAction::lift,field::TapeEditAction::drop,field::TapeEditAction::merge,field::TapeEditAction::join,field::TapeEditAction::slide,field::TapeEditAction::slide,field::TapeEditAction::bounce,field::TapeEditAction::clear,field::TapeEditAction::split};double delta=edit==5||edit==6?60./std::max(30.f,(hostSync||value("midiClockMode")==1||(value("midiClockMode")==2&&value("tempoTapeLink")>.5f))?effectiveTempo.load():value("tempo"))*(edit==5?-1:1):0;prepareTapeOperation(kinds[edit],delta);return;}if(action=="record"){startTapeRecording();return;}const juce::ScopedLock lock(engineLock);++controlRevision;
+void FieldProcessor::transport(const juce::String& action){if(action=="stop"||action=="panic")cancelMediaJob();std::deque<std::array<field::Track,4>> retired;const juce::StringArray edits{"copy","lift","drop","merge","join","slideBack","slideForward","bounce","clear","split"};int edit=edits.indexOf(action);if(edit>=0){const field::TapeEditAction kinds[]{field::TapeEditAction::copy,field::TapeEditAction::lift,field::TapeEditAction::drop,field::TapeEditAction::merge,field::TapeEditAction::join,field::TapeEditAction::slide,field::TapeEditAction::slide,field::TapeEditAction::bounce,field::TapeEditAction::clear,field::TapeEditAction::split};double delta=edit==5||edit==6?60./std::max(30.f,(hostSync||value("midiClockMode")==1||(value("midiClockMode")==2&&value("tempoTapeLink")>.5f))?effectiveTempo.load():value("tempo"))*(edit==5?-1:1):0;prepareTapeOperation(kinds[edit],delta);return;}if(action=="record"){startTapeRecording();return;}const juce::ScopedLock lock(engineLock);flushLiveControls();++controlRevision;
+    if(action=="stop"||action=="panic")invalidateLiveControls();
     if(action=="discardHistory")engine.discardTapeHistory();
     else if(action=="play")engine.setPlaying(!engine.playing());
     else if(action=="stop"){albumRecording=-1;albumPlaying=-1;engine.setRecording(false);engine.setPlaying(false);engine.allNotesOff();midiNotes.resetAll();guiMidiNotes.resetAll();engine.setTapeReverse(false);engine.setTapeBrake(false);engine.setTapeRoll(false);}
@@ -438,14 +452,16 @@ double FieldProcessor::snapTapeTime(double seconds)const {seconds=juce::jlimit(0
 void FieldProcessor::setTapePerformance(int control,bool down){const juce::ScopedLock lock(engineLock);if(control==0)engine.setTapeBrake(down);else if(control==1)engine.setTapeReverse(down);else if(control==2)engine.setTapeRoll(down,.25f);}
 void FieldProcessor::releaseTapePerformance(){const juce::ScopedLock lock(engineLock);engine.setTapeBrake(false);engine.setTapeReverse(false);engine.setTapeRoll(false);}
 void FieldProcessor::setTrack(int i){const juce::ScopedLock lock(engineLock);++controlRevision;engine.setRecording(false);engine.selectTrack(i);publishControlUiState();}
-void FieldProcessor::selectTape(int i){std::deque<std::array<field::Track,4>> retired;const juce::ScopedLock lock(engineLock);++controlRevision;i=juce::jlimit(0,7,i);if(i==currentTape)return;engine.setRecording(false);engine.setPlaying(false);tapes[(size_t)currentTape].position=engine.positionSeconds();tapes[(size_t)currentTape].tracks=std::move(engine.tracks());currentTape=i;engine.tracks()=std::move(tapes[(size_t)i].tracks);engine.tapeBankChanged();engine.seek(tapes[(size_t)i].position);if(engine.hasRetiredTape())retired=engine.takeRetiredTape();}
+void FieldProcessor::selectTape(int i){std::deque<std::array<field::Track,4>> retired;const juce::ScopedLock lock(engineLock);flushLiveControls();++controlRevision;i=juce::jlimit(0,7,i);if(i==currentTape)return;engine.setRecording(false);engine.setPlaying(false);tapes[(size_t)currentTape].position=engine.positionSeconds();tapes[(size_t)currentTape].tracks=std::move(engine.tracks());currentTape=i;engine.tracks()=std::move(tapes[(size_t)i].tracks);engine.tapeBankChanged();engine.seek(tapes[(size_t)i].position);if(engine.hasRetiredTape())retired=engine.takeRetiredTape();}
 void FieldProcessor::newProject(){
-    useDeviceInput();
-    double rate;int block;uint64_t epoch,request;{const juce::ScopedLock lock(engineLock);rate=engine.sampleRate();block=juce::jmax(512,getBlockSize());epoch=documentEpoch;request=++controlRevision;}
+    if(!mediaJobs.onWorker())mediaJobs.cancel();
+    double rate;int block;uint64_t epoch,request,queuedRevision;{const juce::ScopedLock lock(engineLock);queuedRevision=liveCommands.producerPosition();flushLiveControls();rate=engine.sampleRate();block=juce::jmax(512,getBlockSize());epoch=documentEpoch;request=++controlRevision;}
     try {auto fresh=std::make_unique<field::Engine>();fresh->prepare(rate,block);auto freshMaster=std::make_unique<field::Engine>();freshMaster->prepare(rate,512);freshMaster->setOutputGainImmediately(1);std::array<TapeState,8> oldTapes;std::array<AlbumSide,2> oldAlbums;std::array<juce::ValueTree,16> oldSlots;std::array<juce::ValueTree,2> oldMemos;std::shared_ptr<const SampleData> emptySample=std::make_shared<SampleData>();field::TapeAudio oldCapture;juce::var oldMetadata;
-        const juce::ScopedLock lock(engineLock);const juce::ScopedLock worker(sampleWorkerLock);if(epoch!=documentEpoch||request!=controlRevision){reportOperationError("New project cancelled: a newer operation superseded it.");return;}
-        ++documentEpoch;++controlRevision;++sampleRequest;std::swap(engine,*fresh);std::swap(masterFx,*freshMaster);tapes.swap(oldTapes);albums.swap(oldAlbums);patchSlots.swap(oldSlots);patchSlots=defaultPatchSlots;refreshSlotNameCache();memos.swap(oldMemos);sampleData.swap(emptySample);oldCapture=std::move(captureAudio);oldMetadata=std::move(importedPresetMetadata);importedPresetMetadata=juce::var{};
-        midiLearn.clearAll();midiClockFollower.reset();midiClockGenerator.reset();midiPositionValid=false;controllerValues.fill(-1);midiNotes.resetAll();guiMidiNotes.resetAll();albumRecording=-1;albumPlaying=-1;albumHead=0;currentTape=0;currentProgram=0;drumMode=false;masterState={};selectionStart=0;selectionEnd=4;tapeEditMask=0;tapeSnap=false;engine.setLoop(0,4);projectName="Untitled";sampleRateFile=44100;sampleName="No sample loaded";sampling=false;captureArmed=false;captureAutoStop=false;captureExhausted=false;lastImportSummary.clear();lastImportDetails.clear();for(auto* parameter:getParameters())if(auto* ranged=dynamic_cast<juce::RangedAudioParameter*>(parameter))ranged->setValueNotifyingHost(ranged->getDefaultValue());
+        if(mediaJobs.applyOnControl([&]{
+        const juce::ScopedLock lock(engineLock);const juce::ScopedLock worker(sampleWorkerLock);if(queuedRevision!=liveCommands.producerPosition()||epoch!=documentEpoch||request!=controlRevision){reportOperationError("New project cancelled: a newer operation superseded it.");return;}
+        invalidateLiveControls();++documentEpoch;++controlRevision;++sampleRequest;externalCapture.suspend();externalSourceName="Device / DAW input";std::swap(engine,*fresh);std::swap(masterFx,*freshMaster);tapes.swap(oldTapes);albums.swap(oldAlbums);patchSlots.swap(oldSlots);patchSlots=defaultPatchSlots;refreshSlotNameCache();memos.swap(oldMemos);sampleData.swap(emptySample);oldCapture=std::move(captureAudio);oldMetadata=std::move(importedPresetMetadata);importedPresetMetadata=juce::var{};
+        midiLearn.clearAll();midiClockFollower.reset();midiClockGenerator.reset();midiPositionValid=false;controllerValues.fill(-1);midiNotes.resetAll();guiMidiNotes.resetAll();albumRecording=-1;albumPlaying=-1;albumHead=0;currentTape=0;currentProgram=0;drumMode=false;masterState={};selectionStart=0;selectionEnd=4;tapeEditMask=0;tapeSnap=false;engine.setLoop(0,4);projectName="Untitled";sampleRateFile=44100;sampleName="No sample loaded";sampling=false;captureArmed=false;captureAutoStop=false;captureExhausted=false;lastImportSummary.clear();lastImportDetails.clear();for(auto* parameter:getParameters())if(auto* ranged=dynamic_cast<juce::RangedAudioParameter*>(parameter))ranged->setValueNotifyingHost(ranged->getDefaultValue());updateEngine();publishControlUiState();
+        }))stopSuspendedCapture();
     }catch(const std::exception& error){reportOperationError(error.what());}
 }
 
@@ -456,11 +472,11 @@ void restoreDbox(field::Engine& engine,const juce::var& value){if(auto* rows=val
 juce::ValueTree readCompressedState(juce::InputStream& input){juce::GZIPDecompressorInputStream zipped(input);juce::MemoryBlock raw;std::array<char,65536> chunk{};constexpr size_t max=512u*1024u*1024u;for(;;){int count=zipped.read(chunk.data(),(int)chunk.size());if(count<=0)break;if(raw.getSize()+(size_t)count>max)throw std::runtime_error("Project decompressed size exceeds 512 MB");raw.append(chunk.data(),(size_t)count);}return juce::ValueTree::readFromData(raw.getData(),raw.getSize());}
 std::vector<float> unpackFloats(const juce::var& v,size_t limit){auto* b=v.getBinaryData();if(!b||b->getSize()%4!=0||b->getSize()/4>limit)throw std::runtime_error("Invalid audio payload");std::vector<float> f(b->getSize()/4);std::memcpy(f.data(),b->getData(),b->getSize());for(auto& s:f)s=std::isfinite(s)?juce::jlimit(-4.f,4.f,s):0;return f;}
 }
-void FieldProcessor::storeMemo(int i){const juce::ScopedLock lock(engineLock);i=juce::jlimit(0,1,i);juce::ValueTree memo("MEMO");memo.addChild(copyParameterState(),-1,nullptr);for(int j=0;j<4;++j){juce::ValueTree track("TRACK");track.setProperty("level",engine.trackLevel(j),nullptr);track.setProperty("pan",engine.trackPan(j),nullptr);track.setProperty("mute",engine.trackMute(j),nullptr);track.setProperty("solo",engine.trackSolo(j),nullptr);memo.addChild(track,-1,nullptr);}memos[(size_t)i]=memo;}
-void FieldProcessor::recallMemo(int i){const juce::ScopedLock lock(engineLock);auto memo=memos[(size_t)juce::jlimit(0,1,i)];if(!memo.isValid())return;for(auto param:memo.getChildWithName("PARAMETERS")){auto id=param["id"].toString();if(id.startsWith("master")||id.startsWith("compressor")||id=="volume"||id=="tapeSpeed")if(auto* target=parameters.getParameter(id))target->setValueNotifyingHost(target->convertTo0to1((float)param["value"]));}int j=0;for(auto track:memo)if(track.hasType("TRACK")&&j<4){engine.setTrackLevel(j,(float)track["level"]);engine.setTrackPan(j,(float)track["pan"]);engine.setTrackMute(j,(bool)track["mute"]);engine.setTrackSolo(j,(bool)track["solo"]);++j;}updateEngine();}
+void FieldProcessor::storeMemo(int i){const juce::ScopedLock lock(engineLock);flushLiveControls();i=juce::jlimit(0,1,i);juce::ValueTree memo("MEMO");memo.addChild(copyParameterState(),-1,nullptr);for(int j=0;j<4;++j){juce::ValueTree track("TRACK");track.setProperty("level",engine.trackLevel(j),nullptr);track.setProperty("pan",engine.trackPan(j),nullptr);track.setProperty("mute",engine.trackMute(j),nullptr);track.setProperty("solo",engine.trackSolo(j),nullptr);memo.addChild(track,-1,nullptr);}memos[(size_t)i]=memo;}
+void FieldProcessor::recallMemo(int i){const juce::ScopedLock lock(engineLock);flushLiveControls();auto memo=memos[(size_t)juce::jlimit(0,1,i)];if(!memo.isValid())return;for(auto param:memo.getChildWithName("PARAMETERS")){auto id=param["id"].toString();if(id.startsWith("master")||id.startsWith("compressor")||id=="volume"||id=="tapeSpeed")if(auto* target=parameters.getParameter(id))target->setValueNotifyingHost(target->convertTo0to1((float)param["value"]));}int j=0;for(auto track:memo)if(track.hasType("TRACK")&&j<4){engine.setTrackLevel(j,(float)track["level"]);engine.setTrackPan(j,(float)track["pan"]);engine.setTrackMute(j,(bool)track["mute"]);engine.setTrackSolo(j,(bool)track["solo"]);++j;}updateEngine();}
 juce::ValueTree FieldProcessor::captureSound(){
     juce::ValueTree patch("PATCH");std::shared_ptr<const SampleData> data;juce::var metadata;
-    {const juce::ScopedLock lock(engineLock);data=sampleData;metadata=importedPresetMetadata;patch.setProperty("drum",drumMode.load(),nullptr);auto sound=copyParameterState();for(int i=sound.getNumChildren();--i>=0;)if(!field::PresetLibrary::soundParameter(sound.getChild(i)["id"].toString()))sound.removeChild(i,nullptr);patch.addChild(sound,-1,nullptr);patch.setProperty("rate",sampleRateFile,nullptr);patch.setProperty("name",sampleName,nullptr);patch.setProperty("importSummary",lastImportSummary,nullptr);patch.setProperty("importDetails",lastImportDetails,nullptr);
+    {const juce::ScopedLock lock(engineLock);flushLiveControls();data=sampleData;metadata=importedPresetMetadata;patch.setProperty("drum",drumMode.load(),nullptr);auto sound=copyParameterState();for(int i=sound.getNumChildren();--i>=0;)if(!field::PresetLibrary::soundParameter(sound.getChild(i)["id"].toString()))sound.removeChild(i,nullptr);patch.addChild(sound,-1,nullptr);patch.setProperty("rate",sampleRateFile,nullptr);patch.setProperty("name",sampleName,nullptr);patch.setProperty("importSummary",lastImportSummary,nullptr);patch.setProperty("importDetails",lastImportDetails,nullptr);
 juce::Array<juce::var> pads;for(int i=0;i<24;++i){auto p=engine.drumPad(i);juce::Array<juce::var> row{p.start,p.end,p.tune,p.level,p.pan,p.reverse,p.mode,p.chokeGroup};pads.add(row);}patch.setProperty("pads",pads,nullptr);juce::Array<juce::var> dbox;for(int i=0;i<24;++i){auto p=engine.dboxPad(i);juce::Array<juce::var> row{p.mix,p.wave1,p.envelope1,p.crossMod,p.frequency,p.wave2,p.envelope2,p.cutoff,p.attack,p.gain,p.release,p.smooth};dbox.add(row);}patch.setProperty("dbox",dbox,nullptr);}
     patch.setProperty("left",packFloats(data->left),nullptr);patch.setProperty("right",packFloats(data->right),nullptr);patch.setProperty("metadata",juce::JSON::toString(metadata),nullptr);return patch;
 }
@@ -491,7 +507,7 @@ void FieldProcessor::recallPatchSlot(int slot,int explicitSlot){
 bool FieldProcessor::loadSound(const juce::ValueTree& source,int slot,bool drum,juce::String& error){
     if(!source.hasType("PATCH")||!source.getChildWithName("PARAMETERS").isValid()||(source.hasProperty("drum")&&(bool)source["drum"]!=drum)){error="Invalid sound preset.";return false;}
     try {auto patch=source.createCopy();uint64_t epoch,request,slotRequest;slot=juce::jlimit(0,7,slot)+(drum?8:0);
-    {const juce::ScopedLock lock(engineLock);request=++sampleRequest;slotRequest=++patchStoreRequest[(size_t)slot];epoch=documentEpoch;}
+    {const juce::ScopedLock lock(engineLock);flushLiveControls();request=++sampleRequest;slotRequest=++patchStoreRequest[(size_t)slot];epoch=documentEpoch;}
     const double rate=(double)patch["rate"];if(!std::isfinite(rate)||rate<8000||rate>192000)throw std::runtime_error("Invalid patch sample rate");auto next=std::make_shared<SampleData>();next->rate=rate;next->left=unpackFloats(patch["left"],(size_t)(rate*120));next->right=unpackFloats(patch["right"],(size_t)(rate*120));if(next->left.size()!=next->right.size())throw std::runtime_error("Patch channels do not match");auto prepared=field::Engine::prepareSample(next->left,next->right,rate);auto metadata=juce::JSON::parse(patch["metadata"].toString());std::array<float,P_count> values{};std::array<bool,P_count> present{};
         for(auto param:patch.getChildWithName("PARAMETERS")){auto id=param["id"].toString();bool allowed=field::PresetLibrary::soundParameter(id);if(allowed)for(int key=0;key<P_count;++key)if(parameterIds[(size_t)key]==id){const float incoming=(float)param["value"];if(!std::isfinite(incoming))throw std::runtime_error("Invalid patch parameter");values[(size_t)key]=incoming;present[(size_t)key]=true;}}
         if(!present[(size_t)P_engine])throw std::runtime_error("Preset has no synthesis engine.");
@@ -503,7 +519,7 @@ bool FieldProcessor::loadSound(const juce::ValueTree& source,int slot,bool drum,
 
 juce::ValueTree FieldProcessor::makeState(){
     std::array<TapeState,8> tapeSnapshot;std::array<AlbumSide,2> albumSnapshot;field::TapeAudio captureSnapshot;std::shared_ptr<const SampleData> sampleSnapshot;std::array<juce::ValueTree,16> slotSnapshot;std::array<juce::ValueTree,2> memoSnapshot;juce::var metadataSnapshot;bool savingCapture=false;juce::ValueTree root("FIELD_STUDIO");
-    {const juce::ScopedLock lock(engineLock);
+    {const juce::ScopedLock lock(engineLock);flushLiveControls();
     sampleSnapshot=sampleData;slotSnapshot=patchSlots;memoSnapshot=memos;metadataSnapshot=importedPresetMetadata;albumSnapshot=albums;savingCapture=sampling&&!captureAudio.empty();captureSnapshot=captureAudio;
     tapeSnapshot=tapes;tapeSnapshot[(size_t)currentTape].tracks=engine.tracks();tapeSnapshot[(size_t)currentTape].position=engine.positionSeconds();
     root.setProperty("version",1,nullptr);root.setProperty("name",projectName,nullptr);root.setProperty("sampleRate",engine.sampleRate(),nullptr);root.setProperty("tape",currentTape,nullptr);root.setProperty("program",currentProgram,nullptr);root.setProperty("track",engine.selectedTrack(),nullptr);root.setProperty("position",engine.positionSeconds(),nullptr);root.setProperty("in",selectionStart,nullptr);root.setProperty("out",selectionEnd,nullptr);root.setProperty("drum",drumMode.load(),nullptr);root.setProperty("hostSync",hostSync.load(),nullptr);root.setProperty("metronome",metronome.load(),nullptr);root.setProperty("monitorInput",inputMonitor.load(),nullptr);root.setProperty("tapeEditMask",tapeEditMask.load(),nullptr);root.setProperty("tapeSnap",tapeSnap.load(),nullptr);
@@ -529,7 +545,7 @@ juce::ValueTree FieldProcessor::makeState(){
 }
 void FieldProcessor::restoreState(const juce::ValueTree& root){
     if(!root.hasType("FIELD_STUDIO")||(int)root["version"]!=1)throw std::runtime_error("Not a supported Field Studio project");
-    double targetSr;int targetBlock;uint64_t epoch,request;{const juce::ScopedLock lock(engineLock);targetSr=engine.sampleRate();targetBlock=juce::jmax(512,getBlockSize());epoch=documentEpoch;request=++controlRevision;}
+    double targetSr;int targetBlock;uint64_t epoch,request,queuedRevision;{const juce::ScopedLock lock(engineLock);queuedRevision=liveCommands.producerPosition();flushLiveControls();targetSr=engine.sampleRate();targetBlock=juce::jmax(512,getBlockSize());epoch=documentEpoch;request=++controlRevision;}
     double sr=(double)root["sampleRate"];if(!std::isfinite(sr)||sr<8000||sr>192000)throw std::runtime_error("Invalid sample rate");
     int active=juce::jlimit(0,7,(int)root["tape"]);std::array<TapeState,8> restored;
     auto sample=root.getChildWithName("SAMPLE");double sampleSr=(double)sample["rate"];
@@ -559,18 +575,56 @@ void FieldProcessor::restoreState(const juce::ValueTree& root){
     auto memories=root.getChildWithName("MEMORIES");for(int i=0;i<2;++i)nextMemos[(size_t)i]=memories.isValid()&&i<memories.getNumChildren()?memories.getChild(i).getChild(0).createCopy():juce::ValueTree{};
     auto slots=root.getChildWithName("SLOTS");for(int i=0;i<16;++i)nextSlots[(size_t)i]=slots.isValid()&&i<slots.getNumChildren()?slots.getChild(i).getChild(0).createCopy():juce::ValueTree{};
     nextEngine->resetDboxPads();restoreDbox(*nextEngine,root["dbox"]);nextEngine->resetDrumPads();auto pads=root.getChildWithName("PADS");if(pads.isValid()){for(int i=0;i<std::min(24,pads.getNumChildren());++i){auto node=pads.getChild(i);field::DrumPad pad;pad.start=(float)node["start"];pad.end=(float)node["end"];pad.tune=(float)node["tune"];pad.level=(float)node["level"];pad.pan=(float)node["pan"];pad.reverse=(bool)node["reverse"];pad.mode=(int)node["mode"];pad.chokeGroup=(int)node["choke"];nextEngine->setDrumPad(i,pad);}nextEngine->setSelectedPad((int)pads["selected"]);}
+    if(!mediaJobs.applyOnControl([&]{
     const juce::ScopedLock lock(engineLock);const juce::ScopedLock worker(sampleWorkerLock);
-    if(epoch!=documentEpoch||request!=controlRevision||targetSr!=engine.sampleRate())throw std::runtime_error("Project load cancelled: a newer operation or sample-rate change superseded it.");
-    ++documentEpoch;++controlRevision;++sampleRequest;externalCapture.stop();externalSourceName="Device / DAW input";sampling=false;captureArmed=false;captureAutoStop=false;retiredCapture=std::move(captureAudio);captureExhausted=false;
+    if(queuedRevision!=liveCommands.producerPosition()||epoch!=documentEpoch||request!=controlRevision||targetSr!=engine.sampleRate())throw std::runtime_error("Project load cancelled: a newer operation or sample-rate change superseded it.");
+    invalidateLiveControls();++documentEpoch;++controlRevision;++sampleRequest;externalCapture.suspend();externalSourceName="Device / DAW input";sampling=false;captureArmed=false;captureAutoStop=false;retiredCapture=std::move(captureAudio);captureExhausted=false;
     std::swap(engine,*nextEngine);tapes.swap(restored);albums.swap(loadedAlbums);memos.swap(nextMemos);patchSlots.swap(nextSlots);refreshSlotNameCache();sampleData.swap(nextSample);retiredMetadata=std::move(importedPresetMetadata);importedPresetMetadata=std::move(nextMetadata);retiredParameters=parameters.state;
     midiNotes.resetAll();guiMidiNotes.resetAll();midiClockFollower.reset();midiClockGenerator.reset();midiPositionValid=false;controllerValues.fill(-1);albumRecording=-1;albumPlaying=-1;albumHead=0;currentTape=active;currentProgram=juce::jlimit(0,7,(int)root["program"]);selectionStart=nextStart;selectionEnd=nextEnd;
     midiLearn.clearAll();for(size_t i=0;i<restoredMappings.size();++i)if(restoredMappings[i].cc>=0)midiLearn.assign(i,restoredMappings[i]);
     parameters.replaceState(root.getChildWithName("PARAMETERS"));for(int key=0;key<P_count;++key){auto* p=rawTargets[(size_t)key];p->setValue(p->convertTo0to1(restoredParameters[(size_t)key]));const float actual=cached(key);if(std::abs(actual-rawValues[(size_t)key]->load())>1e-6f)realtimeValues.fromAudio((size_t)key,actual);else realtimeValues.fromControl((size_t)key,actual);}lastImportSummary=root["importSummary"].toString();lastImportDetails=root["importDetails"].toString();sampleRateFile=sampleSr;sampleName=sample["name"].toString();projectName=root["name"].toString();drumMode=(bool)root["drum"];hostSync=(bool)root["hostSync"];metronome=(bool)root["metronome"];inputMonitor=(bool)root["monitorInput"];hostPositionValid=false;tapeEditMask=juce::jlimit(0,15,(int)root["tapeEditMask"]);tapeSnap=(bool)root["tapeSnap"];
 
-    updateEngine();
+    updateEngine();publishControlUiState();
+    }))throw std::runtime_error("Cancelled");
+    stopSuspendedCapture();
 }
 void FieldProcessor::getStateInformation(juce::MemoryBlock& out){const std::lock_guard<std::mutex> encode(mediaEncodeMutex);auto state=makeState();out.reset();juce::MemoryOutputStream stream(out,false);{juce::GZIPCompressorOutputStream compressed(stream,3);state.writeToStream(compressed);}}
 void FieldProcessor::setStateInformation(const void* data,int bytes){try{if(bytes<=0||bytes>512*1024*1024)return;juce::MemoryInputStream input(data,(size_t)bytes,false);auto state=readCompressedState(input);restoreState(state);}catch(const std::exception& error){reportOperationError(error.what());}}
+bool FieldProcessor::requestFileRead(int action,const juce::File& file){
+    if(action!=0&&action!=1&&action!=3)return false;
+    if(action==0)return admitMediaJob("New project",[this]{newProject();});
+    return admitMediaJob((action==1?"Open ":"Import ")+file.getFileName().toStdString(),[this,action,file]{
+        juce::String error;const bool ok=action==1?loadProject(file,error):loadSampleFile(file,error);
+        if(!ok&&error!="Cancelled")mediaJobs.failCurrent(error.toStdString());
+    });
+}
+bool FieldProcessor::requestTransport(const juce::String& action){
+    if(action=="stop"||action=="panic")cancelMediaJob();
+    const juce::StringArray heavy{"record","copy","lift","drop","merge","join","slideBack","slideForward","bounce","clear","split","undo","redo","discardHistory"};
+    if(action=="stop"||action=="panic"){requestLiveStop(action=="panic");return true;}
+    if(action=="play")return requestLiveControl(field::LiveControl::play);
+    if(action=="rewind")return requestLiveControl(field::LiveControl::rewind);
+    if(action=="back"||action=="forward")return requestLiveControl(field::LiveControl::seekRelative,0,0,action=="back"?-1:1);
+    if(!heavy.contains(action)){transport(action);return true;}
+    // A second Record cancels pending preparation instead of starting a backlog.
+    if(action=="record"&&mediaJobs.busy())return cancelMediaJob();
+    return admitMediaJob("Tape "+action.toStdString(),[this,action]{if(action=="undo"||action=="redo"||action=="discardHistory")mediaJobs.applyOnControl([&]{transport(action);});else transport(action);});
+}
+bool FieldProcessor::requestSampleCapture(bool output){
+    setValue("captureSource",output?1:0);
+    return admitMediaJob("Prepare sample capture",[this,output]{startSampleCapture(output);});
+}
+bool FieldProcessor::requestStopSampleCapture(){
+    if(mediaJobs.busy()){captureAutoStop=true;return false;}
+    finalizingCapture=true;
+    const bool admitted=admitMediaJob("Finish sample capture",[this]{
+        struct Finish{std::atomic<bool>& flag;~Finish(){flag=false;}} finish{finalizingCapture};
+        stopSampleCapture();
+    });
+    if(!admitted)finalizingCapture=false;return admitted;
+}
+bool FieldProcessor::requestAlbumRecording(int side){return admitMediaJob("Prepare album recording",[this,side]{startAlbumRecording(side);});}
+bool FieldProcessor::requestTapeSlide(double destination){return admitMediaJob("Slide tape",[this,destination]{slideTapeSelection(destination);});}
 bool FieldProcessor::requestFileWrite(int action,const juce::File& file){
     if(action!=2&&action!=4&&action!=5&&action!=6)return false;
     return fileJobs.submit((action==2?"Save ":"Export ")+file.getFileName().toStdString(),[this,action,file]{

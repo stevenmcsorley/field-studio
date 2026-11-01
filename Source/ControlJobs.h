@@ -3,6 +3,7 @@
 #include <condition_variable>
 #include <cstdint>
 #include <functional>
+#include <exception>
 #include <mutex>
 #include <stdexcept>
 #include <string>
@@ -49,16 +50,50 @@ public:
     }
     void invalidate() noexcept {gate.store(next(),std::memory_order_release);}
     void failCurrent(std::string message){if(onWorker())context.failure=std::move(message);}
+    // Worker prepares data, then waits for a control-thread publication. Captured
+    // references stay alive until serviceCommit completes or shutdown rejects it.
+    // Never call either method from the audio callback.
+    bool applyOnControl(std::function<void()> apply){
+        if(!onWorker()||context.servicing){apply();return true;}
+        if(context.committed)throw std::logic_error("A media job may publish only once");
+        std::unique_lock<std::mutex> lock(mutex);
+        if(stopping.load()||!current())return false;
+        commitWork=std::move(apply);commitGeneration=context.generation;
+        commitFinished=false;commitAccepted=false;commitFailure=nullptr;commitWaiting=true;
+        ready.notify_all();ready.wait(lock,[this]{return commitFinished;});
+        context.committed=commitAccepted;
+        if(commitFailure)std::rethrow_exception(commitFailure);
+        return commitAccepted;
+    }
+    void serviceCommit(){
+        std::function<void()> apply;uint64_t generation=0;
+        {std::lock_guard<std::mutex> lock(mutex);if(!commitWaiting)return;
+            commitWaiting=false;generation=commitGeneration;auto expected=generation;
+            if(stopping.load()||!gate.compare_exchange_strong(expected,generation|committing,std::memory_order_acq_rel)){
+                commitWork={};commitFinished=true;ready.notify_all();return;
+            }
+            commitStarted=true;apply=std::move(commitWork);
+        }
+        auto previous=std::move(context);context={this,generation,true,{}};context.servicing=true;std::exception_ptr failure;
+        try{apply();}catch(...){failure=std::current_exception();}
+        context=std::move(previous);apply={};
+        {std::lock_guard<std::mutex> lock(mutex);commitFailure=failure;commitAccepted=true;commitStarted=false;commitFinished=true;}
+        ready.notify_all();
+    }
     std::string status(){std::lock_guard<std::mutex> lock(mutex);return statusText;}
     void shutdown(){
         if(onWorker())std::terminate();
-        if(!stopping.exchange(true)){invalidate();ready.notify_one();}
+        if(!stopping.exchange(true)){
+            invalidate();
+            {std::lock_guard<std::mutex> lock(mutex);if(!commitStarted){commitWork={};commitWaiting=false;commitFinished=true;}}
+            ready.notify_all();
+        }
         if(worker.joinable())worker.join();
     }
 private:
     static constexpr uint64_t committing=uint64_t{1}<<63,mask=committing-1;
     static_assert(std::atomic<uint64_t>::is_always_lock_free);
-    struct Context {ControlJobs* owner=nullptr;uint64_t generation=0;bool committed=false;std::string failure;};
+    struct Context {ControlJobs* owner=nullptr;uint64_t generation=0;bool committed=false;std::string failure;bool servicing=false;};
     static thread_local Context context;
     std::atomic<uint64_t> serial{0},gate{0};
     std::atomic<bool> busyFlag{false},mutatingFlag{false},stopping{false};
@@ -68,6 +103,9 @@ private:
     std::string pendingLabel,statusText;
     uint64_t pendingGeneration=0;
     bool hasWork=false;
+    std::function<void()> commitWork;uint64_t commitGeneration=0;
+    bool commitWaiting=false,commitStarted=false,commitFinished=false,commitAccepted=false;
+    std::exception_ptr commitFailure;
     std::thread worker;
     uint64_t next() noexcept {return (serial.fetch_add(1,std::memory_order_relaxed)+1)&mask;}
     void run(){

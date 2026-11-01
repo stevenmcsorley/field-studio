@@ -51,6 +51,9 @@ public:
         if(const auto request=panicFence.exchange(0,std::memory_order_acq_rel)){const auto fence=request&Queue::positionMask;if(!older(position,fence)){deferred=next;deferredPosition=position;hasDeferred=true;}return emitPanic(request,event);}
         event=next;return true;
     }
+    // Consume a pending reset at the block boundary, before fresh host MIDI.
+    // emitPanic discards only pre-fence GUI events, retaining newer GUI notes.
+    bool consumePanic() noexcept {if(const auto request=panicFence.exchange(0,std::memory_order_acq_rel)){KeyboardEvent event;emitPanic(request,event);return true;}return false;}
     void clearIncoming() noexcept {for(auto& keys:inputKeys)keys.store(0,std::memory_order_relaxed);}
     uint32_t overflowCount() const noexcept {return overflows.load(std::memory_order_relaxed);}
 private:

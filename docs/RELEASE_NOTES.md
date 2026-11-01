@@ -1,4 +1,4 @@
-# Field Studio 0.2.2 beta 9
+# Field Studio 0.2.2 beta 10
 
 Reliability update to the portable multi-platform beta of the independent synthesizer, sampler and four-track stereo tape instrument. Exact OP-1 field sound, feature and visual parity is not established.
 
@@ -15,7 +15,17 @@ Original Field Studio code/graphics: **MIT**. Combined app/plugin binaries with 
 
 Each download has a SHA-256 sidecar. Binary bundles include installation instructions, dependency notices and a per-file hash manifest. These are portable archives, not signed installers. Windows binaries are unsigned; macOS binaries are not Developer ID signed/notarized. The project owner reports working plugin operation, automation, Faderfox assignment and BeatStep use; DAW/OS/model details were not recorded. Broader device/host coverage remains open.
 
-## Added in beta 9
+## Added in beta 10
+
+- Bounded audio-command handoff for frequent live controls, with independent stop/panic and tape-performance releases.
+- Background New/Open/Import, tape preparation/edits and sample/album preparation. Message-thread publication, cancellation before publication and shutdown handling; captured-sample finalization is protected once admitted.
+- Short crossfades for capture backlog recovery/re-priming and fade-out on underrun. Device open/close moved out of the source-selection engine guard.
+- MCP telemetry polling and queued transport/manual advance, with documented asynchronous replies.
+- Regression checks for job publication/cancellation/shutdown, queue saturation, callback allocation/free behavior, transition continuity and concurrent render/control traffic across four rates and two buffer sizes.
+
+The final engine guard, synchronous preset/device operations, history publication and host state paths remain. Synthetic tests do not establish physical-device reliability or zero-dropout concurrent loading. No signing credentials, total process-memory cap or exact hardware parity are added. See docs/PERFORMANCE.md.
+
+## Retained from beta 9
 
 **Audio/UI performance (beta 9):** cached DSP calculations, lock-free GUI telemetry, narrower repaints and adaptive external-capture buffering. **COM → Audio / performance** provides diagnostics, 48 kHz/256 or 512-frame presets and output-only playback. Local synthetic active workloads showed 17–53% lower mean callback cost with matching checksums; physical latency and long-session reliability remain unverified. [Setup, measurements and limits](PERFORMANCE.md).
 

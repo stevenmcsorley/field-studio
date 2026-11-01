@@ -126,6 +126,9 @@ private:
     float scale=1;
     field::CwoAnimation insertCwoMotion,masterCwoMotion;
     double effectAnimationTime=0;
+    bool observedMediaJob=false;
+    bool showImportedSound=false;
+    double pendingTapeSlide=-1;
     bool observedFileWrite=false;
     juce::String status=juce::String::fromUTF8("Ready · play the keys or connect MIDI");
     juce::String observedLearnTarget;

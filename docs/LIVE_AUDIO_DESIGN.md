@@ -1,5 +1,7 @@
 # Continuous audio design — phase 6 migration
 
+Beta 10 adds a fixed-payload audio command queue for frequent controls and a bounded media-preparation worker with message-thread publication/cancellation. Capture transitions are smoothed and device shutdown is moved out of the source-selection engine guard. The audio callback still takes the final engine guard. Host state, prepared document/tape commits, history and some remaining reads/controls have not completed the exclusive-ownership migration. See [current performance and operation notes](PERFORMANCE.md#beta-10-control-and-preparation).
+
 Status: original audit 2026-10-30; foundations and live paged tape/album/capture storage integrated 2026-10-31. See AUDIO_REWRITE_PROGRESS.md. The control/command ownership migration and dropout-free acceptance remain unfinished. The sections below retain the original audit context where noted; they are architectural requirements, not a completion claim.
 
 ## Current implementation update

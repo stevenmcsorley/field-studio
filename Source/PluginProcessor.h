@@ -9,6 +9,7 @@
 #include "ControlBridge.h"
 #include "CaptureInput.h"
 #include "UiTelemetry.h"
+#include "LiveCommands.h"
 #include "PresetLibrary.h"
 #include <mutex>
 
@@ -51,7 +52,7 @@ public:
     void stopSampleCapture();
     bool captureIsOutput() const {return captureFromOutput;}
     void startSelectedCapture(){startSampleCapture(value("captureSource")>.5f);}
-    juce::StringArray captureDevices(){externalSourceNames=externalCapture.devices();return externalSourceNames;}
+    juce::StringArray captureDevices();
     bool selectCaptureDevice(int index,juce::String& error);
     void useDeviceInput();
     juce::String captureInputName(){const juce::ScopedLock lock(engineLock);return externalSourceName;}
@@ -95,6 +96,20 @@ public:
     juce::String fileWriteStatus(){return fileJobs.status();}
     bool saveProject(const juce::File&, juce::String& error);
     bool loadProject(const juce::File&, juce::String& error);
+    bool requestFileRead(int action,const juce::File&);
+    bool requestTransport(const juce::String& action);
+    bool requestSampleCapture(bool fromOutput);
+    bool requestStopSampleCapture();
+    bool requestAlbumRecording(int side);
+    bool requestTapeSlide(double destination);
+    bool requestLiveControl(field::LiveControl,int a=0,int b=0,double x=0,double y=0);
+    void requestLiveStop(bool panic=false);
+    void requestTapePerformance(int control,bool down){if(control>=0&&control<3){const unsigned bit=1u<<control;auto previous=livePerformance.load();while(!livePerformance.compare_exchange_weak(previous,((down?previous|bit:previous&~bit)|8u))){} }}
+    void requestTapePerformanceRelease(){livePerformance=8;}
+    std::atomic<uint64_t> rejectedLiveCommands{0};
+    bool mediaJobBusy() const {return mediaJobs.busy();}
+    bool cancelMediaJob(){return !finalizingCapture.load()&&mediaJobs.cancel();}
+    juce::String mediaJobStatus(){return mediaJobs.status();}
     void transport(const juce::String& action);
     void slideTapeSelection(double destination){prepareTapeOperation(field::TapeEditAction::slide,destination,true);}
     void setTrack(int);
@@ -182,6 +197,22 @@ private:
     void prepareTapeOperation(field::TapeEditAction,double delta=0,bool absolute=false);
     void reportOperationError(const juce::String&);
     field::ControlJobs fileJobs;
+    field::ControlJobs mediaJobs;
+    bool admitMediaJob(std::string label,std::function<void()> work){if(mediaJobs.submit(std::move(label),std::move(work)))return true;reportOperationError("A media operation is already running. Wait or cancel it in COM.");return false;}
+    std::atomic<bool> finalizingCapture{false};
+    std::mutex liveProducerMutex; // never used by audio
+    field::RtQueue<field::LiveCommand,512> liveCommands;
+    std::atomic<uint64_t> liveEpoch{0};
+    std::atomic<unsigned> urgentLiveActions{0};
+    std::atomic<unsigned> livePerformance{0};
+    std::atomic<bool> controlTelemetryRequested{false};
+    void invalidateLiveControls();
+    void applyLiveCommands();
+    void applyUrgentLiveActions();
+    // Legacy guarded snapshot/preparation boundaries may run while a DAW has
+    // suspended callbacks. Flush a bounded queue there so saves include edits.
+    // Caller owns engineLock; never call this helper from processBlock.
+    void flushLiveControls(){updateEngine();for(int i=0;i<16;++i)applyLiveCommands();publishControlUiState();}
     std::unique_ptr<ControlBridge> controlBridge;
     std::mutex mediaEncodeMutex;
     juce::CriticalSection operationErrorLock;
@@ -207,6 +238,8 @@ private:
     bool captureFromOutput=false,captureTriggered=false;
     std::atomic<bool> captureAutoStop{false};
     CaptureInput externalCapture;
+    std::mutex captureDeviceMutex;
+    void stopSuspendedCapture();
     juce::String externalSourceName="Device / DAW input";
     juce::StringArray externalSourceNames;
     void captureBlock(const float*,const float*,int,bool);

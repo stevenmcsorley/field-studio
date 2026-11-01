@@ -1,5 +1,7 @@
 # Audio ownership rewrite — staged media preparation
 
+Beta 10 adds a fixed-payload audio command queue for frequent controls and a bounded media-preparation worker with message-thread publication/cancellation. Capture transitions are smoothed and device shutdown is moved out of the source-selection engine guard. The audio callback still takes the final engine guard. Host state, prepared document/tape commits, history and some remaining reads/controls have not completed the exclusive-ownership migration. See [current performance and operation notes](PERFORMANCE.md#beta-10-control-and-preparation).
+
 Beta 9 reduces routine GUI/maintenance lock traffic and DSP cost, adds adaptive external capture and COM audio diagnostics/presets. The engine control lock remains and can still skip audio blocks. See [performance setup and measurements](PERFORMANCE.md).
 
 The 0.2.1 beta moves the large media operations outside the live engine lock. The final short commit/UI lock remains. See [KNOWN_ISSUES.md](KNOWN_ISSUES.md) for fixed and outstanding items; this is not a completed dropout-free rewrite.
