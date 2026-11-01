@@ -322,6 +322,12 @@ int main(){
         auto owner=std::make_unique<Engine>();auto& e=*owner;e.prepare(8000,64);Parameters p;p.volume=1;p.metronome=true;p.tempo=120;e.setParameters(p);e.setOutputGainImmediately(1);e.setPlaying(true);render(e,l,r,1000);const float full=energy(l);check(full>0,"tape metronome produces reference clicks");
         p.metronomeLevel=.25f;e.setParameters(p);e.seek(0);e.setOutputGainImmediately(1);render(e,l,r,1000);check(std::abs(energy(l)/full-.0625f)<1e-5,"metronome level scales tape clicks");
         e.setPlaying(false);p.metronome=false;p.metronomeLevel=1;e.setParameters(p);e.setCountInBeats(1);e.setRecording(true);render(e,l,r,1000);const float countFull=energy(l);e.setPlaying(false);p.metronomeLevel=.25f;e.setParameters(p);e.setRecording(true);render(e,l,r,1000);check(std::abs(energy(l)/countFull-.0625f)<1e-5,"metronome level also scales count-in clicks");
+        // Clock clicks stay on song BPM when tape speed changes, including reverse.
+        e.setPlaying(false);p.metronome=true;p.metronomeLevel=1;p.tapeSpeed=1;p.metronomeSound=0;e.setParameters(p);e.rewind();e.setPlaying(true);render(e,l,r,8000);auto reference=l;
+        for(float speed:{.5f,1.5f,-1.f}){p.tapeSpeed=speed;e.setParameters(p);e.seek(speed<0?2:0);e.rewind();if(speed<0)e.seek(2);e.setPlaying(true);render(e,l,r,8000);double difference=0;for(size_t i=0;i<l.size();++i)difference+=std::abs(l[i]-reference[i]);check(difference<.001,"Metronome drifted with tape speed");}
+        for(int sound:{1,2}){p.tapeSpeed=1;p.metronomeSound=sound;e.setParameters(p);e.rewind();e.setPlaying(true);render(e,l,r,8000);double difference=0;for(size_t i=0;i<l.size();++i)difference+=std::abs(l[i]-reference[i]);check(difference>.1,"Metronome sound choices produced identical audio");}
+        p.metronomeSound=0;
+        e.setPlaying(false);p.tapeSpeed=1;p.metronome=false;e.setParameters(p);e.setCountInBeats(1);e.setRecording(true);
         p.metronomeLevel=0;e.setParameters(p);render(e,l,r,1000);check(energy(l)==0,"zero metronome level mutes count-in");p.metronomeLevel=2;e.setParameters(p);check(e.parameters().metronomeLevel==1,"metronome level clamps to unity");
     }
 

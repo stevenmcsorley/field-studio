@@ -49,6 +49,7 @@ struct Parameters {
     bool monitorInput = false;
     bool metronome = false;
     float metronomeLevel = 1;
+    int metronomeSound = 0;
     float sampleStart = 0, sampleLoopIn = 0, sampleLoopOut = 1, sampleEnd = 1;
     bool sampleLoop = false, sampleReverse = false, sampleOneShot = false;
     float sampleRootNote = 60;
@@ -344,7 +345,7 @@ private:
     unsigned clipboardMask = 0;
     size_t clipboardFrames = 0;
     int countInSetting = 0;
-    double countInRemaining = 0, countInElapsed = 0;
+    double countInRemaining = 0, countInElapsed = 0, metronomeBeat = 0;
     bool reverseHeld = false, brakeHeld = false, rollHeld = false;
     double rollBegin = 0, rollLength = 1;
 

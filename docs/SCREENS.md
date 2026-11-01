@@ -30,3 +30,7 @@ Further guide-backed comparison remains necessary for the tuner, record-screen d
 ![Guide-aligned play-mode settings, with actual software units](screenshots/envelope-play-settings.png)
 
 Mixer T1 and EQ T2 now use the full reference-inspired LCD. Mixer needles read separate tape-track peaks; EQ has band and Amount controls with persistent bypass. See [mixer and EQ controls](MIXER_EQ.md) for meter/filter limits and native screenshots.
+
+## Tempo LCD — beta 6
+
+The tempo page has original vector Song/Play BPM panels, tape ratio/cm/s/IPS, clock/link colours, metronome illustration and level strip. MIDI wait/lock values come from the actual follower; the illustration animates at engine BPM while playing, rather than measuring click phase. See [tempo controls and screenshots](TEMPO_SYNC.md).

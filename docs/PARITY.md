@@ -90,3 +90,7 @@ Dedicated reference-based LCDs and corrected synth control roles are implemented
 ## Sequencer update — beta 5
 
 Arpeggio, Endless, Hold, Pattern and Finger now have dedicated LCDs and mode-specific normal/Shift controls. Pattern/Endless and Finger store up to eight pitches per step with project round-trip coverage. Divisions, masks, direction, rotation, manual Endless advance, play modes and Hold split/mono controls are implemented as original interpretations. Exact hardware timing/gestures, independent synth/drum memories, per-note velocities and full Endless keyboard step-entry remain unverified or absent. See [the current sequencer guide](SEQUENCERS.md) for the authoritative control matrix and limits.
+
+## Tempo and sync update — beta 6
+
+The dedicated tempo LCD follows the supplied layout with live values and original graphics. Coarse/fine adjustment, averaged tap tempo, arrow nudges, three original click sounds, clock status and optional tape-tempo linking are implemented. Generic 24-PPQN MIDI receive/send/relay replaces the PO-specific concept; PO/analogue 1/16 pulse output is absent. Exact hardware tap/nudge curves, click timbres, animation and phase locking remain unverified. Physical MIDI clock/latency and DAW routing tests remain open. See [tempo and sync](TEMPO_SYNC.md) for control roles, bounds, default compatibility and clock-source priority.

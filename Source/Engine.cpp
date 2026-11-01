@@ -81,6 +81,7 @@ void Engine::resetDboxPads(){
 }
 void Engine::setSelectedPad(int index){padSelected=std::clamp(index,0,23);}
 void Engine::prepare(double rate, int /* maxBlock */) {
+    metronomeBeat=0;
     clearSequenceGates();
     const double nextSr = std::clamp(std::isfinite(rate)?rate:44100.0, 8000.0, 192000.0);
     if (nextSr != sr) {
@@ -133,7 +134,7 @@ void Engine::setParameters(const Parameters& p) {
     params.lfoRate=clamp(params.lfoRate,.01f,30); params.lfoDepth=clamp(params.lfoDepth);
     params.seqDivision=std::clamp(params.seqDivision,0,8);params.seqTriggerPattern=std::clamp(params.seqTriggerPattern,0,7);params.seqDirection=std::clamp(params.seqDirection,0,3);params.seqRotate=std::clamp(params.seqRotate,-998,998);params.seqPlayMode=std::clamp(params.seqPlayMode,0,2);params.seqTranspose=std::clamp(params.seqTranspose,-24,24);params.arpTriggerMode=std::clamp(params.arpTriggerMode,0,2);params.holdBreak=std::clamp(params.holdBreak,0,127);
     params.tapeSpeed=clamp(params.tapeSpeed,-4,4);
-    params.metronomeLevel=clamp(params.metronomeLevel);
+    params.metronomeLevel=clamp(params.metronomeLevel);params.metronomeSound=std::clamp(params.metronomeSound,0,2);
     params.tapeRecordLevel=clamp(params.tapeRecordLevel,0,2);params.tapeRecordPan=clamp(params.tapeRecordPan,-1,1);
     params.sampleRootNote=clamp(params.sampleRootNote,0,127);params.sampleStart=clamp(params.sampleStart);params.sampleEnd=clamp(params.sampleEnd,params.sampleStart,1);
     params.sampleFineTune=clamp(params.sampleFineTune,-1,1);params.sampleLoopFade=clamp(params.sampleLoopFade);params.sampleGain=clamp(params.sampleGain,0,2);
@@ -741,7 +742,7 @@ void Engine::process(float* left,float* right,const float* inputLeft,const float
         const auto processed=effect(synthL*params.patchGain*std::max(0.f,1+modulationRoutes[17]),synthR*params.patchGain*std::max(0.f,1+modulationRoutes[17]));synthL=processed.first;synthR=processed.second;
         float mixL=synthL,mixR=synthR;
         const bool counting=countInRemaining>0&&isPlaying&&isRecording;
-        if(counting){const double phase=countInElapsed-std::floor(countInElapsed);if(phase<.08){const double seconds=phase*60./params.tempo;const float click=static_cast<float>(std::sin(seconds*1900*tau)*std::exp(-seconds*80))*.13f*params.metronomeLevel;mixL+=click;mixR+=click;}const double step=params.tempo/(60.*sr);countInElapsed+=step;countInRemaining=std::max(0.,countInRemaining-step);if(countInRemaining<1e-9)countInRemaining=0;}
+        if(counting){metronomeBeat=0;const double phase=countInElapsed-std::floor(countInElapsed);if(phase<.08){const double seconds=phase*60./params.tempo;const float click=static_cast<float>(std::sin(seconds*(params.metronomeSound==1?850:params.metronomeSound==2?1400:1900)*tau)*std::exp(-seconds*(params.metronomeSound==2?55:80)))*.13f*params.metronomeLevel;mixL+=click;mixR+=click;}const double step=params.tempo/(60.*sr);countInElapsed+=step;countInRemaining=std::max(0.,countInRemaining-step);if(countInRemaining<1e-9)countInRemaining=0;}
         if(isPlaying&&!counting){
             if(rollHeld){const double length=std::min(rollLength,static_cast<double>(maxFrames())-rollBegin);if(length>0&&(position<rollBegin||position>=rollBegin+length))position=rollBegin+std::fmod(std::fmod(position-rollBegin,length)+length,length);}
             if(!rollHeld && params.loop && loopFinish>loopBegin+1){
@@ -768,7 +769,8 @@ void Engine::process(float* left,float* right,const float* inputLeft,const float
                     const float recordR=std::clamp(previous[1]+synthR*params.tapeRecordLevel*(params.tapeRecordPan<0?1+params.tapeRecordPan:1),-4.0f,4.0f);
                     if(!t.audio.tryWrite(at,recordL,recordR)){++tapeFailures;isRecording=false;}
                 }
-                if(params.metronome&&!brakeHeld){const double beat=position/sr*params.tempo/60.0;const double phase=beat-std::floor(beat);if(phase<.045){float click=static_cast<float>(std::sin(phase*sr/params.tempo*60*1900*tau))*static_cast<float>(std::exp(-phase*130))*.08f*params.metronomeLevel;mixL+=click;mixR+=click;}}
+                if(params.metronome&&!brakeHeld){const double phase=metronomeBeat-std::floor(metronomeBeat);if(phase<.045){const double seconds=phase*60./params.tempo;const double frequency=params.metronomeSound==1?850:params.metronomeSound==2?1400:1900;float click=static_cast<float>(std::sin(seconds*frequency*tau)*std::exp(-seconds*(params.metronomeSound==2?55:110)))*.08f*params.metronomeLevel;mixL+=click;mixR+=click;}}
+                metronomeBeat+=params.tempo/(60.*sr);if(metronomeBeat>=4)metronomeBeat-=4;
                 if(!brakeHeld)position+=params.tapeSpeed*std::pow(2.f,modulationRoutes[18])*(reverseHeld?-1.:1.);
             }
         }
@@ -845,8 +847,8 @@ void Engine::startPreparedRecording(TapeAudio&& prepared){
     const auto space=prepared.stats();if(space.freePages<required+1||space.freeNodes<required*3+3)throw std::runtime_error("Recording reserve is not ready");
     snapshot();tape[selected].audio=std::move(prepared);isPlaying=true;isRecording=true;countInRemaining=countInSetting;countInElapsed=0;
 }
-void Engine::rewind(){sequenceFinished=false;seqTicks=0;seqBounce=1;position=params.loop?loopBegin:0;seqPhase=0;seqStep=-1;seqPositionPending=-1;}
-void Engine::seek(double seconds){position=std::clamp(std::isfinite(seconds)?seconds:0.0,0.0,359.999)*sr;}
+void Engine::rewind(){metronomeBeat=0;sequenceFinished=false;seqTicks=0;seqBounce=1;position=params.loop?loopBegin:0;seqPhase=0;seqStep=-1;seqPositionPending=-1;}
+void Engine::seek(double seconds){position=std::clamp(std::isfinite(seconds)?seconds:0.0,0.0,359.999)*sr;metronomeBeat=std::fmod(position/sr*params.tempo/60.,4.);}
 void Engine::setLoop(double start,double end){start=std::isfinite(start)?start:0;end=std::isfinite(end)?end:2;loopBegin=std::clamp(start,0.0,359.999)*sr;loopFinish=std::clamp(end,loopBegin/sr+1.0/sr,360.0)*sr;}
 double Engine::recordedSeconds()const{size_t n=0;for(const auto&t:tape)n=std::max(n,t.audio.size());return n/sr;}
 void Engine::clearTrack(){snapshot();auto& t=tape[selected];t.audio=TapeAudio{};t.cuts.clear();}

@@ -44,7 +44,7 @@ for archive in archives:
             for name,digest in manifest.items():
                 if hashlib.sha256(bundle.read(root+name)).hexdigest()!=digest:
                     raise SystemExit(f'Invalid bundled file checksum: {name}')
-            required=['README.md','INSTALL.md','docs/CONTROLLERS.md','THIRD-PARTY-NOTICES/JUCE/LICENSE.md','integrations/field-studio/server.py','integrations/field-studio/mcp.json','docs/MCP.md','docs/AUDIO_BACKENDS.md']
+            required=['README.md','INSTALL.md','docs/CONTROLLERS.md','THIRD-PARTY-NOTICES/JUCE/LICENSE.md','integrations/field-studio/server.py','integrations/field-studio/mcp.json','docs/MCP.md','docs/AUDIO_BACKENDS.md','docs/TEMPO_SYNC.md','docs/screenshots/tempo-beat-match.png','docs/screenshots/tempo-midi-relay.png']
             if '-windows-' in archive.name:
                 found.add('windows');required+=['Standalone/Field Studio.exe','VST3/Field Studio.vst3/Contents/x86_64-win/Field Studio.vst3']
             elif '-macos-universal' in archive.name:

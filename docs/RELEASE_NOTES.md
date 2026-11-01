@@ -1,4 +1,4 @@
-# Field Studio 0.2.2 beta 5
+# Field Studio 0.2.2 beta 6
 
 Reliability update to the portable multi-platform beta of the independent synthesizer, sampler and four-track stereo tape instrument. Exact OP-1 field sound, feature and visual parity is not established.
 
@@ -15,7 +15,18 @@ Original Field Studio code/graphics: **MIT**. Combined app/plugin binaries with 
 
 Each download has a SHA-256 sidecar. Binary bundles include installation instructions, dependency notices and a per-file hash manifest. These are portable archives, not signed installers. Windows binaries are unsigned; macOS binaries are not Developer ID signed/notarized. The project owner reports working plugin operation, automation, Faderfox assignment and BeatStep use; DAW/OS/model details were not recorded. Broader device/host coverage remains open.
 
-## Added in beta 5
+## Added in beta 6
+
+- Full-LCD tempo page with Song/Play BPM, tape ratio and nominal cm/s / IPS, animated metronome, level strip and clock/link indicators. Four new native screenshots and a dedicated setup guide.
+- Blue/Shift-blue coarse/fine adjustment, averaged tap tempo, 1 / 0.01 BPM arrow nudges and three original metronome sounds. Playback metronome timing now stays independent of tape speed and reverse.
+- Optional tape-tempo link: Beat Match can drive the engine/master MIDI clock from tape rate; MIDI receive/DAW follow can scale tape rate against the saved song BPM. Existing projects default unlinked.
+- Generic MIDI receive/send/relay for compatible devices, replacing a PO-specific control concept. Relay preserves received clock/transport sample offsets and suppresses duplicates with MIDI thru. DAW follow takes priority over incoming realtime transport.
+- New settings persist in projects/host state and support automation, MIDI learn and MCP parameter control. Existing MIDI clock choices/IDs are unchanged.
+- Tests cover tap/fine/external ownership, linking/unlinking, relay clock and transport timestamps, duplicate suppression, sound choices, metronome speed independence, state and UI targets.
+
+This is standard 24-PPQN MIDI sync, not PO/analogue 1/16 audio pulse output. Exact hardware tap curves, sound/animation/phase behaviour, physical-device clock accuracy and host-specific routing remain unverified. No pitch-preserving time stretch or hardware latency compensation is added. See docs/TEMPO_SYNC.md.
+
+## Retained from beta 5
 
 - Dedicated Arpeggio, Endless, Hold, Pattern and melodic/drum Finger LCDs and mode-specific normal/Shift controls. Six new native screenshots and a sequencer guide accompany this release.
 - Up to eight pitches per Pattern/Endless or Finger step, with saved chord and velocity state; divisions, trigger masks, direction, rotation, manual stepping, play modes and Hold split/mono controls. Existing parameter IDs remain stable.

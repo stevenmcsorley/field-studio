@@ -87,3 +87,7 @@ Commands use a private per-user, per-instance file queue, processed on the app's
 **Runs are not atomic.** Earlier successful calls remain applied after a later failure or timeout. Inspect the returned trace and app state before retrying; never auto-replay a failed script. A timed-out native request that already started may have completed. Notes/held latches require note-off or panic before disconnecting if you want silence.
 
 Validation includes stdio MCP startup/discovery, live native-engine parameter/chord/note operations, batch validation, invalid authorization, JS projections, partial failures, output bounds and infinite-loop interruption. CI runs portable/native tests on all OSes and seccomp Code Mode tests on Linux. This is not a guarantee of zero audio interruption during command/UI lock contention.
+
+## Tempo and sync parameters
+
+Search `tempo`, `sync`, `clock` or `metronome` to discover parameter operations. `list_parameters` exposes `tempo`, `midiClockMode`, `tempoTapeLink`, `midiClockRelay`, `metronomeLevel` and `metronomeSound`. `get_state` includes effective tempo, actual tape speed, clock lock, mode, relay and tape-link values. Choose routing in the standalone/DAW first; MCP does not enumerate or connect hardware ports. See [tempo setup](TEMPO_SYNC.md).

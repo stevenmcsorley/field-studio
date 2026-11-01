@@ -42,3 +42,7 @@ The project owner reports successful plugin operation and DAW automation, succes
 - Destructive tape editing, record arming, project loading and file operations are not controller-learn destinations. They still require the remaining prepared-job ownership work. Live continuity limitations are documented in AUDIO_REWRITE_PROGRESS.md.
 
 ![Native MIDI learn status while assigning the blue source macro](screenshots/midi-learn.png)
+
+## Tempo and MIDI clock
+
+The metronome-shaped button opens the tempo/sync page. Use Beat Match to send standard clock to compatible gear, Receive to follow it, or Shift-ochre to relay a received stream to the selected MIDI output. Tap BPM / T sets tempo; arrows nudge (Shift: 0.01 BPM). The tape link, relay and click-sound parameters are automatable and available in the MIDI mapping target list. See [setup, routing and limits](TEMPO_SYNC.md). Clock support depends on the device and host; this does not claim new hands-on BeatStep clock validation.

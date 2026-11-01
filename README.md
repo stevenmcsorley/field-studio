@@ -2,7 +2,7 @@
 
 A native synthesizer, sampler and four-track stereo tape instrument inspired by the OP–1 field workflow. Builds a standalone application and VST3 from the same C++ audio engine; macOS also builds AU.
 
-**[Download the latest beta](https://github.com/stevenmcsorley/field-studio/releases/tag/v0.2.2-beta.5)** · [VST3 setup](#vst3-and-daw-workflow) · [Recent features and screenshots](#recent-improvements) · [Controller mapping](#controller-mapping)
+**[Download the latest beta](https://github.com/stevenmcsorley/field-studio/releases/tag/v0.2.2-beta.6)** · [VST3 setup](#vst3-and-daw-workflow) · [Recent features and screenshots](#recent-improvements) · [Controller mapping](#controller-mapping)
 
 ![Field Studio running on Linux, showing the CWO cow effect, four coloured encoders and two-octave keyboard](docs/screenshots/field-studio.png)
 
@@ -19,6 +19,8 @@ Play synths and drums, import samples, build a sequence, record it onto four ste
 - **Presets and controllers:** eight synth and eight drum sound slots, dated snapshots, preset browsing, nested user folders, MIDI learn and reusable controller profiles.
 
 ## Recent improvements
+
+**Tempo and generic MIDI sync:** a dedicated tempo LCD shows Song/Play BPM, tape ratio, cm/s and IPS, link state, clock receipt and metronome level. Blue/Shift-blue provide coarse/fine adjustment; tap the BPM display or press T, and use arrows to nudge. Added three original click sounds, optional tape-tempo linking and received-clock relay. Free, Beat Match (MIDI send), MIDI receive and DAW follow work with compatible OS-visible MIDI devices. Relay uses standard 24-PPQN MIDI; PO/analogue pulse output is not implemented. [Controls, routing and parity limits](docs/TEMPO_SYNC.md).
 
 **Sequencers:** new Arpeggio, Endless, Hold, Pattern and melodic/drum Finger LCDs, with mode-specific normal/Shift encoder roles. Pattern and Finger store up to eight notes per step; projects preserve chords and step velocities. Added divisions, trigger masks, direction, manual Endless stepping, rotation, play modes and Hold split/mono controls. [Sequencer guide and remaining differences](docs/SEQUENCERS.md).
 
@@ -62,6 +64,11 @@ These are native screenshots of Field Studio. Screen artwork and DSP remain inde
 | [![Hold sequencer](docs/screenshots/hold-reference.png)](docs/screenshots/hold-reference.png) | [![Pattern sequencer](docs/screenshots/pattern-reference.png)](docs/screenshots/pattern-reference.png) |
 | **Finger** | **Finger drum** |
 | [![Finger sequencer](docs/screenshots/finger-reference.png)](docs/screenshots/finger-reference.png) | [![Finger drum sequencer](docs/screenshots/finger-drum-reference.png)](docs/screenshots/finger-drum-reference.png) |
+
+| **Tempo: Beat Match / MIDI master** | **Tempo: incoming MIDI + relay** |
+| [![Tempo Beat Match](docs/screenshots/tempo-beat-match.png)](docs/screenshots/tempo-beat-match.png) | [![Tempo MIDI relay](docs/screenshots/tempo-midi-relay.png)](docs/screenshots/tempo-midi-relay.png) |
+| **Tempo: Free** | **Tempo: waiting for MIDI clock** |
+| [![Free tempo](docs/screenshots/tempo-free.png)](docs/screenshots/tempo-free.png) | [![MIDI clock waiting state](docs/screenshots/tempo-midi-wait.png)](docs/screenshots/tempo-midi-wait.png) |
 
 <details>
 <summary>CWO and Delay animated previews</summary>
@@ -120,7 +127,7 @@ Right-click a knob and choose **MIDI learn**, then move a control on your Faderf
 
 ## Downloads
 
-[Field Studio 0.2.2 beta 4 downloads](https://github.com/stevenmcsorley/field-studio/releases/tag/v0.2.2-beta.5) are available for Windows, macOS and Linux. All automated release gates passed. The pipeline packages Windows x64 standalone/VST3, macOS universal standalone/VST3/AU and Linux x86_64 standalone/VST3, with checksums and complete corresponding source. See [beta notes](docs/RELEASE_NOTES.md) and [build/release status](docs/BUILD_STATUS.md). Binaries are unsigned development builds.
+[Field Studio 0.2.2 beta 4 downloads](https://github.com/stevenmcsorley/field-studio/releases/tag/v0.2.2-beta.6) are available for Windows, macOS and Linux. All automated release gates passed. The pipeline packages Windows x64 standalone/VST3, macOS universal standalone/VST3/AU and Linux x86_64 standalone/VST3, with checksums and complete corresponding source. See [beta notes](docs/RELEASE_NOTES.md) and [build/release status](docs/BUILD_STATUS.md). Binaries are unsigned development builds.
 
 ## Run the Linux build
 

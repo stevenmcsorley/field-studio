@@ -110,6 +110,10 @@ public:
     std::atomic<double> playhead{0};
     std::atomic<bool> hostSync{false};
     std::atomic<bool> metronome{false};
+    std::atomic<bool> clockLocked{false};
+    std::atomic<float> effectiveTapeSpeed{1};
+    void tapTempo(double milliseconds);
+    void nudgeTempo(float amount);
     std::atomic<bool> inputMonitor{false};
     std::atomic<bool> drumMode{false};
     double selectionStart=0, selectionEnd=4;
@@ -118,7 +122,7 @@ public:
     std::atomic<uint64_t> midiReceived{0},rejectedMidiEvents{0};
     std::atomic<int> midiLastStatus{0},midiLastData1{0},midiLastData2{0};
 private:
-    enum ParamKey {P_engine,P_macro1,P_macro2,P_macro3,P_macro4,P_attack,P_decay,P_sustain,P_release,P_sampleStart,P_sampleLoopIn,P_sampleLoopOut,P_sampleEnd,P_sampleLoop,P_sampleReverse,P_sampleOneShot,P_fx1,P_fx2,P_fx3,P_fx4,P_seq1,P_seq2,P_seq3,P_seq4,P_lfoTarget,P_effect,P_effectMix,P_masterLow,P_masterMid,P_masterHigh,P_masterDrive,P_compressor,P_masterEffect,P_masterMix,P_volume,P_tempo,P_lfo,P_lfoRate,P_lfoDepth,P_sequencer,P_sequenceOn,P_tapeStyle,P_tapeSpeed,P_loop,P_masterFx1,P_masterFx2,P_masterFx3,P_masterFx4,P_seqSwing,P_seqGate,P_seqHold,P_sampleRootNote,P_voiceMode,P_glideTime,P_bendRange,P_patchGain,P_lfoWaveform,P_lfoRetrigger,P_lfoSync,P_lfoDivision,P_elementSource,P_elementManual,P_envelopeCurve,P_midiTarget1,P_midiTarget2,P_midiTarget3,P_midiTarget4,P_midiDepth1,P_midiDepth2,P_midiDepth3,P_midiDepth4,P_countInBeats,P_tapeRecordLevel,P_tapeRecordPan,P_metronomeLevel,P_midiInputChannel,P_midiOutputChannel,P_midiClockMode,P_midiThru,P_midiSendControls,P_midiRelativeControls,P_midiNotesIn,P_midiOtherIn,P_midiTransportIn,P_midiNotesOut,P_midiOtherOut,P_midiSppOrigin,P_masterLeft,P_masterRight,P_compressorRelease,P_eqAmount,P_eqLowOn,P_eqMidOn,P_eqHighOn,P_eqOn,P_sampleFineTune,P_sampleLoopFade,P_sampleGain,P_seqDivision,P_seqTriggerPattern,P_seqDirection,P_seqRotate,P_seqPlayMode,P_seqTranspose,P_seqCursor,P_seqErase,P_seqManual,P_seqSkipRest,P_arpTriggerMode,P_holdBreak,P_holdMono,P_holdLatch,P_count};
+    enum ParamKey {P_engine,P_macro1,P_macro2,P_macro3,P_macro4,P_attack,P_decay,P_sustain,P_release,P_sampleStart,P_sampleLoopIn,P_sampleLoopOut,P_sampleEnd,P_sampleLoop,P_sampleReverse,P_sampleOneShot,P_fx1,P_fx2,P_fx3,P_fx4,P_seq1,P_seq2,P_seq3,P_seq4,P_lfoTarget,P_effect,P_effectMix,P_masterLow,P_masterMid,P_masterHigh,P_masterDrive,P_compressor,P_masterEffect,P_masterMix,P_volume,P_tempo,P_lfo,P_lfoRate,P_lfoDepth,P_sequencer,P_sequenceOn,P_tapeStyle,P_tapeSpeed,P_loop,P_masterFx1,P_masterFx2,P_masterFx3,P_masterFx4,P_seqSwing,P_seqGate,P_seqHold,P_sampleRootNote,P_voiceMode,P_glideTime,P_bendRange,P_patchGain,P_lfoWaveform,P_lfoRetrigger,P_lfoSync,P_lfoDivision,P_elementSource,P_elementManual,P_envelopeCurve,P_midiTarget1,P_midiTarget2,P_midiTarget3,P_midiTarget4,P_midiDepth1,P_midiDepth2,P_midiDepth3,P_midiDepth4,P_countInBeats,P_tapeRecordLevel,P_tapeRecordPan,P_metronomeLevel,P_midiInputChannel,P_midiOutputChannel,P_midiClockMode,P_midiThru,P_midiSendControls,P_midiRelativeControls,P_midiNotesIn,P_midiOtherIn,P_midiTransportIn,P_midiNotesOut,P_midiOtherOut,P_midiSppOrigin,P_masterLeft,P_masterRight,P_compressorRelease,P_eqAmount,P_eqLowOn,P_eqMidOn,P_eqHighOn,P_eqOn,P_sampleFineTune,P_sampleLoopFade,P_sampleGain,P_seqDivision,P_seqTriggerPattern,P_seqDirection,P_seqRotate,P_seqPlayMode,P_seqTranspose,P_seqCursor,P_seqErase,P_seqManual,P_seqSkipRest,P_arpTriggerMode,P_holdBreak,P_holdMono,P_holdLatch,P_tempoTapeLink,P_midiClockRelay,P_metronomeSound,P_count};
     std::array<std::atomic<float>*,P_count> rawValues{};
     std::array<juce::RangedAudioParameter*,P_count> rawTargets{};
     std::array<juce::String,P_count> parameterIds;
@@ -190,6 +194,9 @@ private:
     int64_t midiSampleClock=0;
     double midiTransportPpq=0,midiExpectedTapeSeconds=0,lastSppOrigin=0;
     bool midiPositionValid=false;
+    double lastTempoTap=0;
+    std::array<double,4> tempoTapIntervals{};
+    int tempoTapCount=0,tempoTapWrite=0;
     int lastInputChannel=0,lastOutputChannel=1,lastClockMode=0;
     bool lastNotesIn=true,lastNotesOut=true;
     std::array<int,4> controllerValues{{-1,-1,-1,-1}};
