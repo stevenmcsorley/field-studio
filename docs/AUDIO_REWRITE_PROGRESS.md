@@ -1,4 +1,4 @@
-> **0.3.0 update:** the production callback no longer takes the editing lock. See [current ownership design](LIVE_AUDIO_DESIGN.md) and [known issues](KNOWN_ISSUES.md). Beta-era lock descriptions below are historical.
+> **0.3.1 update:** the production callback no longer takes the editing lock. See [current ownership design](LIVE_AUDIO_DESIGN.md) and [known issues](KNOWN_ISSUES.md). Beta-era lock descriptions below are historical.
 
 # Audio ownership rewrite — staged media preparation
 

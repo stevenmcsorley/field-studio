@@ -2,7 +2,7 @@
 
 A native synthesizer, sampler and four-track stereo tape instrument inspired by the OP–1 field workflow. Builds a standalone application and VST3 from the same C++ audio engine; macOS also builds AU.
 
-**[Download Field Studio 0.3.0](https://github.com/stevenmcsorley/field-studio/releases/tag/v0.3.0)** · [VST3 setup](#vst3-and-daw-workflow) · [Recent features and screenshots](#recent-improvements) · [Controller mapping](#controller-mapping)
+**[Download Field Studio 0.3.1](https://github.com/stevenmcsorley/field-studio/releases/tag/v0.3.1)** · [VST3 setup](#vst3-and-daw-workflow) · [Recent features and screenshots](#recent-improvements) · [Controller mapping](#controller-mapping)
 
 ![Field Studio running on Linux, showing the CWO cow effect, four coloured encoders and two-octave keyboard](docs/screenshots/field-studio.png)
 
@@ -20,7 +20,7 @@ Play synths and drums, import samples, build a sequence, record it onto four ste
 
 ## Recent improvements
 
-**Continuous audio ownership (0.3.0):** the audio callback now owns a private render document and never acquires the editing lock. Prepared loads, tape edits, undo/redo and bank changes publish at block boundaries; retained snapshots support saves, exports and previews while playback continues. Old samples stay alive for their existing voices, and large discarded resources are reclaimed on the control thread. Stop/panic remain independent. A new production-path suite checks continuous pilot audio, MIDI, concurrent operations and callback allocation/free counts across four sample rates and three buffer sizes. Effects, sounds and preset mappings are unchanged. [Architecture and tested limits](docs/LIVE_AUDIO_DESIGN.md).
+**Continuous audio ownership (0.3.1):** the audio callback now owns a private render document and never acquires the editing lock. Prepared loads, tape edits, undo/redo and bank changes publish at block boundaries; retained snapshots support saves, exports and previews while playback continues. Old samples stay alive for their existing voices, and large discarded resources are reclaimed on the control thread. Stop/panic remain independent. A new production-path suite checks continuous pilot audio, MIDI, concurrent operations and callback allocation/free counts across four sample rates and three buffer sizes. Effects, sounds and preset mappings are unchanged. [Architecture and tested limits](docs/LIVE_AUDIO_DESIGN.md).
 
 **Audio/UI performance (beta 9):** cached DSP calculations, lock-free GUI telemetry, narrower repaints and adaptive external-capture buffering. **COM → Audio / performance** provides diagnostics, 48 kHz/256 or 512-frame presets and output-only playback. Local synthetic active workloads showed 17–53% lower mean callback cost with matching checksums; physical latency and long-session reliability remain unverified. [Setup, measurements and limits](docs/PERFORMANCE.md).
 
@@ -144,7 +144,7 @@ Right-click a knob and choose **MIDI learn**, then move a control on your Faderf
 
 ## Downloads
 
-[Field Studio 0.3.0 downloads](https://github.com/stevenmcsorley/field-studio/releases/tag/v0.3.0) are available for Windows, macOS and Linux. All automated release gates passed. The pipeline packages Windows x64 standalone/VST3, macOS universal standalone/VST3/AU and Linux x86_64 standalone/VST3, with checksums and complete corresponding source. See [release notes](docs/RELEASE_NOTES.md) and [build/release status](docs/BUILD_STATUS.md). Binaries are unsigned portable builds.
+[Field Studio 0.3.1 downloads](https://github.com/stevenmcsorley/field-studio/releases/tag/v0.3.1) are available for Windows, macOS and Linux. All automated release gates passed. The pipeline packages Windows x64 standalone/VST3, macOS universal standalone/VST3/AU and Linux x86_64 standalone/VST3, with checksums and complete corresponding source. See [release notes](docs/RELEASE_NOTES.md) and [build/release status](docs/BUILD_STATUS.md). Binaries are unsigned portable builds.
 
 ## Run the Linux build
 

@@ -1,4 +1,4 @@
-# Reliability status — 0.3.0
+# Reliability status — 0.3.1
 
 The shared callback/editing lock has been removed from the production audio path. Prepared commits, callback-owned rendering, retained snapshots and deferred reclamation replace it. See [design and evidence](LIVE_AUDIO_DESIGN.md).
 

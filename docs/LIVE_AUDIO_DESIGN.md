@@ -1,4 +1,4 @@
-# Continuous audio ownership — 0.3.0
+# Continuous audio ownership — 0.3.1
 
 The production `processBlock` owns a private render document. It never acquires `engineLock`: that mutex now serializes only the editing model and control-side publication. Effects, synth algorithms, preset formats and parameter IDs are unchanged by this migration.
 

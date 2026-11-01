@@ -1,6 +1,8 @@
-# Field Studio 0.3.0
+# Field Studio 0.3.1
 
 Regular multi-platform release of the independent synthesizer, sampler and four-track stereo tape instrument. Portable Windows x64, macOS universal and Linux x86_64 downloads include standalone and VST3; macOS also includes AU. Complete corresponding source and SHA-256 checksums accompany the binaries. Downloads are unsigned.
+
+The unpublished 0.3.0 candidate was blocked by UBSan on empty project-audio decoding. This release guards the zero-length copy and retains the sanitizer publication gate.
 
 ## Continuous audio ownership
 
