@@ -25,6 +25,8 @@ struct Parameters {
     int effect = 0;
     float effectMix = .2f, volume = .65f, tempo = 110;
     int lfo = 0;
+    bool lfoModel=false,lfoEnabled=true; // false preserves pre-reference projects
+    float lfoEnvelope=0,lfoPitchAmount=0,lfoVolumeAmount=0,lfoVelocityVolume=1;
     int lfoTarget = 0; // pitch, source macros, gain, pan, filter, ADSR, FX macros/mix, patch/tape/master
     int lfoWaveform = 0; // sine, triangle, saw, square, exponential, blip
     bool lfoRetrigger = false, lfoSync = false;
@@ -274,6 +276,7 @@ public:
 
     void setPitchBend(float semitones);
     void setModWheel(float value);
+    std::array<float,4> midiLfoInputs() const {return midiControllers;}
     void setMidiCC(int cc, float value);
     float modulationAt(int target) const { return target >= 0 && target < 20 ? modulationRoutes[static_cast<size_t>(target)] : 0; }
     double lfoPhasePosition() const { return lfoPhase; }
@@ -310,6 +313,7 @@ private:
         DBoxPad dbox;
         float dboxLowL=0,dboxBandL=0,dboxLowR=0,dboxBandR=0;
         float dboxPrevious=0;
+        int dboxControlCountdown=0;float dboxLastCutoff=-1;
         std::array<float,5> dboxFilter{};
         uint32_t noise = 1;
         std::array<float, 4096> string{};
@@ -348,9 +352,10 @@ private:
     double cwoDelay=-1,cwoDelaySmoothing=0,plainDelay=-1;
     std::array<float,20> modulationRoutes{};
     float effectToneKey=-1,effectToneCoefficient=0;
-    std::array<float,4> midiControllers{};
+    std::array<float,4> midiControllers{};std::array<bool,4> midiControllerSeen{};
     float previousOutputEnvelope = 0;
     float voiceRoute(int target, float velocity) const;
+    double lfoEnvelopeAge=0;
     double fxPhase = 0, lfoPhase = 0, lfoClock = 0, seqPhase = 0;
     float randomLfo = 0, inputEnv = 0, heldLfo = 0;
     uint32_t randomState = 0x12345678u;

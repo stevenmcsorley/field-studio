@@ -33,7 +33,7 @@ The public [OP-1 field MIDI reference](https://teenage.engineering/guides/op-1) 
 | CC46–49 | Source controls; sampler-drum tuning/in/out/mode; DBox uses its modeled source controls |
 | CC50–53 | Synth ADSR or DBox transient envelope controls |
 | CC54–57 | Patch effect macros |
-| CC58–61 | MIDI-LFO route depths; other LFOs use rate/depth/target plus waveform or manual Element input |
+| CC58–61 | Reference mode: normal coloured LFO encoder roles (MIDI parameter selectors, Tremolo speed/pitch/volume/envelope, Velocity destination/volume amounts, or source/speed/amount/destination/parameter). Legacy mode retains its earlier depths/rate/target mapping. See [LFO controls](LFO.md). |
 | CC62/63, value≥64 | Deferred patch randomization/reset (original software policy, current engine/audio retained) |
 | CC70–73 | Master effect macros |
 | CC74–77 | Master left/right level, drive amount and drive release |

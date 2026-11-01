@@ -39,6 +39,7 @@ public:
     void openPresetBrowserForTesting(int slot){openPresetBrowser(slot);}
     void zoomSampleBoundaryForTesting(int i){zoomSampleBoundary(i);}
     double sampleViewWidthForTesting() const {return sampleViewEnd-sampleViewStart;}
+    bool lfoBrowserVisibleForTesting() const {return lfoBrowser;}
     bool presetBrowserVisibleForTesting() const {return presetBrowser;}
     void presetFunctionForTesting(int index){functionAction(index);}
     void selectPresetForTesting(int folder,int preset){selectPresetFolder(folder);selectPreset(preset,true);}
@@ -155,6 +156,11 @@ private:
     void drawEngine(juce::Graphics&,juce::Rectangle<float>);
     void drawSampler(juce::Graphics&,juce::Rectangle<float>);
     void drawEffect(juce::Graphics&,juce::Rectangle<float>,bool master);
+    void configureLfoControls();
+    int lfoControlStamp() const;
+    void showLfoBrowser();
+    std::array<float,4> lfoMidiSnapshot{};
+    int lastLfoControls=-1,lfoEditingBase=-1,lfoBrowserIndex=0;bool lfoBrowser=false;
     void drawModulation(juce::Graphics&,juce::Rectangle<float>);
     juce::Rectangle<float> samplePlotBounds() const;
     void moveSampleMarker(float x);

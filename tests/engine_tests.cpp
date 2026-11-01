@@ -230,6 +230,25 @@ int main(){
         std::vector<float> input(1000,.8f);l.resize(1000);r.resize(1000);e.process(l.data(),r.data(),input.data(),input.data(),1000);check(e.modulationAt(7)>.59f,"Element follows actual input envelope");
     }
     {
+        auto owner=std::make_unique<Engine>();auto& e=*owner;e.prepare(8000,64);Parameters p;p.lfoModel=true;p.lfoEnabled=true;p.lfo=4;p.lfoDepth=1;p.lfoRate=2;p.lfoTarget=2;p.lfoRetrigger=true;p.lfoWaveform=3;e.setParameters(p);e.noteOn(60,1);render(e,l,r,500);const float first=e.modulationAt(2);render(e,l,r,2000);check(first==1&&e.modulationAt(2)==-1,"reference Value oscillates independently of orange synth macro");
+        p.lfoEnabled=false;e.setParameters(p);render(e,l,r,1);for(int i=0;i<20;++i)check(e.modulationAt(i)==0,"LFO bypass clears all routes");
+        p.lfoEnabled=true;p.lfo=3;p.lfoWaveform=3;p.lfoPitchAmount=-.7f;p.lfoVolumeAmount=.3f;e.setParameters(p);e.noteOn(62,1);render(e,l,r,100);check(std::abs(e.modulationAt(0)+.7f)<1e-6f&&std::abs(e.modulationAt(5)-.3f)<1e-6f,"Tremolo has independent signed pitch and volume");check(e.modulationAt(2)==0,"Tremolo does not leak selected target");
+        p.lfo=0;p.lfoTarget=9;p.lfoEnvelope=0;e.setParameters(p);render(e,l,r,4100);const float random=e.modulationAt(8);for(int i=8;i<=11;++i)check(e.modulationAt(i)==random,"Random modulates every envelope parameter");check(std::abs(random)>0&&e.modulationAt(1)==0,"Random destination isolation");
+        p.lfoEnvelope=-.1f;e.setParameters(p);e.noteOn(64,1);render(e,l,r,4000);check(e.modulationAt(8)==0,"Random decay envelope reaches zero");
+        p.lfo=5;p.lfoTarget=6;p.lfoDepth=1;p.lfoEnabled=false;e.setParameters(p);e.noteOn(67,.1f);render(e,l,r,64);check(e.modulationAt(6)==0,"Velocity bypass is effective");
+        p.lfo=1;p.lfoEnabled=true;p.elementSource=3;p.elementManual=.9f;e.setParameters(p);render(e,l,r,1);check(std::abs(e.modulationAt(6)-.8f)<1e-6f,"Manual G substitute routes independently");
+    }
+    {
+        auto owner=std::make_unique<Engine>();auto& e=*owner;e.prepare(8000,64);Parameters p;p.lfoModel=true;p.lfo=2;p.lfoTarget=7;p.midiLfoTargets={{0,6,12,19}};p.midiLfoDepth.fill(1);e.setParameters(p);render(e,l,r,1);for(int i=0;i<20;++i)check(e.modulationAt(i)==0,"Unreceived reference CC must not modulate a route");e.setMidiCC(2,1);render(e,l,r,1);check(e.modulationAt(6)==1&&e.modulationAt(0)==0,"Reference MIDI controllers remain independent");p.midiLfoDepth.fill(0);e.setParameters(p);render(e,l,r,1);for(int i=0;i<20;++i)check(e.modulationAt(i)==0,"Disabled reference MIDI matrix must not fall back to mod wheel");
+        p.lfo=4;p.lfoDepth=1;p.lfoTarget=2;p.lfoRate=2;p.lfoRetrigger=true;const int shapes[]{3,1,2,0};const float expected[]{1,.5f,-.5f,1};for(int i=0;i<4;++i){p.lfoWaveform=shapes[i];e.setParameters(p);e.allNotesOff();e.noteOn(60,1);render(e,l,r,1000);check(std::abs(e.modulationAt(2)-expected[i])<.001f,"Value square/ramp/saw/sine phase law");}
+    }
+    {
+        auto dboxEnergy=[&](float amount){auto owner=std::make_unique<Engine>();auto& e=*owner;e.prepare(8000,64);Parameters p;p.engine=14;p.lfoModel=true;p.lfo=4;p.lfoWaveform=3;p.lfoRate=1;p.lfoDepth=amount;p.lfoTarget=7;p.volume=1;e.setParameters(p);e.setOutputGainImmediately(1);e.noteOn(60,1);render(e,l,r,800);return energy(l);};const float unmodulated=dboxEnergy(0),modulated=dboxEnergy(1);check(std::abs(unmodulated-modulated)>.000001f,"Reference LFO reaches the DBox filter audibly");
+    }
+    {
+        auto renderVelocity=[&](float amount){auto owner=std::make_unique<Engine>();auto& e=*owner;e.prepare(8000,64);e.loadSample(std::vector<float>(8000,.5f),{},8000);Parameters p;p.engine=11;p.lfoModel=true;p.lfo=5;p.lfoDepth=0;p.lfoVelocityVolume=amount;p.attack=.001f;p.decay=.001f;p.sustain=1;p.volume=1;e.setParameters(p);e.setOutputGainImmediately(1);e.noteOn(60,.25f);render(e,l,r,400);return energy(l);};const float flat=renderVelocity(0),dynamic=renderVelocity(1);check(flat>dynamic*15.9f&&flat<dynamic*16.1f,"Velocity volume amount can remove volume sensitivity independently");
+    }
+    {
         auto owner=std::make_unique<Engine>();auto& e=*owner;e.prepare(8000,64);Parameters p;p.engine=11;p.volume=1;p.attack=.1f;p.decay=.1f;p.sustain=.25f;p.release=.1f;p.envelopeCurve=1;p.effectMix=0;
         e.loadSample(std::vector<float>(16000,.5f),{},8000);e.setParameters(p);e.setOutputGainImmediately(1);e.noteOn(60,1);render(e,l,r,2400);
         for(int i=1;i<799;++i)check(l[i]>=l[i-1],"exponential attack monotonic");

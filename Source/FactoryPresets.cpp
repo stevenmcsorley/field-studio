@@ -14,6 +14,7 @@ void FieldProcessor::initializeFactoryPresets(){
         for(int knob=0;knob<4;++knob)set("macro"+juce::String(knob+1),.15f+((kind*13+variation*19+knob*23)%70)*.01f);
         set("attack",variation==2?.35f:.005f);set("decay",variation==1?.22f:.7f);set("sustain",variation==1?.25f:.8f);set("release",variation==2?1.1f:.25f);
         set("effect",variation==2?2.f:variation==1?1.f:0.f);set("effectMix",variation==0?0.f:.18f);set("lfo",3);set("lfoTarget",1);set("lfoRate",.8f);set("lfoDepth",variation==2?.08f:0.f);
+        if(variation==2){set("lfoModel",0);set("lfoRetrigger",0);} // Preserve established Slow orbit sound.
         const bool drum=kind==14;
         const auto name=engineNames[kind]+juce::StringArray{" / First light"," / Short circuit"," / Slow orbit"}[variation]+(kind==12||kind==13?" (input)":"");
         patch.setProperty("presetName",name,nullptr);patch.setProperty("drum",drum,nullptr);patch.setProperty("rate",44100.,nullptr);patch.setProperty("name",kind==11?"Original harmonic sample":"No sample loaded",nullptr);patch.setProperty("metadata","{}",nullptr);

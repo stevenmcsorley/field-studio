@@ -1,4 +1,4 @@
-# Reliability status — 0.3.1
+# Reliability status — 0.4.0
 
 The shared callback/editing lock has been removed from the production audio path. Prepared commits, callback-owned rendering, retained snapshots and deferred reclamation replace it. See [design and evidence](LIVE_AUDIO_DESIGN.md).
 
@@ -12,6 +12,7 @@ The shared callback/editing lock has been removed from the production audio path
 | Audible edit boundaries | Deliberate replacement, cuts or full project reset can produce audible discontinuities. Zero skipped blocks does not promise click-free arbitrary editing. |
 | Signing/installers | Portable downloads are unsigned. Apple Developer ID and Windows signing certificates are unavailable; no notarization or publisher-trusted signatures are claimed. |
 | Device/DAW coverage | Owner reports working VST operation, automation, Faderfox assignments and BeatStep use; exact host/OS/controller details were not recorded. Broader testing remains open. |
+| LFO reference limits | Original vector reconstruction and documented controls are implemented. Exact pixel/animation timing, random statistics and hardware modulation laws remain unmeasured. G-force uses a labelled manual substitute. See LFO.md. |
 | Hardware equivalence | Exact OP-1 synth/effect sound, curves, screens and every gesture remain unverified. See PARITY.md. |
 
 Nine native suites include a dedicated production ownership suite; nine MCP tests cover protocol and live control. Core and live-ownership sanitizer gates are part of publication. Legacy direct-engine plugin fixtures use explicit offline mode and are not proof of production concurrency.

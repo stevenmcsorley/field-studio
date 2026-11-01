@@ -1,26 +1,18 @@
-# Field Studio 0.3.1
+# Field Studio 0.4.0 — LFO reference update
 
-Regular multi-platform release of the independent synthesizer, sampler and four-track stereo tape instrument. Portable Windows x64, macOS universal and Linux x86_64 downloads include standalone and VST3; macOS also includes AU. Complete corresponding source and SHA-256 checksums accompany the binaries. Downloads are unsigned.
+Six dedicated routing LCDs and corrected LFO controls for synth and drum modes. Includes standalone/VST3 for Linux x86_64, Windows x64 and macOS universal, plus macOS AU, complete corresponding source and checksums. Downloads remain unsigned.
 
-The unpublished 0.3.0 candidate was blocked by UBSan on empty project-audio decoding. This release guards the zero-length copy and retains the sanitizer publication gate.
+- T4 bypass/enable, Shift+T4 type selection, grouped destinations and parameter selection, supported base-value editing from LCD knobs.
+- Value oscillates with square/ramp/saw/sine shapes instead of depending on the synth orange macro.
+- Random routes to a whole selected module and gains a signed attack/decay envelope.
+- Tremolo has independent signed pitch/volume amounts, pitch envelope and shifted shape selection.
+- Velocity has independent target amount and volume response, including DBox.
+- MIDI has four parameter/destination selectors, signed route gain/off and no modulation from unreceived controllers.
+- Element supports selected audio, voice envelope, main output and an explicitly labelled manual G substitute.
+- Older projects/presets retain their previous LFO model. Existing host parameter IDs/order and normalized waveform travel are retained; new controls are appended and support automation, MIDI learn and MCP.
 
-## Continuous audio ownership
+The callback ownership changes and empty-audio decode fix from 0.3.1 are retained. Synth/effect algorithms outside the modulation changes are unchanged. See [LFO controls and compatibility](LFO.md) for screenshots, usage and limits.
 
-- Removed the shared engine lock from the production audio callback. The editing model and private render document now have separate ownership.
-- Prepared project/sample loads, tape edits, undo/redo and bank changes publish at block boundaries with generation, epoch and media validation.
-- Retained snapshots support save/export/preview during playback. Resource destruction and media preparation stay on the control side.
-- Preserve unrelated controller changes during prepared edits and retain outgoing tape-bank state. Recording stops are acknowledged before destructive edits; sample finalization receives the complete captured take.
-- Compound parameter changes publish coherently; stop/panic retain independent delivery. Capture-device shutdown waits for readers outside audio.
-- Added a production ownership suite covering four sample rates and three block sizes, concurrent operations, MIDI, heap allocation/free instrumentation and synth/effect output comparisons. Added a live-ownership ASan/UBSan release gate alongside core sanitizers.
+Release publication requires all three platform builds/tests, MCP checks, core/live ownership ASan/UBSan and verification of all OS/source packages. The maintainer requested no CI monitoring; publication runs automatically after the gates succeed.
 
-Existing effects, synth sounds, presets and parameter IDs are unchanged by this release. Projects retain their existing format.
-
-## Included features
-
-Dedicated synth/effect LCDs, preset snapshots and folder management, four stereo tape tracks and eight banks, tape editing/history, album recording, mixer/EQ/master controls, sequencers, vocoder and input/output sampling, generic MIDI clock and transport, MIDI learn with relative encoders, DAW automation and optional stem outputs. MCP includes local Code Mode control. See the README for screenshots, controls and setup guides.
-
-## Validation and limits
-
-Publication requires Linux, Windows and macOS builds/tests, MCP tests, core and live ownership sanitizer checks, and verification of all OS/source packages. Automated tests do not certify physical driver latency, every DAW or long-session glitch freedom. Deliberate edits/full project replacement can change sound abruptly. Oversized host blocks beyond prepared capacity are rejected. State APIs and device changes are non-realtime operations.
-
-Exact OP-1 field sound/feature/visual equivalence, whole-process RAM admission, signing/installers and broader device listening tests remain open. See [known issues](KNOWN_ISSUES.md) and [ownership design](LIVE_AUDIO_DESIGN.md).
+Exact OP-1 hardware sound, pixels, modulation curves and timing remain unverified. No physical G-force sensor is emulated. Real-device long-session listening, broader DAW coverage, signing and installers remain open; see [known issues](KNOWN_ISSUES.md).

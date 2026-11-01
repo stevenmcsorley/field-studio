@@ -1,4 +1,5 @@
 #include "Engine.h"
+#include "LfoControls.h"
 #include "DelayControls.h"
 #include <algorithm>
 #include <cmath>
@@ -97,7 +98,7 @@ void Engine::prepare(double rate, int /* maxBlock */) {
         position *= ratio; loopBegin *= ratio; loopFinish *= ratio;
         retireHistory(undos);retireHistory(redos);
     }
-    sr = nextSr;
+    sr = nextSr;lfoEnvelopeAge=0;
     delayL.assign(static_cast<size_t>(sr*2.1)+1,0);
     delayR.assign(delayL.size(),0);
     delayWrite=0; fxLowL=fxLowR=fxBandL=fxBandR=wetLowL=wetLowR=0;
@@ -125,6 +126,7 @@ void Engine::setParameters(const Parameters& p) {
     for (float& m : params.sequencerMacro) m=clamp(m);
     params.lfoTarget=std::clamp(params.lfoTarget,0,19);
     params.lfoWaveform=std::clamp(params.lfoWaveform,0,5);
+    params.lfoEnvelope=clamp(params.lfoEnvelope,-1,1);params.lfoPitchAmount=clamp(params.lfoPitchAmount,-1,1);params.lfoVolumeAmount=clamp(params.lfoVolumeAmount,-1,1);params.lfoVelocityVolume=clamp(params.lfoVelocityVolume);
     params.lfoDivision=std::clamp(params.lfoDivision,0,11);
     params.elementSource=std::clamp(params.elementSource,0,3);
     params.elementManual=clamp(params.elementManual);
@@ -182,7 +184,7 @@ void Engine::triggerVoice(int note,float velocity,float detune) {
     }
     Voice& v=*voice;releaseVoiceSample(v);v.frequencyKey=1e30f;v.filterKey=-1;v.sampleStepKey=1e30;
     v.active=true; v.gate=true; v.note=note;v.pitch=note+detune+(params.sequenceOn&&params.sequencer==4?params.seqTranspose:0);v.detune=detune;v.stringPrevious=0; v.velocity=clamp(velocity);
-    v.stage=0; v.env=0;v.envelopeProgress=0;if(params.lfoRetrigger){lfoPhase=0;lfoClock=0;}v.forcedRelease=0; v.phase=0; v.phase2=.173; v.age=0; v.samplePos=0;
+    lfoEnvelopeAge=0;v.stage=0; v.env=0;v.envelopeProgress=0;if(params.lfoRetrigger){lfoPhase=0;lfoClock=0;}v.forcedRelease=0; v.phase=0; v.phase2=.173; v.age=0; v.samplePos=0;
     v.lp=v.hp=0; v.vocL1.fill(0);v.vocL2.fill(0);v.vocR1.fill(0);v.vocR2.fill(0);v.engine=params.engine; v.drum=params.drumMode || params.engine==14;
     v.noise=0x9e3779b9u ^ (static_cast<uint32_t>(note)*1664525u + ++randomState);
     if (!v.noise) v.noise=1;
@@ -195,7 +197,7 @@ void Engine::triggerVoice(int note,float velocity,float detune) {
     }
     if(v.engine==14){
         padSelected=padIndex;v.pad=padIndex;v.dbox=dboxPads[static_cast<size_t>(padIndex)];
-        v.dboxLowL=v.dboxBandL=v.dboxLowR=v.dboxBandR=v.dboxPrevious=0;
+        v.dboxLowL=v.dboxBandL=v.dboxLowR=v.dboxBandR=v.dboxPrevious=0;v.dboxControlCountdown=0;v.dboxLastCutoff=v.dbox.cutoff;
         const double cutoff=std::min(sr*.4,80.0+v.dbox.cutoff*v.dbox.cutoff*16000.0);
         const double omega=tau*cutoff/sr,alpha=std::sin(omega)/(2*(.55+v.dbox.crossMod*3)),a0=1+alpha;
         v.dboxFilter={static_cast<float>((1-std::cos(omega))*.5/a0),static_cast<float>((1-std::cos(omega))/a0),static_cast<float>((1-std::cos(omega))*.5/a0),static_cast<float>(-2*std::cos(omega)/a0),static_cast<float>((1-alpha)/a0)};
@@ -402,7 +404,7 @@ void Engine::tickTombola(){
 }
 std::pair<float,float> Engine::renderDbox(Voice& v,float /*modulation*/){
     const auto& p=v.dbox;
-    const float pitch=voiceRoute(0,v.velocity)*.7f;
+    const float pitch=voiceRoute(0,v.velocity)*(params.lfoModel&&params.lfo==3?24.f:.7f);
     const float mix=clamp(p.mix+(voiceRoute(1,v.velocity)*.5f));
     const float wave1=clamp(p.wave1+(voiceRoute(2,v.velocity)*.5f));
     const float cross=clamp(p.crossMod+(voiceRoute(4,v.velocity)*.5f));
@@ -415,17 +417,18 @@ std::pair<float,float> Engine::renderDbox(Voice& v,float /*modulation*/){
         const float at=clamp(wave)*4;const int a=std::min(3,static_cast<int>(at));return shapes[a]+(shapes[a+1]-shapes[a])*(at-a);
     };
     const double age=v.age;
-    const float env1=static_cast<float>(std::exp(-age/p.envelope1));
-    const float env2=static_cast<float>(std::exp(-age/p.envelope2));
+    const float env1=static_cast<float>(std::exp(-age/(p.envelope1*(params.lfoModel?std::pow(4.f,voiceRoute(9,v.velocity)):1))));
+    const float env2=static_cast<float>(std::exp(-age/(p.envelope2*(params.lfoModel?std::pow(4.f,voiceRoute(11,v.velocity)):1))));
     const float osc2=shape(v.phase2,dt2,wave2,n2);
     const float osc1=shape(wrap(v.phase+osc2*cross*1.5),dt,wave1,n1);
     float signal=osc1*env1*(1-mix)+osc2*env2*mix;
     // Smooth regulates transient slew before the resonant low-pass stage.
     const float smoothing=1-std::exp(-1.0f/(static_cast<float>(sr)*(.00001f+p.smooth*.0004f)));
     v.dboxPrevious+=smoothing*(signal-v.dboxPrevious);signal=v.dboxPrevious;
+    if(params.lfoModel&&--v.dboxControlCountdown<=0){v.dboxControlCountdown=16;const float position=clamp(p.cutoff+voiceRoute(7,v.velocity)*.5f);if(position!=v.dboxLastCutoff){v.dboxLastCutoff=position;const double cutoff=std::min(sr*.4,80.0+position*position*16000.0),omega=tau*cutoff/sr,alpha=std::sin(omega)/(2*(.55+p.crossMod*3)),a0=1+alpha;v.dboxFilter={static_cast<float>((1-std::cos(omega))*.5/a0),static_cast<float>((1-std::cos(omega))/a0),static_cast<float>((1-std::cos(omega))*.5/a0),static_cast<float>(-2*std::cos(omega)/a0),static_cast<float>((1-alpha)/a0)};}}
     const auto& f=v.dboxFilter;const float filtered=f[0]*signal+v.dboxLowL;
     v.dboxLowL=f[1]*signal-f[3]*filtered+v.dboxBandL;v.dboxBandL=f[2]*signal-f[4]*filtered;
-    const float attack=static_cast<float>(std::min(1.0,age/p.attack));
+    const float attack=static_cast<float>(std::min(1.0,age/(p.attack*(params.lfoModel?std::pow(4.f,voiceRoute(8,v.velocity)):1))));
     const double tail=std::max(0.0,age-std::max(p.envelope1,p.envelope2)*4.0);
     const float transient=attack*static_cast<float>(std::exp(-tail/p.release));
     if(!v.gate || v.stage==3){
@@ -433,7 +436,8 @@ std::pair<float,float> Engine::renderDbox(Voice& v,float /*modulation*/){
         v.env=std::max(0.0f,v.env-v.releaseStart/(duration*static_cast<float>(sr)));
         if(v.env<=.000001f)v.active=false;
     }else v.env=transient;
-    const float gain=p.gain*v.velocity*.65f*v.env*(std::max(0.0f,1+voiceRoute(5,v.velocity)));
+    const float velocityGain=params.lfoModel&&params.lfoEnabled&&params.lfo==5?1-params.lfoVelocityVolume+v.velocity*params.lfoVelocityVolume:v.velocity;
+    const float gain=p.gain*velocityGain*.65f*v.env*(params.lfoModel?std::max(0.f,1+voiceRoute(10,v.velocity)*.5f):1)*(std::max(0.0f,1+voiceRoute(5,v.velocity)));
     const float pan=clamp(voiceRoute(6,v.velocity),-1,1);
     const float out=std::tanh(filtered*1.2f)*gain;
     v.phase=wrap(v.phase+dt);v.phase2=wrap(v.phase2+dt2);v.age+=1.0/sr;
@@ -464,7 +468,7 @@ std::pair<float,float> Engine::renderVoice(Voice& v,float modulation,float inL,f
         else if(v.stage==2)v.env=sustain;
         else {v.env-=std::max(.0000001f,v.releaseStart/(release*static_cast<float>(sr)));if(v.env<=0){v.active=false;return {0,0};}}
     }
-    const float pitchMod=voiceRoute(0,v.velocity)*.7f;
+    const float pitchMod=voiceRoute(0,v.velocity)*(params.lfoModel&&params.lfo==3?24.f:.7f);
     const float frequencyKey=v.pitch-69+pitchBend+pitchMod;
     if(frequencyKey!=v.frequencyKey){v.frequencyKey=frequencyKey;v.frequency=std::clamp(440.0*std::pow(2.0,frequencyKey/12.0),8.0,sr*.42);}
     const double freq=v.frequency;
@@ -607,7 +611,8 @@ std::pair<float,float> Engine::renderVoice(Voice& v,float modulation,float inL,f
     v.age+=1.0/sr;
     const float volumeMod=std::max(0.0f,1+voiceRoute(5,v.velocity));
     const float pan=clamp(voiceRoute(6,v.velocity),-1,1);
-    const float gain=v.env*v.velocity*(v.engine==11?1.f:(v.drum?.42f:.19f))*volumeMod;
+    const float velocityGain=params.lfoModel&&params.lfoEnabled&&params.lfo==5?1-params.lfoVelocityVolume+v.velocity*params.lfoVelocityVolume:v.velocity;
+    const float gain=v.env*velocityGain*(v.engine==11?1.f:(v.drum?.42f:.19f))*volumeMod;
     return {l*gain*(pan>0?1-pan:1),r*gain*(pan<0?1+pan:1)};
 }
 std::pair<float,float> Engine::effect(float l,float r) {
@@ -726,16 +731,20 @@ void Engine::process(float* left,float* right,const float* inputLeft,const float
         inputEnv+=(envTarget>inputEnv?.01f:.0005f)*(envTarget-inputEnv);
         constexpr double beats[]{16,8,4,2,1,.75,.5,.375,.25,.1875,.125,.0625};
         const double rate=params.lfoSync?params.tempo/(60.*beats[params.lfoDivision]):params.lfoRate;
+        lfoEnvelopeAge+=1/sr;
         lfoPhase=wrap(lfoPhase+rate/sr);
         lfoClock+=rate/sr;
         if(lfoClock>=1){lfoClock-=1;randomLfo=noise(randomState);}
         float modulation=0;
-        switch(params.lfo){case 0:modulation=randomLfo;break;case 1:{float source=inputEnv;if(params.elementSource==1){source=0;for(const auto& voice:voices)if(voice.active)source=std::max(source,voice.env);}else if(params.elementSource==2)source=previousOutputEnvelope;else if(params.elementSource==3)source=params.elementManual;modulation=clamp(source)*2-1;break;}case 2:modulation=modWheel*2-1;break;case 3:switch(params.lfoWaveform){case 0:modulation=sine(lfoPhase);break;case 1:modulation=1.f-4.f*std::abs(static_cast<float>(lfoPhase)-.5f);break;case 2:modulation=static_cast<float>(lfoPhase)*2-1;break;case 3:modulation=lfoPhase<.5?1.f:-1.f;break;case 4:modulation=2.f*(std::exp(4.f*static_cast<float>(lfoPhase))-1.f)/(std::exp(4.f)-1.f)-1.f;break;case 5:modulation=lfoPhase<.1?1.f:-1.f;break;}break;case 4:modulation=params.macro[3]*2-1;break;case 5:modulation=heldLfo*2-1;break;default:break;}
+        switch(params.lfo){case 0:modulation=randomLfo;break;case 1:{float source=inputEnv;if(params.elementSource==1){source=0;for(const auto& voice:voices)if(voice.active)source=std::max(source,voice.env);}else if(params.elementSource==2)source=previousOutputEnvelope;else if(params.elementSource==3)source=params.elementManual;modulation=clamp(source)*2-1;break;}case 2:modulation=modWheel*2-1;break;case 3:switch(params.lfoWaveform){case 0:modulation=sine(lfoPhase);break;case 1:modulation=1.f-4.f*std::abs(static_cast<float>(lfoPhase)-.5f);break;case 2:modulation=static_cast<float>(lfoPhase)*2-1;break;case 3:modulation=lfoPhase<.5?1.f:-1.f;break;case 4:modulation=2.f*(std::exp(4.f*static_cast<float>(lfoPhase))-1.f)/(std::exp(4.f)-1.f)-1.f;break;case 5:modulation=lfoPhase<.1?1.f:-1.f;break;}break;case 4:modulation=params.lfoModel?lfoWave(params.lfoWaveform==1?6:params.lfoWaveform,lfoPhase):params.macro[3]*2-1;break;case 5:modulation=heldLfo*2-1;break;default:break;}
         modulation*=params.lfoDepth;
         modulationRoutes.fill(0);
-        bool midiMatrix=false;
-        if(params.lfo==2)for(size_t c=0;c<4;++c)if(params.midiLfoDepth[c]!=0){midiMatrix=true;auto& route=modulationRoutes[params.midiLfoTargets[c]];route=clamp(route+(midiControllers[c]*2-1)*params.midiLfoDepth[c],-1,1);}
+        bool midiMatrix=params.lfoModel&&params.lfo==2;
+        if(params.lfo==2)for(size_t c=0;c<4;++c)if(params.midiLfoDepth[c]!=0&&(!params.lfoModel||midiControllerSeen[c])){midiMatrix=true;auto& route=modulationRoutes[params.midiLfoTargets[c]];route=clamp(route+(midiControllers[c]*2-1)*params.midiLfoDepth[c],-1,1);}
         if(!midiMatrix)modulationRoutes[params.lfoTarget]=modulation;
+        if(params.lfoModel&&params.lfo==0){const int group=lfoGroup(params.lfoTarget);const float shaped=modulation*lfoEnvelope(params.lfoEnvelope,lfoEnvelopeAge);for(int n=0;n<lfoGroupSizes[group];++n)modulationRoutes[lfoDestination(group,n)]=shaped;}
+        if(params.lfoModel&&params.lfo==3){modulationRoutes.fill(0);const float wave=lfoWave(params.lfoWaveform,lfoPhase);modulationRoutes[0]=wave*params.lfoPitchAmount*lfoEnvelope(params.lfoEnvelope,lfoEnvelopeAge);modulationRoutes[5]=wave*params.lfoVolumeAmount;}
+        if(!params.lfoEnabled)modulationRoutes.fill(0);
         if(params.engine==12){
             const float modulator=(inL+inR)*.5f;
             for(auto& b:vocoder){
@@ -1003,10 +1012,11 @@ void Engine::setFingerLength(int pattern,int length){if(pattern>=0&&pattern<16)f
 int Engine::fingerLength(int pattern)const{return fingerBanks[static_cast<size_t>(std::clamp(pattern,0,15))].length;}
 void Engine::setPitchBend(float value){pitchBend=clamp(std::isfinite(value)?value:0,-48,48);}
 float Engine::voiceRoute(int target,float velocity) const {
+    if(!params.lfoEnabled)return 0;
     if(params.lfo==5)return params.lfoTarget==target?(velocity*2-1)*params.lfoDepth:0;
     return modulationRoutes[static_cast<size_t>(target)];
 }
-void Engine::setMidiCC(int cc,float value){if(cc>=1&&cc<=4){midiControllers[static_cast<size_t>(cc-1)]=clamp(value);if(cc==1)modWheel=clamp(value);}}
+void Engine::setMidiCC(int cc,float value){if(cc>=1&&cc<=4){midiControllerSeen[static_cast<size_t>(cc-1)]=true;midiControllers[static_cast<size_t>(cc-1)]=clamp(value);if(cc==1)modWheel=clamp(value);}}
 void Engine::setModWheel(float value){setMidiCC(1,value);}
 void Engine::setOutputGainImmediately(float value){smoothedVolume=clamp(value,0,2.f);}
 }

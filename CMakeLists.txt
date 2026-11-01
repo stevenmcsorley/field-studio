@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(FieldStudio VERSION 0.3.1 LANGUAGES C CXX)
+project(FieldStudio VERSION 0.4.0 LANGUAGES C CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 option(FIELD_BUILD_PLUGIN "Build standalone and VST3" ON)
@@ -58,7 +58,7 @@ if(FIELD_BUILD_PLUGIN)
     NEEDS_WEB_BROWSER FALSE NEEDS_CURL FALSE
     MICROPHONE_PERMISSION_ENABLED TRUE
     MICROPHONE_PERMISSION_TEXT "Field Studio records your selected microphone or audio input for sampling and vocoding.")
-  target_sources(FieldStudio PRIVATE Source/PluginProcessor.cpp Source/LiveCommands.cpp Source/AudioOwnership.cpp Source/ControlBridge.cpp Source/ControlApi.cpp Source/CaptureInput.cpp Source/DimensionScreen.cpp Source/DSynthScreen.cpp Source/CwoScreen.cpp Source/DelayScreen.cpp Source/FactoryPresets.cpp Source/PresetLibrary.cpp Source/PresetBrowser.cpp Source/PluginEditor.cpp Source/PanelLegends.cpp Source/MidiMapping.cpp Source/MidiSupport.cpp Source/PresetFormat.cpp Source/PresetMapping.cpp Source/PresetParameters.cpp)
+  target_sources(FieldStudio PRIVATE Source/PluginProcessor.cpp Source/LiveCommands.cpp Source/AudioOwnership.cpp Source/ControlBridge.cpp Source/ControlApi.cpp Source/CaptureInput.cpp Source/LfoScreen.cpp Source/DimensionScreen.cpp Source/DSynthScreen.cpp Source/CwoScreen.cpp Source/DelayScreen.cpp Source/FactoryPresets.cpp Source/PresetLibrary.cpp Source/PresetBrowser.cpp Source/PluginEditor.cpp Source/PanelLegends.cpp Source/MidiMapping.cpp Source/MidiSupport.cpp Source/PresetFormat.cpp Source/PresetMapping.cpp Source/PresetParameters.cpp)
   target_include_directories(FieldStudio PUBLIC Source)
   target_compile_definitions(FieldStudio PUBLIC JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_VST3_CAN_REPLACE_VST2=0 JUCE_DISPLAY_SPLASH_SCREEN=0)
   if(WIN32)
