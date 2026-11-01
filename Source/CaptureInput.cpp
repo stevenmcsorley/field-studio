@@ -8,6 +8,7 @@
 #define MINIAUDIO_IMPLEMENTATION
 #include "../vendor/miniaudio/miniaudio.h"
 #include <vector>
+#include <thread>
 struct CaptureInput::Impl {
  ma_context context{};ma_device device{};bool contextReady=false,deviceReady=false;
  struct Device {ma_device_id id;juce::String name;bool loopback=false;};std::vector<Device> entries;
@@ -42,4 +43,4 @@ bool CaptureInput::start(int index,double rate,juce::String& error){
  auto result=ma_device_init(&impl->context,&config,&impl->device);if(result!=MA_SUCCESS){error="Cannot open audio source: "+juce::String(ma_result_description(result));return false;}impl->deviceReady=true;ring.clear();ring.dropped=0;bridge.reset(256);
  result=ma_device_start(&impl->device);if(result!=MA_SUCCESS){error="Cannot start audio source: "+juce::String(ma_result_description(result));stop();return false;}running=true;return true;
 }
-void CaptureInput::stop(){running=false;if(impl->deviceReady){ma_device_uninit(&impl->device);impl->deviceReady=false;}}
+void CaptureInput::stop(){running.store(false,std::memory_order_release);while(readers.load(std::memory_order_acquire)!=0)std::this_thread::yield();if(impl->deviceReady){ma_device_uninit(&impl->device);impl->deviceReady=false;}}

@@ -9,7 +9,7 @@ namespace field {
 enum class LiveControl {
  play,rewind,seek,seekRelative,track,level,pan,mute,solo,brake,reverse,roll,
  drumParameter,dboxParameter,pad,fingerBank,fingerLength,sequenceLength,
- sequenceNote,sequenceStep,fingerStep,clearHeld,manualAdvance,sketchPoint
+ sequenceNote,sequenceStep,fingerStep,clearHeld,manualAdvance,sketchPoint,joinFinger
 };
 struct LiveCommand {
  LiveControl kind{};int a=0,b=0;double x=0,y=0;uint64_t epoch=0;

@@ -37,7 +37,7 @@ for archive in archives:
         if (args.all_platforms or args.require_license) and (metadata['source_dirty'] or metadata.get('juce_source_dirty',True) or any(root+name not in names for name in ('LICENSE','LICENSING.md','LICENSES/AGPL-3.0.txt','LICENSES/GPL-3.0.txt','LICENSES/Steinberg-ASIO.txt','LICENSES/miniaudio.txt'))):
             raise SystemExit(f'Release source is dirty or project licence missing: {archive.name}')
         if archive.name.endswith('-source.zip'):
-            required=['CMakeLists.txt','Source/PluginProcessor.cpp','vendor/JUCE/CMakeLists.txt','vendor/miniaudio/miniaudio.h','vendor/JUCE/LICENSE.md','scripts/build.sh','integrations/field-studio/server.py','integrations/field-studio/plugin.json','integrations/field-studio/mcp.json']
+            required=['CMakeLists.txt','Source/PluginProcessor.cpp','Source/AudioOwnership.cpp','Source/EngineDocument.cpp','Source/OwnedSnapshots.h','tests/audio_ownership_tests.cpp','vendor/JUCE/CMakeLists.txt','vendor/miniaudio/miniaudio.h','vendor/JUCE/LICENSE.md','scripts/build.sh','integrations/field-studio/server.py','integrations/field-studio/plugin.json','integrations/field-studio/mcp.json']
             found.add('source')
         else:
             manifest=json.loads(bundle.read(root+'SHA256.json'))

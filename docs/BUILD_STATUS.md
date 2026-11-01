@@ -1,48 +1,9 @@
-# Current release status
+# Release build status
 
-Beta 10 passes eight native suites and nine MCP tests locally; three core ASan/UBSan suites also pass. It adds staged control/media jobs, paused-host save checks, queued-edit conflict checks and capture transitions. Publication is gated on the three-platform builds/tests/package checks and core ASan/UBSan. Beta 9 passed all release gates in [run 41343936088](https://github.com/stevenmcsorley/field-studio/actions/runs/41343936088). The final engine guard and physical validation remain open.
+Field Studio 0.3.0 is gated on Linux x86_64, Windows x64 and macOS universal standalone/plugin builds and tests; nine MCP tests; three core ASan/UBSan suites; a separate production audio-ownership ASan/UBSan suite; and verification of OS/source packages and checksums.
 
-Beta 9 passes eight native suites, nine MCP tests and three core sanitizer suites locally. Its tag pipeline gates publication on all platform builds, tests and package verification. Physical-device latency and long-session reliability remain unverified. [Performance details](PERFORMANCE.md).
+Local Linux passes nine native suites and nine MCP tests. The new production-path suite exercises uninterrupted pilot audio and MIDI during control contention and concurrent media/document operations, with allocation/free instrumentation. [Release workflow results](https://github.com/stevenmcsorley/field-studio/actions/workflows/build.yml) record cross-platform and sanitizer outcomes. The [0.3.0 release](https://github.com/stevenmcsorley/field-studio/releases/tag/v0.3.0) is published only after all gates succeed.
 
-The CWO/Delay fixes passed Linux, Windows x64, macOS universal build/tests and core ASan/UBSan in [run 41246239489](https://github.com/stevenmcsorley/field-studio/actions/runs/41246239489). All eight local suites and three sanitizer suites also passed.
+The original project code is MIT licensed; combined JUCE binaries use AGPLv3 with complete corresponding source. Downloads are unsigned portable bundles. macOS contains arm64/x86_64 and targets macOS 11 or later; CI executes only its runner's native architecture.
 
-Version 0.2.2 beta 10 includes those fixes, preset management, screen improvements and background save/export. Its tag pipeline rebuilds and tests all three platforms, verifies packages/checksums and publishes only after every gate succeeds. [Release downloads](https://github.com/stevenmcsorley/field-studio/releases/tag/v0.2.2-beta.10) contain Windows x64, Linux x86_64, macOS universal and complete corresponding source. Downloads remain unsigned. The project owner reports working plugin operation, DAW automation, Faderfox assignment and BeatStep use on 1 November 2026; exact DAW/OS/controller details were not supplied. Broader device/host coverage remains open.
-
-The live-engine commit/UI lock can still cause a contended callback to produce silence. Exact hardware equivalence is not established. See [known issues](KNOWN_ISSUES.md) and [release notes](RELEASE_NOTES.md).
-
-Beta 5 passed all platform and release gates in [run 41304086380](https://github.com/stevenmcsorley/field-studio/actions/runs/41304086380). Beta 6 adds tempo/sync controls, relay and metronome timing regression checks; its tag pipeline gates publication on the same platform/package checks.
-
-Beta 5 local validation passes all eight application suites, three core ASan/UBSan suites and nine MCP tests. Cross-platform results are recorded by the beta 5 tag workflow; backend factory checks do not establish real-device ASIO playback.
-
-Beta 6 passed all platform/release gates in [run 41305449396](https://github.com/stevenmcsorley/field-studio/actions/runs/41305449396). Beta 7 adds vocoder/sampling controls and an external capture backend; release builds validate compilation and regression tests, not physical audio-device operation.
-
-Beta 7 passed all platform/release gates in [run 41321672820](https://github.com/stevenmcsorley/field-studio/actions/runs/41321672820). Beta 8 changes four LCD renderers and adds reference-size image output; its release uses the same platform and package gates.
-
-## Earlier build history
-
-
-Local Linux x86_64 standalone and VST3 builds pass all eight test suites. The native VST3 harness checks module loading, audio and optional stem buses; it does not substitute for commercial DAW testing.
-
-GitHub Actions run [41111515955](https://github.com/stevenmcsorley/field-studio/actions/runs/41111515955) passed Windows and macOS build/tests but failed Ubuntu configuration because fontconfig development files were missing. Commit `4f8b24c` adds `libfontconfig1-dev`, explicit pkg-config installation and font dependency checks. The replacement three-platform run [41116464808](https://github.com/stevenmcsorley/field-studio/actions/runs/41116464808) passed build, tests and artifact upload on Linux, Windows and macOS. The subsequent tape commit `58ff589` also passed all three platforms in [run41136592201](https://github.com/stevenmcsorley/field-studio/actions/runs/41136592201). MIDI commit `ab6f133` passed all three platforms in [run41138333174](https://github.com/stevenmcsorley/field-studio/actions/runs/41138333174). Screen commit `2ecccc1` also passed all three platforms in [run41139607866](https://github.com/stevenmcsorley/field-studio/actions/runs/41139607866). Ownership foundation commit `6ed7b36` passed Linux, Windows, macOS and the core ASan/UBSan job in [run 41190451799](https://github.com/stevenmcsorley/field-studio/actions/runs/41190451799). The live paged-storage commit `ab0377e` also passed all three platforms and core sanitizers in [run 41191350222](https://github.com/stevenmcsorley/field-studio/actions/runs/41191350222). MIDI learn and the 0.2.0 beta packaging changes need a new CI result.
-
-Source is committed and pushed to the `stevenmcsorley/field-studio` repository (confirmed public on 31 October 2026). The [0.2.1 beta 1 release](https://github.com/stevenmcsorley/field-studio/releases/tag/v0.2.1-beta.1) is prepared with automated publication gates; the release page records whether it has been published. CI artifacts are development builds, without installers or signing.
-
-## Reliability and release gates
-
-1. Establish passing build/tests on Linux, Windows and macOS from the checked-in dependency list and pinned JUCE revision.
-2. Test audible playback/recording on actual audio devices, physical MIDI controllers and commercial DAWs. Record OS, device/driver, sample rate, buffer size, DAW and plugin format for each result. Device enumeration and an automated plugin harness do not establish this gate.
-3. Implement and validate the tape editing/performance phase of the ordered parity roadmap.
-4. Replace shared live-engine locking using the ownership, prepared-media and bounded-command approach in [LIVE_AUDIO_DESIGN.md](LIVE_AUDIO_DESIGN.md). Verify uninterrupted audio during large imports, saves and edits; moving disk I/O alone is insufficient.
-5. Prepare a beta: packaged binaries, dependency/licensing review, installation instructions and signing/installers where required. Public visibility and release publication are separate from the current private source repository.
-
-The audio callback still clears its output when `engineLock` is unavailable. This is an unresolved performance blocker, not fixed by the CI dependency change.
-
-Use `scripts/run.sh` for the development standalone and `scripts/package.py` for a local bundle containing standalone, VST3, documentation and SHA-256 hashes. Packaging does not install plugins or change DAW configuration.
-
-## 0.2.0 beta packaging
-
-The workflow now targets Ubuntu 22.04 x86_64, Windows x64 and macOS universal arm64/x86_64 with an 11.0 deployment target. It packages portable standalone/plugin bundles, installation notes, dependency notices, controller profiles and complete project + JUCE source, with download and per-file checksums. macOS payloads are checked for both architectures; CI only executes on the runner's native architecture. Tag publication is gated on all build/test/sanitizer jobs, matching source revisions/versions and a selected project licence. No change to repository visibility is made. New binary artifact uploads are gated on a project licence file; package creation/verification can run without publishing while that decision is pending.
-
-The original project code is MIT licensed. Combined JUCE-based binary downloads use AGPLv3, with the complete corresponding source ZIP and both licence texts. The beta draft can be published after all release gates pass. Portable beta packaging does not complete signed installers, notarization, physical device/DAW validation or seamless live-audio ownership.
-
-The 0.2.1 reliability changes pass eight local suites and three core sanitizer suites, including allocation-pause tests during live pilot audio. Their new cross-platform release run must pass before publication. Signing certificates are unavailable; downloads remain explicitly unsigned. Current limitations are in KNOWN_ISSUES.md.
+Owner-reported VST operation, automation, Faderfox mapping and BeatStep use are recorded in the README. Exact device/DAW coverage, long-session latency/listening, signing and hardware equivalence remain open. See [known issues](KNOWN_ISSUES.md).

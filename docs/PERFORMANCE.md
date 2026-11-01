@@ -1,3 +1,5 @@
+> **0.3.0 update:** the production callback no longer takes the editing lock. See [current ownership design](LIVE_AUDIO_DESIGN.md) and [known issues](KNOWN_ISSUES.md). Beta-era lock descriptions below are historical.
+
 # Audio and UI performance
 
 Beta 9 reduces recurring DSP work and GUI interference. It does not complete the audio-ownership rewrite or establish dropout-free playback.

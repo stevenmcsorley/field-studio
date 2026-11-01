@@ -10,6 +10,7 @@
 #include "CaptureInput.h"
 #include "UiTelemetry.h"
 #include "LiveCommands.h"
+#include "OwnedSnapshots.h"
 #include "PresetLibrary.h"
 #include <mutex>
 
@@ -22,11 +23,20 @@ public:
     juce::var invokeControl(const juce::String&,const juce::var&);
     struct SampleData {std::vector<float> left,right;double rate=44100;};
     std::shared_ptr<const SampleData> samplePreviewSnapshot(){const juce::ScopedLock lock(engineLock);return sampleData;}
-    explicit FieldProcessor(juce::File presetDirectory={});
+    // Offline fixtures never overlap rendering with direct model mutation.
+    explicit FieldProcessor(juce::File presetDirectory={},bool offlineFixture=false);
+    class DocumentGuard {
+    public:
+        explicit DocumentGuard(FieldProcessor&,bool writable=true);
+        ~DocumentGuard();
+        DocumentGuard(const DocumentGuard&)=delete;
+        DocumentGuard& operator=(const DocumentGuard&)=delete;
+    private:FieldProcessor& owner;
+    };
     field::PresetLibrary presetLibrary;
     ~FieldProcessor() override;
     void prepareToPlay(double, int) override;
-    void releaseResources() override {}
+    void releaseResources() override;
     bool isBusesLayoutSupported(const BusesLayout&) const override;
     void processBlock(juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
     juce::AudioProcessorEditor* createEditor() override;
@@ -43,10 +53,11 @@ public:
     void getStateInformation(juce::MemoryBlock&) override;
     void setStateInformation(const void*,int) override;
     juce::AudioProcessorValueTreeState parameters;
-    field::UiTelemetry uiState(){return uiTelemetry.read();}
-    field::UiTelemetry uiStateForTesting(){const juce::ScopedLock lock(engineLock);return makeUiTelemetry();}
+    field::UiTelemetry uiState();
+    field::UiTelemetry uiStateForTesting(){DocumentGuard lock(*this);return makeUiTelemetry();}
     std::atomic<int> uiMode{-1};
     field::RtKeyboard keyboard;
+    // Control-side editing model; production audio uses renderDocument.synth.
     field::Engine engine;
     void startSampleCapture(bool fromOutput=false);
     void stopSampleCapture();
@@ -69,6 +80,7 @@ public:
     std::atomic<int> albumRecording{-1},albumPlaying{-1};
     std::atomic<bool> sampling{false};
     juce::var importedPresetMetadata;
+    // Control-only mutex. processBlock never acquires this lock.
     juce::CriticalSection engineLock;
     static const juce::StringArray engineNames, effectNames, sequencerNames, lfoNames, lfoTargetNames;
     float value(const juce::String&) const;
@@ -171,10 +183,11 @@ private:
     int midiMappingIndex(const juce::String&) const;
     float mappedMidiValue(size_t) const noexcept;
     void applyMappedMidi(size_t,float) noexcept;
-    float cached(int key) const {auto* p=rawTargets[(size_t)key];return p->convertFrom0to1(p->getValue());}
+    float rawPhysical(int key) const {auto* p=rawTargets[(size_t)key];return p->convertFrom0to1(p->getValue());}
+    float cached(int key) const {return !offlineFixture&&renderingOwner==this?renderValues[(size_t)key]:rawPhysical(key);}
     // Owned JUCE Float/Choice/Int/Bool types have atomic setValue and no-op
     // valueChanged. Custom parameter overrides require a new realtime audit.
-    void setNormalized(int key,float v){rawTargets[(size_t)key]->setValue(v);realtimeValues.fromAudio((size_t)key,cached(key));}
+    void setNormalized(int key,float v){rawTargets[(size_t)key]->setValue(v);const float actual=rawPhysical(key);if(!offlineFixture&&renderingOwner==this)renderValues[(size_t)key]=actual;realtimeValues.fromAudio((size_t)key,actual);}
     void setPhysical(int key,float v){auto* p=rawTargets[(size_t)key];setNormalized(key,p->convertTo0to1(v));}
     void parameterValueChanged(int,float) override;
     void parameterGestureChanged(int,bool) override {}
@@ -183,6 +196,7 @@ private:
     static juce::AudioProcessorValueTreeState::ParameterLayout makeLayout();
     void timerCallback() override;
     void resetSampleParameters();
+    void clearModelNotes(){engine.allNotesOff();if(offlineFixture){midiNotes.resetAll();guiMidiNotes.resetAll();}else controlSignals|=1u;}
     std::atomic<int> pendingProgram{-1},pendingPatchAction{0};
     void applyPatchAction(int);
     void initializeFactoryPresets();
@@ -192,7 +206,8 @@ private:
     std::array<juce::ValueTree,2> memos;
     juce::AudioFormatManager formats;
     std::shared_ptr<const SampleData> sampleData=std::make_shared<SampleData>();
-    uint64_t sampleRequest=0,controlRevision=0,documentEpoch=0;
+    uint64_t sampleRequest=0,documentEpoch=0;
+    std::atomic<uint64_t> controlRevision{0};
     void startTapeRecording();
     void prepareTapeOperation(field::TapeEditAction,double delta=0,bool absolute=false);
     void reportOperationError(const juce::String&);
@@ -212,7 +227,7 @@ private:
     // Legacy guarded snapshot/preparation boundaries may run while a DAW has
     // suspended callbacks. Flush a bounded queue there so saves include edits.
     // Caller owns engineLock; never call this helper from processBlock.
-    void flushLiveControls(){updateEngine();for(int i=0;i<16;++i)applyLiveCommands();publishControlUiState();}
+    void flushLiveControls();
     std::unique_ptr<ControlBridge> controlBridge;
     std::mutex mediaEncodeMutex;
     juce::CriticalSection operationErrorLock;
@@ -220,13 +235,13 @@ private:
     double sampleRateFile=44100,captureRate=44100;
     struct AlbumSide { field::TapeAudio audio; double rate=44100; };
     field::RealtimeSnapshot<field::UiTelemetry> uiTelemetry;
-    field::UiTelemetry makeUiTelemetry() const;
+    field::UiTelemetry makeUiTelemetry(bool render=false) const;
     int uiPublishFrames=0;
     std::array<std::atomic<uintptr_t>,7> livePoolIdentities{};
     std::array<std::shared_ptr<field::tape::TapePool>,7> maintenancePools;
     std::atomic<bool> retiredTapePending{false};
     void publishMaintenanceState();
-    void publishControlUiState(){uiTelemetry.publish(makeUiTelemetry());publishMaintenanceState();} // caller owns engineLock
+    void publishControlUiState(){if(offlineFixture){uiTelemetry.publish(makeUiTelemetry());publishMaintenanceState();}} // control model only
     juce::CriticalSection slotNamesLock;std::array<juce::String,16> cachedSlotNames;
     void refreshSlotNameCache();
     field::TapeAudio captureAudio;
@@ -251,6 +266,116 @@ private:
     struct MasterState { float low[2]{}, upper[2]{}, envelope=0; };
     MasterState masterState;
     field::Engine masterFx;
+    struct PublishedTrack {field::TapeAudio audio;float level=1,pan=0;bool mute=false,solo=false;};
+    using BankCuts=std::array<std::vector<double>,4>;
+    struct PublishedBank {std::array<PublishedTrack,4> tracks;std::shared_ptr<const BankCuts> cuts;double position=0;};
+    struct ControlRoot {
+        std::array<TapeState,8> tapes;
+        std::array<std::vector<double>,4> cuts;
+        std::array<std::shared_ptr<const BankCuts>,8> bankCuts;
+        std::array<juce::ValueTree,16> slots;
+        std::array<juce::ValueTree,2> memos;
+        std::shared_ptr<const SampleData> sample;
+        std::shared_ptr<field::Engine::PreparedSample> asset;
+        std::shared_ptr<const field::Engine::EditingHistory> history;
+        juce::var metadata;
+        juce::String project,sampleName,summary,details,inputName;
+        std::array<char,256> projectLabel{},sourceLabel{};
+        uint64_t epoch=0;int tape=0,program=0;double sampleRate=44100;
+    };
+    struct RenderDocument {
+        std::unique_ptr<field::Engine> synth,master;
+        std::shared_ptr<const ControlRoot> root;
+        std::array<AlbumSide,2> albums;
+        std::array<PublishedBank,8> banks;
+        field::TapeAudio capture;
+        bool sampling=false,captureTriggered=false,captureFromOutput=false;
+        int albumRecording=-1,albumPlaying=-1;
+        double albumHead=0,captureRate=44100,loopStart=0,loopEnd=4;
+        size_t albumLimit=0,captureLimit=0;
+        uint64_t generation=0;
+    } renderDocument;
+    struct DocumentSnapshot {
+        field::Engine::Document document;
+        std::array<PublishedTrack,4> tracks;
+        std::array<AlbumSide,2> albums;
+        std::array<PublishedBank,8> banks;
+        field::TapeAudio capture;
+        std::shared_ptr<const ControlRoot> root;
+        bool sampling=false,captureTriggered=false,captureFromOutput=false;
+        int albumRecording=-1,albumPlaying=-1;
+        size_t albumLimit=0,captureLimit=0;
+        double albumHead=0,captureRate=44100,loopStart=0,loopEnd=4;
+        uint64_t generation=0,frames=0;
+    } lastDocumentSnapshot;
+    struct PreparedCommit {
+        uint64_t generation=0,baseGeneration=0,epoch=0;
+        uint64_t liveEpoch=0;
+        double rate=44100;
+        unsigned parts=0,mediaMask=0,mixMask=0,signals=0;
+        std::array<unsigned,4> mixFields{};
+        unsigned albumMask=0;
+        bool selectionChanged=false,albumTransportChanged=false;
+        bool fullReset=false,captureChanged=false,albumsChanged=false;
+        bool accepted=false;
+        field::Engine::Document document;
+        field::Engine::Document baseDocument;
+        std::array<PublishedTrack,4> tracks,baseTracks;
+        std::array<AlbumSide,2> albums;
+        field::TapeAudio capture;
+        std::shared_ptr<const ControlRoot> root;
+        std::array<float,P_count> parameters{};
+        std::unique_ptr<field::Engine> synth,master;
+        bool sampling=false,captureFromOutput=false,captureTriggered=false;
+        int albumRecording=-1,albumPlaying=-1;
+        size_t albumLimit=0,captureLimit=0;
+        double albumHead=0,captureRate=44100,loopStart=0,loopEnd=4;
+        DocumentSnapshot acknowledged;
+    };
+    bool offlineFixture=false,ownershipReady=false;
+    int documentGuardDepth=0;
+    bool documentReadOnly=false,controlGateRaised=false;
+    const ControlRoot* lastAppliedRoot=nullptr;
+    unsigned controlSignals=0;
+    std::atomic<unsigned> parameterWriteGate{0};
+    std::array<float,P_count> renderValues{};
+    static thread_local const FieldProcessor* renderingOwner;
+    std::atomic<PreparedCommit*> pendingCommit{nullptr};
+    field::RtQueue<PreparedCommit*,16> completedCommits;
+    std::vector<std::unique_ptr<PreparedCommit>> commitOwners;
+    std::vector<std::shared_ptr<field::Engine::PreparedSample>> retainedRenderSamples;
+    std::vector<std::shared_ptr<const ControlRoot>> retainedControlRoots;
+    std::vector<std::shared_ptr<field::tape::TapePool>> retainedRenderPools;
+    std::vector<std::shared_ptr<const BankCuts>> retainedBankCuts;
+    std::array<std::shared_ptr<const BankCuts>,8> bankCutsCache;
+    std::unique_ptr<PreparedCommit> stagedCommit;
+    PreparedCommit* renderAcknowledgement=nullptr;
+    field::OwnedSnapshots<DocumentSnapshot> documentSnapshots;
+    std::unique_ptr<DocumentSnapshot> controlBefore;
+    uint64_t submittedGeneration=0,processedGeneration=0,renderedFrames=0;
+    std::atomic<uint64_t> completedGeneration{0};
+    bool documentSampling=false;
+    int documentAlbumRecording=-1,documentAlbumPlaying=-1;
+    void beginDocument(bool writable);
+    void endDocument();
+    void abortDocument();
+    void pollDocuments();
+    void publishDocument() noexcept;
+    void fillDocumentSnapshot(DocumentSnapshot&) const noexcept;
+    void acknowledgeDocument() noexcept;
+    void installPreparedCommit() noexcept;
+    void initializeRenderDocument();
+    std::shared_ptr<const ControlRoot> makeControlRoot();
+    void captureModel(DocumentSnapshot&);
+    void applyModel(const DocumentSnapshot&);
+    void collectOwnedDocuments();
+    void retainSnapshotOwners(const DocumentSnapshot&);
+    bool awaitDocument(uint64_t generation);
+    void stopRecordingForEdit();
+    field::TapeAudio stoppedCapture;
+    uint64_t stoppedCaptureGeneration=0,stoppedCaptureEpoch=0;
+    field::Engine& renderingEngine() const {return offlineFixture?const_cast<field::Engine&>(engine):*renderDocument.synth;}
+    field::UiTelemetry makeRenderTelemetry() const;
     void processMaster(float*,float*,int,double,MasterState&,field::Engine&);
     double clickPhase=0;
     bool previousHostPlaying=false,hostPositionValid=false;

@@ -98,10 +98,37 @@ jobs:
           ASAN_OPTIONS: detect_leaks=1
           UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
         run: ctest --test-dir build-sanitize --output-on-failure
+  live-sanitizers:
+    name: Live audio ownership ASan and UBSan
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Linux prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pkg-config libasound2-dev libfreetype-dev libfontconfig1-dev libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libgl1-mesa-dev xvfb
+      - uses: actions/checkout@v4
+        with:
+          repository: juce-framework/JUCE
+          ref: ea77444750de45e036e0279bb0291144bf8e3688
+          path: vendor/JUCE
+      - name: Configure live ownership tests
+        run: >-
+          cmake -S . -B build-live-sanitize -DBUILD_TESTING=ON -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_CXX_FLAGS_RELEASE="-O1 -g1 -DNDEBUG -fsanitize=address,undefined -fno-omit-frame-pointer"
+          -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined"
+          -DCMAKE_SHARED_LINKER_FLAGS="-fsanitize=address,undefined"
+      - name: Build live ownership tests
+        run: cmake --build build-live-sanitize --target field_ownership_tests --parallel 2
+      - name: Check live ownership and lifetime
+        env:
+          ASAN_OPTIONS: detect_leaks=0
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: xvfb-run -a ctest --test-dir build-live-sanitize -R '^audio_ownership$' --output-on-failure
   release:
-    name: Publish tested beta downloads
+    name: Publish tested downloads
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [build, core-sanitizers]
+    needs: [build, core-sanitizers, live-sanitizers]
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -114,18 +141,20 @@ jobs:
           merge-multiple: true
       - name: Verify all target downloads
         run: python scripts/verify_packages.py release-downloads --all-platforms
-      - name: Publish beta release
+      - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
+          prerelease=false
+          case "$RELEASE_TAG" in *-*) prerelease=true ;; esac
           if gh release view "$RELEASE_TAG" --json isDraft --jq '.isDraft' > /tmp/field-release-draft.txt; then
             if [ "$(cat /tmp/field-release-draft.txt)" != "true" ]; then
               echo "Refusing to overwrite an already published release."
               exit 1
             fi
             gh release upload "$RELEASE_TAG" release-downloads/*.zip release-downloads/*.sha256 --clobber
-            gh release edit "$RELEASE_TAG" --draft=false --prerelease --title "Field Studio $RELEASE_TAG" --notes-file docs/RELEASE_NOTES.md
+            gh release edit "$RELEASE_TAG" --draft=false --prerelease="$prerelease" --title "Field Studio $RELEASE_TAG" --notes-file docs/RELEASE_NOTES.md
           else
-            gh release create "$RELEASE_TAG" release-downloads/*.zip release-downloads/*.sha256 --verify-tag --prerelease --title "Field Studio $RELEASE_TAG" --notes-file docs/RELEASE_NOTES.md
+            gh release create "$RELEASE_TAG" release-downloads/*.zip release-downloads/*.sha256 --verify-tag --prerelease="$prerelease" --title "Field Studio $RELEASE_TAG" --notes-file docs/RELEASE_NOTES.md
           fi

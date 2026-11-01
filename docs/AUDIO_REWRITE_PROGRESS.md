@@ -1,3 +1,5 @@
+> **0.3.0 update:** the production callback no longer takes the editing lock. See [current ownership design](LIVE_AUDIO_DESIGN.md) and [known issues](KNOWN_ISSUES.md). Beta-era lock descriptions below are historical.
+
 # Audio ownership rewrite — staged media preparation
 
 Beta 10 adds a fixed-payload audio command queue for frequent controls and a bounded media-preparation worker with message-thread publication/cancellation. Capture transitions are smoothed and device shutdown is moved out of the source-selection engine guard. The audio callback still takes the final engine guard. Host state, prepared document/tape commits, history and some remaining reads/controls have not completed the exclusive-ownership migration. See [current performance and operation notes](PERFORMANCE.md#beta-10-control-and-preparation).

@@ -24,6 +24,7 @@ bool FieldProcessor::parseMidiMappings(const juce::ValueTree& root,std::array<fi
 bool FieldProcessor::restoreMidiMappingState(const juce::ValueTree& root,juce::String& error){std::array<field::MidiBinding,P_count+extraMidiTargets> bindings;if(!parseMidiMappings(root,bindings,error))return false;midiLearn.clearAll();for(size_t i=0;i<bindings.size();++i)if(bindings[i].cc>=0)midiLearn.assign(i,bindings[i]);return true;
 }
 float FieldProcessor::mappedMidiValue(size_t target) const noexcept {
+    const auto& engine=renderingEngine();const double selectionStart=offlineFixture?this->selectionStart:renderDocument.loopStart,selectionEnd=offlineFixture?this->selectionEnd:renderDocument.loopEnd;
     if(target<P_count)return rawTargets[target]->getValue();size_t key=target-P_count;
     if(key<16){int track=(int)key/4;switch(key%4){case 0:return engine.trackLevel(track)/2;case 1:return (engine.trackPan(track)+1)/2;case 2:return engine.trackMute(track)?1:0;default:return engine.trackSolo(track)?1:0;}}
     if(key<23){const auto& p=engine.drumPad(engine.selectedPad());switch(key-16){case 0:return p.start;case 1:return p.end;case 2:return (p.tune+24)/48;case 3:return p.level/2;case 4:return (p.pan+1)/2;case 5:return p.mode/2.f;default:return p.chokeGroup/4.f;}}
@@ -32,6 +33,7 @@ float FieldProcessor::mappedMidiValue(size_t target) const noexcept {
     switch(key){case 35:return engine.playing()?1:0;case 36:return engine.playing()?0:1;case 37:return 0;case 38:return (float)(engine.positionSeconds()/360);case 39:return (float)(selectionStart/360);default:return (float)(selectionEnd/360);}
 }
 void FieldProcessor::applyMappedMidi(size_t target,float value) noexcept {
+    auto& engine=renderingEngine();auto& selectionStart=offlineFixture?this->selectionStart:renderDocument.loopStart;auto& selectionEnd=offlineFixture?this->selectionEnd:renderDocument.loopEnd;
     value=juce::jlimit(0.f,1.f,value);if(target<P_count){setNormalized((int)target,value);return;}const size_t key=target-P_count;
     if(key<16){int track=(int)key/4;switch(key%4){case 0:engine.setTrackLevel(track,value*2);break;case 1:engine.setTrackPan(track,value*2-1);break;case 2:engine.setTrackMute(track,value>=.5f);break;default:engine.setTrackSolo(track,value>=.5f);}return;}
     if(key<23){int selected=engine.selectedPad();auto p=engine.drumPad(selected);switch(key-16){case 0:p.start=value;break;case 1:p.end=value;break;case 2:p.tune=value*48-24;break;case 3:p.level=value*2;break;case 4:p.pan=value*2-1;break;case 5:p.mode=(int)std::lround(value*2);break;default:p.chokeGroup=(int)std::lround(value*4);}engine.setDrumPad(selected,p);return;}

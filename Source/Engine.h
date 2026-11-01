@@ -93,8 +93,9 @@ public:
     std::deque<std::array<Track,4>> takeRetiredTape(){return std::move(retiredTape);}
 
     Engine();
+    ~Engine();
     Engine(Engine&&) = default;
-    Engine& operator=(Engine&&) = default;
+    Engine& operator=(Engine&&);
     Engine(const Engine&) = delete;
     Engine& operator=(const Engine&) = delete;
     void prepare(double sampleRate, int maxBlock);
@@ -129,6 +130,12 @@ public:
     bool installPreparedSample(PreparedSample*) noexcept;
     void discardPreparedSample(PreparedSample*) noexcept;
     size_t collectRetiredSamples();
+    std::shared_ptr<PreparedSample> sharedCurrentSample() const;
+    // The caller retains shared ownership off audio until all voice/current
+    // references have retired. No registry mutation or destruction occurs here.
+    void adoptSharedSample(PreparedSample*) noexcept;
+    void retainSharedSample(const std::shared_ptr<PreparedSample>&);
+    static unsigned sampleReferences(const PreparedSample& sample) noexcept {return sample.references.load(std::memory_order_acquire);}
     size_t retainedSampleAssets() const { return sampleAssets.size(); } // worker thread only
     void loadSample(const std::vector<float>& left, const std::vector<float>& right, double sampleRate);
     const std::vector<float>& sampleLeft() const;
@@ -234,6 +241,28 @@ public:
     void setFingerLength(int pattern,int length);
     int fingerLength(int pattern) const;
     int currentSequenceStep() const { return seqStep; }
+    struct Document {
+        std::array<DrumPad,24> pads;
+        std::array<DBoxPad,24> dbox;
+        std::array<int,999> steps{};
+        std::array<float,999> velocities{};
+        std::array<std::bitset<128>,999> chords;
+        struct Finger {std::array<std::bitset<128>,32> chords;std::array<int,32> notes{};std::array<float,32> velocities{};int length=16;};
+        std::array<Finger,16> finger;
+        std::array<Point,256> sketch;
+        int selected=0,pad=0,length=16,bank=0,sketchLength=64;
+        double position=0,loopStart=0,loopEnd=2;
+        bool playing=false,recording=false;
+    };
+    enum DocumentPart : unsigned { seekPart=1,loopPart=2,trackPart=4,playPart=8,recordPart=16,padsPart=32,sequencePart=64,allDocumentParts=127 };
+    Document document() const noexcept;
+    static unsigned documentChanges(const Document&,const Document&) noexcept;
+    void applyDocument(const Document&,unsigned parts) noexcept;
+    void applyDocumentChanges(const Document& before,const Document& after,unsigned parts) noexcept;
+    void observeRuntime(int step,const std::array<bool,128>& notes) noexcept;
+    struct EditingHistory;
+    std::shared_ptr<const EditingHistory> editingHistory() const;
+    void restoreEditingHistory(const EditingHistory&);
     // MIDI SPP: select the next sixteenth step; do not trigger a note or seek tape.
     void setSongPosition(int sixteenthNotes);
     struct MidiNoteEvent { int note=0; float velocity=0; bool on=false; int frame=0; };
@@ -299,7 +328,7 @@ private:
     std::array<float,128> keyVelocity{};
     int keyCount=0;
     std::unique_ptr<unsigned char> sampleRegistryIdentity=std::make_unique<unsigned char>(0);
-    std::vector<std::unique_ptr<PreparedSample>> sampleAssets;
+    std::vector<std::shared_ptr<PreparedSample>> sampleAssets;
     SamplePointer currentSample;
     void releaseVoiceSample(Voice&) noexcept;
     std::array<DrumPad,24> pads;

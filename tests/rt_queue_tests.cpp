@@ -4,6 +4,9 @@
 #include <chrono>
 #include "RealtimeValues.h"
 #include "RealtimeSnapshot.h"
+#include "OwnedSnapshots.h"
+#include <memory>
+#include <vector>
 #include "MidiLearn.h"
 #include <atomic>
 #include <cstdlib>
@@ -21,6 +24,8 @@ void operator delete[](void* p,std::size_t)noexcept{::operator delete(p);}
 static void check(bool ok,const char* text){if(!ok){std::cerr<<"FAIL: "<<text<<'\n';std::exit(1);}}
 int main(){
     {struct State {uint64_t sequence=0;std::array<uint64_t,64> values{};};field::RealtimeSnapshot<State> snapshots;std::atomic<bool> finished{false};std::thread producer([&]{for(uint64_t n=1;n<=100000;++n){State state;state.sequence=n;for(size_t i=0;i<state.values.size();++i)state.values[i]=n+i;snapshots.publish(state);}finished.store(true,std::memory_order_release);});while(!finished.load(std::memory_order_acquire)){const auto state=snapshots.read();if(state.sequence)for(size_t i=0;i<state.values.size();++i)check(state.values[i]==state.sequence+i,"UI snapshot was torn across producer/consumer slots");}producer.join();check(snapshots.read().sequence==100000,"UI snapshot did not deliver latest state");}
+
+    {struct State{uint64_t sequence=0;std::shared_ptr<const std::vector<int>> owner;};field::OwnedSnapshots<State> snapshots;std::array<std::shared_ptr<const std::vector<int>>,17> registry;for(int i=0;i<17;++i)registry[(size_t)i]=std::make_shared<const std::vector<int>>(128,i);allocations=0;frees=0;std::atomic<bool> finished{false};std::thread producer([&]{watching=true;for(uint64_t sequence=1;sequence<=100000;++sequence)snapshots.publish([&](State& state){state.sequence=sequence;state.owner=registry[sequence%17];});watching=false;finished.store(true,std::memory_order_release);});uint64_t latest=0;auto inspect=[&](const State& state){latest=state.sequence;check(state.owner&&state.owner->size()==128&&(*state.owner)[3]==(int)(state.sequence%17),"retained snapshot was torn");};while(!finished.load(std::memory_order_acquire))snapshots.consume(inspect);producer.join();snapshots.consume(inspect);check(latest==100000,"retained snapshot lost latest publication");check(allocations==0&&frees==0,"retained publication allocated or freed on audio");}
 
     {field::CwoAnimation slow,fast,longDelay;slow.advance(0,0,.2);fast.advance(1,0,.2);longDelay.advance(0,1,.2);check(fast.frequencyTurns>slow.frequencyTurns,"CWO frequency changes wheel rate");check(longDelay.flowTurns<slow.flowTurns,"CWO delay changes flow rate");auto held=fast;fast.advance(1,1,0);check(fast.frequencyTurns==held.frequencyTurns&&fast.flowTurns==held.flowTurns,"zero elapsed time cannot move animation");for(int i=0;i<10000;++i)fast.advance(1,0,.1);check(fast.frequencyTurns>=0&&fast.frequencyTurns<1&&fast.flowTurns>=0&&fast.flowTurns<1,"CWO phases wrap safely");field::CwoAnimation chunks,one;for(int i=0;i<10;++i)chunks.advance(.6f,.3f,.02);one.advance(.6f,.3f,.2);check(std::abs(chunks.frequencyTurns-one.frequencyTurns)<1e-6&&std::abs(chunks.flowTurns-one.flowTurns)<1e-6,"animation rates do not depend on timer chunk size");const auto small=field::delayCircle(125),middle=field::delayCircle(250),large=field::delayCircle(1000);check(small.radius<middle.radius&&middle.radius<large.radius&&small.x>middle.x&&middle.x>large.x,"Delay Range changes selected ring and red centre together");}
 

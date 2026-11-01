@@ -1,40 +1,9 @@
 #include "PluginProcessor.h"
 #include <cmath>
 
-void FieldProcessor::invalidateLiveControls(){
-    const std::lock_guard<std::mutex> lock(liveProducerMutex);
-    liveEpoch.fetch_add(1,std::memory_order_release);livePerformance=8;
-}
-
-bool FieldProcessor::requestLiveControl(field::LiveControl kind,int a,int b,double x,double y){
-    if(!std::isfinite(x)||!std::isfinite(y))return false;
-    const std::lock_guard<std::mutex> lock(liveProducerMutex);
-    if(liveCommands.push({kind,a,b,x,y,liveEpoch.load(std::memory_order_relaxed)}))return true;
-    ++rejectedLiveCommands;reportOperationError("Live control queue full; retry the control. Stop and panic remain available.");return false;
-}
-void FieldProcessor::requestLiveStop(bool panic){
-    cancelMediaJob();
-    const std::lock_guard<std::mutex> lock(liveProducerMutex);
-    // Epoch fences prevent old Play or held-performance commands from undoing
-    // Stop/Panic even when the ordinary queue is full.
-    liveEpoch.fetch_add(1,std::memory_order_release);
-    livePerformance=8;
-    urgentLiveActions.fetch_or(panic?2u:1u,std::memory_order_release);
-    keyboard.allNotesOff(0);
-}
-void FieldProcessor::applyUrgentLiveActions(){
-    const auto actions=urgentLiveActions.exchange(0,std::memory_order_acq_rel);if(!actions)return;
-    ++controlRevision;engine.allNotesOff();midiNotes.resetAll();guiMidiNotes.resetAll();
-    engine.setTapeBrake(false);engine.setTapeReverse(false);engine.setTapeRoll(false);
-    if(actions&1u){albumRecording=-1;albumPlaying=-1;engine.setRecording(false);engine.setPlaying(false);}
-}
-void FieldProcessor::applyLiveCommands(){
-    using C=field::LiveControl;applyUrgentLiveActions();field::LiveCommand command;
-    const auto performance=livePerformance.fetch_and(7u);if(performance&8u){engine.setTapeBrake((performance&1)!=0);engine.setTapeReverse((performance&2)!=0);engine.setTapeRoll((performance&4)!=0,.25f);}
-    for(int count=0;count<32&&liveCommands.pop(command);++count){
-        applyUrgentLiveActions();if(command.epoch!=liveEpoch.load(std::memory_order_acquire))continue;
-        const int a=command.a,b=command.b;const float x=(float)command.x;
-        ++controlRevision;
+namespace {
+void applyEditingCommand(field::Engine& engine,const field::LiveCommand& command){
+ using C=field::LiveControl;const int a=command.a,b=command.b;const float x=(float)command.x;
         switch(command.kind){
             case C::play:engine.setPlaying(!engine.playing());break;
             case C::rewind:engine.rewind();break;
@@ -58,9 +27,56 @@ void FieldProcessor::applyLiveCommands(){
             case C::sequenceStep:engine.setSequenceStep(a,b,x);break;
             case C::fingerStep:{const int old=engine.fingerStep(a,b);engine.setFingerStep(a,b,command.x>.5? (old<0?60:std::min(127,old+1)) :old<0&&command.y<.5?60:-1);break;}
             case C::clearHeld:engine.clearHeldNotes();break;
+            case C::joinFinger:engine.clearHeldNotes();engine.noteOn(53+a/2*2,.8f);engine.noteOn(54+a/2*2,.8f);break;
             case C::manualAdvance:engine.advanceSequence();break;
             case C::sketchPoint:engine.setSketchPoint(a,x,(float)command.y);engine.setSketchLength(b);break;
         }
+}
+}
+
+void FieldProcessor::invalidateLiveControls(){
+    const std::lock_guard<std::mutex> lock(liveProducerMutex);
+    liveEpoch.fetch_add(1,std::memory_order_release);livePerformance=8;
+}
+
+bool FieldProcessor::requestLiveControl(field::LiveControl kind,int a,int b,double x,double y){
+    if(!std::isfinite(x)||!std::isfinite(y))return false;
+    using C=field::LiveControl;
+    if(!offlineFixture&&kind!=C::manualAdvance&&kind!=C::clearHeld&&kind!=C::joinFinger){
+        if(kind==C::brake||kind==C::reverse||kind==C::roll){requestTapePerformance(kind==C::brake?0:kind==C::reverse?1:2,x>.5);return true;}
+        DocumentGuard document(*this);applyEditingCommand(engine,{kind,a,b,x,y,liveEpoch.load()});++controlRevision;return true;
+    }
+    const std::lock_guard<std::mutex> lock(liveProducerMutex);
+    if(liveCommands.push({kind,a,b,x,y,liveEpoch.load(std::memory_order_relaxed)}))return true;
+    ++rejectedLiveCommands;reportOperationError("Live control queue full; retry the control. Stop and panic remain available.");return false;
+}
+void FieldProcessor::requestLiveStop(bool panic){
+    cancelMediaJob();
+    {const std::lock_guard<std::mutex> lock(liveProducerMutex);
+    // Epoch fences prevent old Play or held-performance commands from undoing
+    // Stop/Panic even when the ordinary queue is full.
+    liveEpoch.fetch_add(1,std::memory_order_release);
+    livePerformance=8;
+    urgentLiveActions.fetch_or(panic?2u:1u,std::memory_order_release);
+    keyboard.allNotesOff(0);}
+    if(!offlineFixture){DocumentGuard document(*this);if(!panic){engine.setRecording(false);engine.setPlaying(false);documentAlbumRecording=-1;documentAlbumPlaying=-1;}controlSignals|=1u;}
+}
+void FieldProcessor::applyUrgentLiveActions(){
+    auto& engine=renderingEngine();
+    const auto actions=urgentLiveActions.exchange(0,std::memory_order_acq_rel);if(!actions)return;
+    ++controlRevision;engine.allNotesOff();midiNotes.resetAll();guiMidiNotes.resetAll();
+    engine.setTapeBrake(false);engine.setTapeReverse(false);engine.setTapeRoll(false);
+    if(actions&1u){if(offlineFixture){albumRecording=-1;albumPlaying=-1;}else{renderDocument.albumRecording=-1;renderDocument.albumPlaying=-1;}engine.setRecording(false);engine.setPlaying(false);}
+}
+void FieldProcessor::applyLiveCommands(){
+    auto& engine=renderingEngine();
+    using C=field::LiveControl;applyUrgentLiveActions();field::LiveCommand command;
+    const auto performance=livePerformance.fetch_and(7u);if(performance&8u){engine.setTapeBrake((performance&1)!=0);engine.setTapeReverse((performance&2)!=0);engine.setTapeRoll((performance&4)!=0,.25f);}
+    for(int count=0;count<32&&liveCommands.pop(command);++count){
+        applyUrgentLiveActions();if(command.epoch!=liveEpoch.load(std::memory_order_acquire))continue;
+        const int a=command.a,b=command.b;const float x=(float)command.x;
+        ++controlRevision;
+        applyEditingCommand(engine,command);
     }
     applyUrgentLiveActions();
 }

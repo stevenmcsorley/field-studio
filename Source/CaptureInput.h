@@ -32,8 +32,8 @@ public:
  // Device shutdown can then happen off that guard without racing the ring reader.
  void suspend() noexcept {running.store(false,std::memory_order_release);}
  bool active()const noexcept{return running.load();}
- void read(float* l,float* r,int frames) noexcept {bridge.read(ring,l,r,(size_t)frames);}
+ void read(float* l,float* r,int frames) noexcept {readers.fetch_add(1,std::memory_order_acq_rel);if(running.load(std::memory_order_acquire))bridge.read(ring,l,r,(size_t)frames);readers.fetch_sub(1,std::memory_order_release);}
  CaptureRing ring;CaptureClockBridge bridge;
 private:
- struct Impl;std::unique_ptr<Impl> impl;std::atomic<bool> running{false};
+ struct Impl;std::unique_ptr<Impl> impl;std::atomic<bool> running{false};std::atomic<unsigned> readers{0};
 };

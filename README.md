@@ -2,7 +2,7 @@
 
 A native synthesizer, sampler and four-track stereo tape instrument inspired by the OP–1 field workflow. Builds a standalone application and VST3 from the same C++ audio engine; macOS also builds AU.
 
-**[Download the latest beta](https://github.com/stevenmcsorley/field-studio/releases/tag/v0.2.2-beta.10)** · [VST3 setup](#vst3-and-daw-workflow) · [Recent features and screenshots](#recent-improvements) · [Controller mapping](#controller-mapping)
+**[Download Field Studio 0.3.0](https://github.com/stevenmcsorley/field-studio/releases/tag/v0.3.0)** · [VST3 setup](#vst3-and-daw-workflow) · [Recent features and screenshots](#recent-improvements) · [Controller mapping](#controller-mapping)
 
 ![Field Studio running on Linux, showing the CWO cow effect, four coloured encoders and two-octave keyboard](docs/screenshots/field-studio.png)
 
@@ -20,7 +20,7 @@ Play synths and drums, import samples, build a sequence, record it onto four ste
 
 ## Recent improvements
 
-**Control and loading reliability (beta 10):** frequent mixer/pad/scrub/transport controls use bounded audio commands, with stop/panic available even when the queue is full. New/Open/Import, tape preparation/edits and sample/album recording preparation use a background worker with message-thread publication. Cancel preparation through **COM → Cancel background loading/editing**; captured-sample finalization is protected once underway. Separate capture input now fades through backlog recovery, underruns and re-priming. MCP transport/manual advance are queued, and state polling uses telemetry. The final engine commit lock remains; this is a staged migration, not a zero-dropout guarantee. [Operation behavior, tests and remaining work](docs/PERFORMANCE.md#beta-10-control-and-preparation).
+**Continuous audio ownership (0.3.0):** the audio callback now owns a private render document and never acquires the editing lock. Prepared loads, tape edits, undo/redo and bank changes publish at block boundaries; retained snapshots support saves, exports and previews while playback continues. Old samples stay alive for their existing voices, and large discarded resources are reclaimed on the control thread. Stop/panic remain independent. A new production-path suite checks continuous pilot audio, MIDI, concurrent operations and callback allocation/free counts across four sample rates and three buffer sizes. Effects, sounds and preset mappings are unchanged. [Architecture and tested limits](docs/LIVE_AUDIO_DESIGN.md).
 
 **Audio/UI performance (beta 9):** cached DSP calculations, lock-free GUI telemetry, narrower repaints and adaptive external-capture buffering. **COM → Audio / performance** provides diagnostics, 48 kHz/256 or 512-frame presets and output-only playback. Local synthetic active workloads showed 17–53% lower mean callback cost with matching checksums; physical latency and long-session reliability remain unverified. [Setup, measurements and limits](docs/PERFORMANCE.md).
 
@@ -48,7 +48,7 @@ Play synths and drums, import samples, build a sequence, record it onto four ste
 
 **Synths, effects and presets:** Dimension and DSynth have dedicated LCD layouts. CWO now blends lower/upper sidebands, with control-driven internal motion and feedback-dependent dry sound. Delay has Range-linked circles, input-level control that preserves circulating echoes, and slower-clock colour. Preset browsing adds dated snapshots, nested folders, rename, copy/move and delete. [Effects research](docs/research/EFFECT_VISUAL_MOTION.md) · [Presets](docs/PRESETS.md).
 
-**Saving and exporting:** project saves and WAV exports run on a bounded background worker. Prepared-media and tape-reservation changes reduce heavy work inside the live lock; the remaining live-performance limits are described below.
+**Saving and exporting:** project saves and WAV exports run on a bounded background worker. Prepared media and retained snapshots keep file work and resource reclamation off the audio callback; physical-device performance still depends on your driver and buffer settings.
 
 These are native screenshots of Field Studio. Screen artwork and DSP remain independent approximations; the EQ curve illustrates settings rather than a measured response.
 
@@ -144,7 +144,7 @@ Right-click a knob and choose **MIDI learn**, then move a control on your Faderf
 
 ## Downloads
 
-[Field Studio 0.2.2 beta 10 downloads](https://github.com/stevenmcsorley/field-studio/releases/tag/v0.2.2-beta.10) are available for Windows, macOS and Linux. All automated release gates passed. The pipeline packages Windows x64 standalone/VST3, macOS universal standalone/VST3/AU and Linux x86_64 standalone/VST3, with checksums and complete corresponding source. See [beta notes](docs/RELEASE_NOTES.md) and [build/release status](docs/BUILD_STATUS.md). Binaries are unsigned development builds.
+[Field Studio 0.3.0 downloads](https://github.com/stevenmcsorley/field-studio/releases/tag/v0.3.0) are available for Windows, macOS and Linux. All automated release gates passed. The pipeline packages Windows x64 standalone/VST3, macOS universal standalone/VST3/AU and Linux x86_64 standalone/VST3, with checksums and complete corresponding source. See [release notes](docs/RELEASE_NOTES.md) and [build/release status](docs/BUILD_STATUS.md). Binaries are unsigned portable builds.
 
 ## Run the Linux build
 
@@ -196,7 +196,7 @@ Windows: configure with Visual Studio2022 and build `--config Release`. macOS: c
 
 ## Verification
 
-`ctest --test-dir build --output-on-failure` runs audio-core, plugin/project/UI, MIDI clock/routing, preset-format, parameter translation and Linux native VST3-host tests. Use `xvfb-run -a` on headless Linux. Core ownership tests also pass AddressSanitizer and UndefinedBehaviorSanitizer and check both allocation and deallocation on tested realtime paths. Native VST3 tests instantiate the actual module with optional stems disabled and enabled; they are not a substitute for testing every DAW. Public preset metadata was independently checked against 167 research fixtures; its raw hardware knob values are preserved, not guessed into identical sounds.
+`ctest --test-dir build --output-on-failure` runs nine suites: live audio ownership, audio-core, plugin/project/UI, MIDI clock/routing, preset-format, parameter translation and Linux native VST3-host tests. Use `xvfb-run -a` on headless Linux. Core ownership tests also pass AddressSanitizer and UndefinedBehaviorSanitizer and check both allocation and deallocation on tested realtime paths. Native VST3 tests instantiate the actual module with optional stems disabled and enabled; they are not a substitute for testing every DAW. Public preset metadata was independently checked against 167 research fixtures; its raw hardware knob values are preserved, not guessed into identical sounds.
 
 ```sh
 xvfb-run -a build/field_plugin_tests_artefacts/Release/field_plugin_tests docs/screenshots
@@ -208,9 +208,9 @@ This renders all five modes and the synth module pages for visual inspection. Fi
 
 Tape audio is held in RAM, with six minutes per track and eight banks. Long projects require substantial memory. Up to seven undo snapshots are retained, subject to a soft256MiB budget; project import has a512MiB decompressed-state limit. Undo history and hardware preset-file export are not persisted. Sequencer algorithms, DBox-style synthesis, tape colour and effects differ from the original hardware; see the parity ledger.
 
-The [audio ownership rewrite](docs/AUDIO_REWRITE_PROGRESS.md) now includes lock-free keyboard handoff, deferred MIDI parameter notifications and immutable sample lifetimes. Live tape, undo history, albums and sample capture now use paged snapshot storage. Saves flatten tape/capture generations and mix exports render after releasing the engine lock; the full ownership migration remains in progress.
+The [audio ownership rewrite](docs/LIVE_AUDIO_DESIGN.md) separates the editing model from the callback-owned engine. Live tape, undo history, albums and sample capture use retained paged storage. Prepared commits carry generations and lifecycle epochs; stale media replacements are rejected rather than overwriting newer recordings. The editing mutex is control-only.
 
-Large record preparation, edits, project/sample loading, serialization and previews now run outside the live lock, with revision checks and a default 2 GiB tape-pool reservation cap. The wrapper still uses a short commit/UI lock and can skip a contended block. It is not yet certified for seamless live performance; see [known issues](docs/KNOWN_ISSUES.md). The core render is allocation-free, but full plugin performance parity and long-session stress validation remain open. Models of radio, embedded sensors, battery/speaker hardware and device-specific USB/BLE behaviour are outside this software implementation.
+The new live suite tests 44.1/48/96/192 kHz at 32/64/512 frames, including save/export/import/load/edit/history/bank operations and a held control mutex. Tested callback paths allocate and free no heap memory, and synth/effect output matches the previous engine path. These checks do not certify hardware deadlines or every device/DAW. Oversized host blocks beyond prepared scratch capacity are still rejected. Host state APIs are non-realtime operations; device changes require host lifecycle quiescence. See [known issues](docs/KNOWN_ISSUES.md). Models of radio, embedded sensors, battery/speaker hardware and device-specific USB/BLE behaviour are outside this software implementation.
 
 ## License
 
