@@ -2,7 +2,7 @@
 
 A native synthesizer, sampler and four-track stereo tape instrument inspired by the OP–1 field workflow. Builds a standalone application and VST3 from the same C++ audio engine; macOS also builds AU.
 
-**[Download the latest beta](https://github.com/stevenmcsorley/field-studio/releases/tag/v0.2.2-beta.8)** · [VST3 setup](#vst3-and-daw-workflow) · [Recent features and screenshots](#recent-improvements) · [Controller mapping](#controller-mapping)
+**[Download the latest beta](https://github.com/stevenmcsorley/field-studio/releases/tag/v0.2.2-beta.9)** · [VST3 setup](#vst3-and-daw-workflow) · [Recent features and screenshots](#recent-improvements) · [Controller mapping](#controller-mapping)
 
 ![Field Studio running on Linux, showing the CWO cow effect, four coloured encoders and two-octave keyboard](docs/screenshots/field-studio.png)
 
@@ -19,6 +19,8 @@ Play synths and drums, import samples, build a sequence, record it onto four ste
 - **Presets and controllers:** eight synth and eight drum sound slots, dated snapshots, preset browsing, nested user folders, MIDI learn and reusable controller profiles.
 
 ## Recent improvements
+
+**Audio/UI performance (beta 9):** cached DSP calculations, lock-free GUI telemetry, narrower repaints and adaptive external-capture buffering. **COM → Audio / performance** provides diagnostics, 48 kHz/256 or 512-frame presets and output-only playback. Local synthetic active workloads showed 17–53% lower mean callback cost with matching checksums; physical latency and long-session reliability remain unverified. [Setup, measurements and limits](docs/PERFORMANCE.md).
 
 **Grid, Mother, Dimension and DNA LCDs:** rebuilt Grid's floor/wall projection, wire boxes, arrows and thin numeric readouts; Mother now uses the reference's tunnel grid, foreground/rear figures and gate bracket. Dimension uses the paired 2:3 Lissajous knot, corrected plot placement and rounded resonance peak. DNA has a dedicated linked hexadecimal-tile screen, terminal dots and noise strip. All four retain parameter-driven rendering. These are closer reference-based redraws; pixel-perfect fonts, hardware readout laws and animation parity remain unverified. [LCD comparison notes and native details](docs/LCD_FIDELITY.md).
 
@@ -140,7 +142,7 @@ Right-click a knob and choose **MIDI learn**, then move a control on your Faderf
 
 ## Downloads
 
-[Field Studio 0.2.2 beta 4 downloads](https://github.com/stevenmcsorley/field-studio/releases/tag/v0.2.2-beta.8) are available for Windows, macOS and Linux. All automated release gates passed. The pipeline packages Windows x64 standalone/VST3, macOS universal standalone/VST3/AU and Linux x86_64 standalone/VST3, with checksums and complete corresponding source. See [beta notes](docs/RELEASE_NOTES.md) and [build/release status](docs/BUILD_STATUS.md). Binaries are unsigned development builds.
+[Field Studio 0.2.2 beta 9 downloads](https://github.com/stevenmcsorley/field-studio/releases/tag/v0.2.2-beta.9) are available for Windows, macOS and Linux. All automated release gates passed. The pipeline packages Windows x64 standalone/VST3, macOS universal standalone/VST3/AU and Linux x86_64 standalone/VST3, with checksums and complete corresponding source. See [beta notes](docs/RELEASE_NOTES.md) and [build/release status](docs/BUILD_STATUS.md). Binaries are unsigned development builds.
 
 ## Run the Linux build
 

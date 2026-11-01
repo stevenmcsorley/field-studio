@@ -8,6 +8,7 @@
 #include "ControlJobs.h"
 #include "ControlBridge.h"
 #include "CaptureInput.h"
+#include "UiTelemetry.h"
 #include "PresetLibrary.h"
 #include <mutex>
 
@@ -41,6 +42,9 @@ public:
     void getStateInformation(juce::MemoryBlock&) override;
     void setStateInformation(const void*,int) override;
     juce::AudioProcessorValueTreeState parameters;
+    field::UiTelemetry uiState(){return uiTelemetry.read();}
+    field::UiTelemetry uiStateForTesting(){const juce::ScopedLock lock(engineLock);return makeUiTelemetry();}
+    std::atomic<int> uiMode{-1};
     field::RtKeyboard keyboard;
     field::Engine engine;
     void startSampleCapture(bool fromOutput=false);
@@ -107,6 +111,7 @@ public:
     bool loadSound(const juce::ValueTree&,int slot,bool drum,juce::String& error);
     field::PresetLibrary::Entry snapshotSound(int slot);
     bool loadLibrarySound(const field::PresetLibrary::Entry&,int slot,juce::String& error);
+    bool trySoundSlotNames(juce::StringArray&);
     juce::String soundSlotName(int slot);
     void randomizeSound(){applyPatchAction(1);}
 
@@ -119,6 +124,12 @@ public:
     std::atomic<float> outputPeak{0},effectiveTempo{110};
     std::array<std::atomic<float>,2> outputChannelPeaks{},masterPrePeaks{};
     std::atomic<int> skippedBlocks{0};
+    std::atomic<float> callbackLoad{0},callbackPeak{0};
+    std::atomic<uint64_t> callbackOverruns{0};std::atomic<int> actualBlockSize{0};
+    double callbackRate=44100;
+    std::atomic<double> preparedRate{44100};
+    juce::String performanceReport() const;
+
     std::atomic<double> playhead{0};
     std::atomic<bool> hostSync{false};
     std::atomic<bool> metronome{false};
@@ -177,6 +188,16 @@ private:
     juce::String operationError;
     double sampleRateFile=44100,captureRate=44100;
     struct AlbumSide { field::TapeAudio audio; double rate=44100; };
+    field::RealtimeSnapshot<field::UiTelemetry> uiTelemetry;
+    field::UiTelemetry makeUiTelemetry() const;
+    int uiPublishFrames=0;
+    std::array<std::atomic<uintptr_t>,7> livePoolIdentities{};
+    std::array<std::shared_ptr<field::tape::TapePool>,7> maintenancePools;
+    std::atomic<bool> retiredTapePending{false};
+    void publishMaintenanceState();
+    void publishControlUiState(){uiTelemetry.publish(makeUiTelemetry());publishMaintenanceState();} // caller owns engineLock
+    juce::CriticalSection slotNamesLock;std::array<juce::String,16> cachedSlotNames;
+    void refreshSlotNameCache();
     field::TapeAudio captureAudio;
     std::atomic<bool> captureExhausted{false};
     std::array<AlbumSide,2> albums;

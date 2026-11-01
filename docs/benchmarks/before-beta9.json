@@ -1,0 +1,55 @@
+{
+  "sample_rate": 48000.0,
+  "block_frames": 256,
+  "cases": [
+    {
+      "scenario": "idle",
+      "mean_callback_us": 72.84849142857138,
+      "peak_callback_us": 210.90400000000002,
+      "mean_deadline_percent": 1.365909214285713,
+      "checksum": 0.0
+    },
+    {
+      "scenario": "voltage-8",
+      "mean_callback_us": 573.8979314285715,
+      "peak_callback_us": 1074.733,
+      "mean_deadline_percent": 10.760586214285716,
+      "checksum": -0.010867803488509
+    },
+    {
+      "scenario": "dimension-8",
+      "mean_callback_us": 560.1497442857144,
+      "peak_callback_us": 1238.1,
+      "mean_deadline_percent": 10.502807705357146,
+      "checksum": 13.107481871615164
+    },
+    {
+      "scenario": "dna-8",
+      "mean_callback_us": 651.5977585714292,
+      "peak_callback_us": 1050.575,
+      "mean_deadline_percent": 12.217457973214298,
+      "checksum": -0.27175315306522
+    },
+    {
+      "scenario": "sampler-8",
+      "mean_callback_us": 600.1623771428568,
+      "peak_callback_us": 1973.084,
+      "mean_deadline_percent": 11.253044571428566,
+      "checksum": -0.215779854916036
+    },
+    {
+      "scenario": "vocoder-4",
+      "mean_callback_us": 393.0019271428572,
+      "peak_callback_us": 836.091,
+      "mean_deadline_percent": 7.368786133928573,
+      "checksum": -0.088384199654683
+    },
+    {
+      "scenario": "cwo-mother-8",
+      "mean_callback_us": 823.600544285715,
+      "peak_callback_us": 1452.542,
+      "mean_deadline_percent": 15.442510205357157,
+      "checksum": -0.4230882867123
+    }
+  ]
+}

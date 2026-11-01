@@ -1,5 +1,7 @@
 # Audio devices: Windows ASIO and macOS CoreAudio
 
+Beta 9 reduces routine GUI/maintenance lock traffic and DSP cost, adds adaptive external capture and COM audio diagnostics/presets. The engine control lock remains and can still skip audio blocks. See [performance setup and measurements](PERFORMANCE.md).
+
 ## Standalone
 
 | Platform | Backend and setup |

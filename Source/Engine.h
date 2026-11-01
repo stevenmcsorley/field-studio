@@ -271,6 +271,8 @@ private:
         float velocity = 0, env = 0, releaseStart = 0, lp = 0, hp = 0, forcedRelease = 0;
         double phase = 0, phase2 = 0, age = 0, samplePos = 0;
         float pitch=60,detune=0,stringPrevious=0;
+        float frequencyKey=1e30f,filterKey=-1,filterCoefficient=0;
+        double frequency=440,sampleStepKey=1e30,sampleStep=1;
         SamplePointer sampleAsset;
         double sampleBegin=0, sampleFinish=0, sampleLoopBegin=0, sampleLoopFinish=0;
         bool sampleReverse=false, sampleLooped=false, sampleOneShot=false;
@@ -316,6 +318,7 @@ private:
     DelayColor plainDelayColor;
     double cwoDelay=-1,cwoDelaySmoothing=0,plainDelay=-1;
     std::array<float,20> modulationRoutes{};
+    float effectToneKey=-1,effectToneCoefficient=0;
     std::array<float,4> midiControllers{};
     float previousOutputEnvelope = 0;
     float voiceRoute(int target, float velocity) const;

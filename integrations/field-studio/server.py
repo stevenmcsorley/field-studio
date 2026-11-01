@@ -83,6 +83,7 @@ def search(args):
     validate(args,TOOLS[0]['inputSchema']);query=args['query'].strip().lower()
     if not query or len(query)>200:raise ValueError('Search query must be 1–200 characters')
     words=set(re.findall(r'[a-z0-9]+',query));ranked=[]
+    if words&{'performance','latency','cpu','dropout','dropouts','crackle'}:words.add('state')
     if words&{'volume','tempo','sync','clock','metronome','synth','effect','adsr','automation','mixer'}:words.add('parameters')
     if words&{'arpeggio','endless','pattern','finger','hold','chord'}:words.update(('sequence','parameters'))
     for name,(description,schema) in OPS.items():

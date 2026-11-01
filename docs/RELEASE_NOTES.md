@@ -1,4 +1,4 @@
-# Field Studio 0.2.2 beta 8
+# Field Studio 0.2.2 beta 9
 
 Reliability update to the portable multi-platform beta of the independent synthesizer, sampler and four-track stereo tape instrument. Exact OP-1 field sound, feature and visual parity is not established.
 
@@ -15,7 +15,13 @@ Original Field Studio code/graphics: **MIT**. Combined app/plugin binaries with 
 
 Each download has a SHA-256 sidecar. Binary bundles include installation instructions, dependency notices and a per-file hash manifest. These are portable archives, not signed installers. Windows binaries are unsigned; macOS binaries are not Developer ID signed/notarized. The project owner reports working plugin operation, automation, Faderfox assignment and BeatStep use; DAW/OS/model details were not recorded. Broader device/host coverage remains open.
 
-## Added in beta 8
+## Added in beta 9
+
+**Audio/UI performance (beta 9):** cached DSP calculations, lock-free GUI telemetry, narrower repaints and adaptive external-capture buffering. **COM → Audio / performance** provides diagnostics, 48 kHz/256 or 512-frame presets and output-only playback. Local synthetic active workloads showed 17–53% lower mean callback cost with matching checksums; physical latency and long-session reliability remain unverified. [Setup, measurements and limits](PERFORMANCE.md).
+
+Existing settings stay unchanged until selected. The engine control lock remains and can still cause skipped blocks. Includes snapshot concurrency, nonblocking GUI and independent capture-clock regression tests plus a reproducible benchmark target.
+
+## Retained from beta 8
 
 - Grid LCD rebuilt around the supplied isometric floor/wall projection, fixed blue wire frame, ochre size box, white origin cube, directional arrows, Z marker and 12-segment mix strip. Thin stroke numerals replace filled-font readouts.
 - Mother LCD rebuilt with finite rear-wall perspective grid, foreground/rear figures, gate bracket, colour rays and matching readout placement. Insert and master effects use the same renderer with independent values.

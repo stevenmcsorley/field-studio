@@ -26,8 +26,14 @@ public:
     void mouseDoubleClick(const juce::MouseEvent&) override;
     void showPageForTesting(int mode,int page);
     void showCaptureSources();
-    bool observedSampling=false;
-    void refreshForTesting() { timerCallback(); }
+    bool observedSampling=false,forceUiReadForTesting=false;
+    int tooltipMode=-1;juce::StringArray slotTooltipNames;
+    juce::String inputSourceLabel{"Device / DAW input"};
+    std::shared_ptr<const FieldProcessor::SampleData> previewSampleAsset;
+    double previewStart=-1,previewEnd=-1;
+    std::array<field::TapeAudio,4> previewTapeMedia;
+    void refreshLiveForTesting(){timerCallback();}
+    void refreshForTesting() { forceUiReadForTesting=true;timerCallback(); }
     juce::String macroMidiTargetForTesting(int i) const {return i>=0&&i<4?macros[(size_t)i].getProperties()["midiTarget"].toString():juce::String{};}
     bool macroEnabledForTesting(int i) const { return i>=0&&i<4&&macros[(size_t)i].isEnabled(); }
     void openPresetBrowserForTesting(int slot){openPresetBrowser(slot);}

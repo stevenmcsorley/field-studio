@@ -10,6 +10,10 @@ namespace field {
 namespace {
 constexpr double pi = 3.14159265358979323846;
 constexpr double tau = pi * 2.0;
+// The DNA cell hash depends only on the integer cell and original MIDI note.
+// Build once off the audio thread; preserve the original float rounding exactly.
+const auto dnaCells=[] {std::array<std::array<float,64>,128> table{};for(int note=0;note<128;++note)for(int cell=0;cell<64;++cell){const float hash=static_cast<float>(std::sin(cell*12.9898+note*78.233)*43758.5453);table[(size_t)note][(size_t)cell]=(hash-std::floor(hash))*2-1;}return table;}();
+
 // Software physical keyboard starts at F3. Hardware's absolute drum octave is
 // not verified; this mapping keeps its leftmost displayed key on pad one.
 constexpr int drumBaseNote = 53;
@@ -81,6 +85,7 @@ void Engine::resetDboxPads(){
 }
 void Engine::setSelectedPad(int index){padSelected=std::clamp(index,0,23);}
 void Engine::prepare(double rate, int /* maxBlock */) {
+    effectToneKey=-1;
     metronomeBeat=0;
     clearSequenceGates();
     const double nextSr = std::clamp(std::isfinite(rate)?rate:44100.0, 8000.0, 192000.0);
@@ -175,7 +180,7 @@ void Engine::triggerVoice(int note,float velocity,float detune) {
         if (!v.active) { voice=&v; break; }
         if (v.env<voice->env || (v.env==voice->env && v.age>voice->age)) voice=&v;
     }
-    Voice& v=*voice;releaseVoiceSample(v);
+    Voice& v=*voice;releaseVoiceSample(v);v.frequencyKey=1e30f;v.filterKey=-1;v.sampleStepKey=1e30;
     v.active=true; v.gate=true; v.note=note;v.pitch=note+detune+(params.sequenceOn&&params.sequencer==4?params.seqTranspose:0);v.detune=detune;v.stringPrevious=0; v.velocity=clamp(velocity);
     v.stage=0; v.env=0;v.envelopeProgress=0;if(params.lfoRetrigger){lfoPhase=0;lfoClock=0;}v.forcedRelease=0; v.phase=0; v.phase2=.173; v.age=0; v.samplePos=0;
     v.lp=v.hp=0; v.vocL1.fill(0);v.vocL2.fill(0);v.vocR1.fill(0);v.vocR2.fill(0);v.engine=params.engine; v.drum=params.drumMode || params.engine==14;
@@ -439,10 +444,10 @@ std::pair<float,float> Engine::renderVoice(Voice& v,float modulation,float inL,f
     if (!v.active) return {0,0};
     if(v.engine==14)return renderDbox(v,modulation);
     const float target=v.note+v.detune;if(!v.drum&&(params.voiceMode==1||params.voiceMode==2)&&params.glideTime>0)v.pitch+=(target-v.pitch)*(1-std::exp(-1.f/(params.glideTime*(float)sr)));else v.pitch=target;
-    const float attack=std::clamp(params.attack*std::pow(4.f,voiceRoute(8,v.velocity)),.001f,40.f);
-    const float decay=std::clamp(params.decay*std::pow(4.f,voiceRoute(9,v.velocity)),.001f,40.f);
+    const float attack=std::clamp(params.attack*(voiceRoute(8,v.velocity)==0?1.f:std::pow(4.f,voiceRoute(8,v.velocity))),.001f,40.f);
+    const float decay=std::clamp(params.decay*(voiceRoute(9,v.velocity)==0?1.f:std::pow(4.f,voiceRoute(9,v.velocity))),.001f,40.f);
     const float sustain=clamp(params.sustain+voiceRoute(10,v.velocity)*.5f);
-    const float release=v.forcedRelease>0?v.forcedRelease:std::clamp(params.release*std::pow(4.f,voiceRoute(11,v.velocity)),.001f,40.f);
+    const float release=v.forcedRelease>0?v.forcedRelease:std::clamp(params.release*(voiceRoute(11,v.velocity)==0?1.f:std::pow(4.f,voiceRoute(11,v.velocity))),.001f,40.f);
     if(params.envelopeCurve==1){
         const float duration=v.stage==0?attack:v.stage==1?decay:release;
         if(v.stage==2)v.env=sustain;
@@ -460,7 +465,9 @@ std::pair<float,float> Engine::renderVoice(Voice& v,float modulation,float inL,f
         else {v.env-=std::max(.0000001f,v.releaseStart/(release*static_cast<float>(sr)));if(v.env<=0){v.active=false;return {0,0};}}
     }
     const float pitchMod=voiceRoute(0,v.velocity)*.7f;
-    const double freq=std::clamp(440.0*std::pow(2.0,(v.pitch-69+pitchBend+pitchMod)/12.0),8.0,sr*.42);
+    const float frequencyKey=v.pitch-69+pitchBend+pitchMod;
+    if(frequencyKey!=v.frequencyKey){v.frequencyKey=frequencyKey;v.frequency=std::clamp(440.0*std::pow(2.0,frequencyKey/12.0),8.0,sr*.42);}
+    const double freq=v.frequency;
     const double dt=freq/sr;
     const float x=clamp(params.macro[0]+(voiceRoute(1,v.velocity)*.5f));
     const float y=clamp(params.macro[1]+(voiceRoute(2,v.velocity)*.5f));
@@ -535,8 +542,7 @@ std::pair<float,float> Engine::renderVoice(Voice& v,float modulation,float inL,f
             }
             case 9: { // DNA: deterministic noise-modulated tonal texture.
                 const double cell=std::floor(p*(4+std::round(x*60)));
-                const float hash=static_cast<float>(std::sin(cell*12.9898+v.note*78.233)*43758.5453);
-                const float granular=(hash-std::floor(hash))*2-1;
+                const float granular=dnaCells[(size_t)v.note][(size_t)cell];
                 l=sine(p)*(1-y)+granular*y+n*z*.15f;
                 r=l*(1-w*.2f)+sine(q)*w*.2f; break;
             }
@@ -556,7 +562,8 @@ std::pair<float,float> Engine::renderVoice(Voice& v,float modulation,float inL,f
                 l*=v.sampleLevel*(v.samplePan>0?1-v.samplePan:1);
                 r*=v.sampleLevel*(v.samplePan<0?1+v.samplePan:1);
                 const double tune=v.sampleTune+(v.drum?0:v.pitch-v.sampleRootNote+params.sampleFineTune)+pitchBend+pitchMod;
-                const double inc=v.sampleAsset->sampleRate/sr*std::pow(2.0,tune/12.0)*(reverse?-1:1);
+                if(tune!=v.sampleStepKey){v.sampleStepKey=tune;v.sampleStep=v.sampleAsset->sampleRate/sr*std::pow(2.0,tune/12.0);}
+                const double inc=v.sampleStep*(reverse?-1:1);
                 v.samplePos+=inc;
                 if(loop){
                     if(!reverse && v.samplePos>=v.sampleLoopFinish)
@@ -589,7 +596,8 @@ std::pair<float,float> Engine::renderVoice(Voice& v,float modulation,float inL,f
         v.phase2=wrap(v.phase2+dt*(1.0+(v.engine==0?w*.02:(x-.5)*.025)));
         const float filter=clamp((v.engine==7?x:z)+(voiceRoute(7,v.velocity)*.5f));
         const float cutoff=std::min(static_cast<float>(sr*.4),100.0f+filter*filter*18000.0f);
-        const float coefficient=1.0f-std::exp(-static_cast<float>(tau)*cutoff/static_cast<float>(sr));
+        if(cutoff!=v.filterKey){v.filterKey=cutoff;v.filterCoefficient=1.0f-std::exp(-static_cast<float>(tau)*cutoff/static_cast<float>(sr));}
+        const float coefficient=v.filterCoefficient;
         if((v.engine!=11&&v.engine!=0&&v.engine!=6&&v.engine!=12) || (voiceRoute(7,v.velocity)!=0)){
             v.lp+=coefficient*(l-v.lp);
             v.hp+=coefficient*(r-v.hp);
@@ -685,7 +693,8 @@ std::pair<float,float> Engine::effect(float l,float r) {
     // Delay and CWO have dedicated four-control paths. Other software
     // effects retain their wet-tone and stereo-width processing.
     if(params.effect!=7&&params.effect!=1&&params.effect!=3&&params.effect!=9){
-        const float tone=1-std::exp(-static_cast<float>(tau)*std::min(static_cast<float>(sr*.42),200+z*z*18000)/static_cast<float>(sr));
+        if(z!=effectToneKey){effectToneKey=z;effectToneCoefficient=1-std::exp(-static_cast<float>(tau)*std::min(static_cast<float>(sr*.42),200+z*z*18000)/static_cast<float>(sr));}
+        const float tone=effectToneCoefficient;
         wetLowL+=tone*(wetL-wetLowL);wetLowR+=tone*(wetR-wetLowR);
         const float mid=(wetLowL+wetLowR)*.5f,side=(wetLowL-wetLowR)*w;
         wetL=mid+side;wetR=mid-side;

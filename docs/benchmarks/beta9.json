@@ -1,0 +1,65 @@
+{
+  "sample_rate": 48000.0,
+  "block_frames": 256,
+  "cases": [
+    {
+      "scenario": "idle",
+      "mean_callback_us": 63.984847142857035,
+      "peak_callback_us": 182.209,
+      "mean_deadline_percent": 1.199715883928569,
+      "checksum": 0.0
+    },
+    {
+      "scenario": "voltage-8",
+      "mean_callback_us": 402.8156928571427,
+      "peak_callback_us": 802.748,
+      "mean_deadline_percent": 7.552794241071425,
+      "checksum": -0.010867803488509
+    },
+    {
+      "scenario": "dimension-8",
+      "mean_callback_us": 464.7856028571428,
+      "peak_callback_us": 1625.806,
+      "mean_deadline_percent": 8.714730053571428,
+      "checksum": 13.107481871615164
+    },
+    {
+      "scenario": "dna-8",
+      "mean_callback_us": 305.8998985714284,
+      "peak_callback_us": 660.4580000000001,
+      "mean_deadline_percent": 5.735623098214282,
+      "checksum": -0.27175315306522
+    },
+    {
+      "scenario": "sampler-8",
+      "mean_callback_us": 315.4526885714285,
+      "peak_callback_us": 829.712,
+      "mean_deadline_percent": 5.914737910714284,
+      "checksum": -0.215779854916036
+    },
+    {
+      "scenario": "vocoder-4",
+      "mean_callback_us": 280.5115228571425,
+      "peak_callback_us": 629.586,
+      "mean_deadline_percent": 5.259591053571421,
+      "checksum": -0.088384199654683
+    },
+    {
+      "scenario": "cwo-mother-8",
+      "mean_callback_us": 628.1509942857142,
+      "peak_callback_us": 1160.152,
+      "mean_deadline_percent": 11.77783114285714,
+      "checksum": -0.4230882867123
+    }
+  ],
+  "offscreen_paint": [
+    {
+      "region": "full-editor",
+      "mean_redraw_ms": 23.604170875000005
+    },
+    {
+      "region": "lcd-sized-region",
+      "mean_redraw_ms": 1.365847
+    }
+  ]
+}
