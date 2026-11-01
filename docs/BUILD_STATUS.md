@@ -1,4 +1,13 @@
-# Build and release status
+# Current release status
+
+The CWO/Delay fixes passed Linux, Windows x64, macOS universal build/tests and core ASan/UBSan in [run 41246239489](https://github.com/stevenmcsorley/field-studio/actions/runs/41246239489). All eight local suites and three sanitizer suites also passed.
+
+Version 0.2.2 beta 1 includes those fixes, preset management, screen improvements and background save/export. Its tag pipeline rebuilds and tests all three platforms, verifies packages/checksums and publishes only after every gate succeeds. [Release downloads](https://github.com/stevenmcsorley/field-studio/releases/tag/v0.2.2-beta.1) contain Windows x64, Linux x86_64, macOS universal and complete corresponding source. Downloads remain unsigned; physical devices and commercial DAWs remain unverified.
+
+The live-engine commit/UI lock can still cause a contended callback to produce silence. Exact hardware equivalence is not established. See [known issues](KNOWN_ISSUES.md) and [release notes](RELEASE_NOTES.md).
+
+## Earlier build history
+
 
 Local Linux x86_64 standalone and VST3 builds pass all eight test suites. The native VST3 harness checks module loading, audio and optional stem buses; it does not substitute for commercial DAW testing.
 

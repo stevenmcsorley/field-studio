@@ -1,4 +1,4 @@
-# Field Studio 0.2.1 beta 1
+# Field Studio 0.2.2 beta 1
 
 Reliability update to the portable multi-platform beta of the independent synthesizer, sampler and four-track stereo tape instrument. Exact OP-1 field sound, feature and visual parity is not established.
 
@@ -15,13 +15,16 @@ Original Field Studio code/graphics: **MIT**. Combined app/plugin binaries with 
 
 Each download has a SHA-256 sidecar. Binary bundles include installation instructions, dependency notices and a per-file hash manifest. These are portable archives, not signed installers. Windows binaries are unsigned; macOS binaries are not Developer ID signed/notarized. Commercial DAWs, physical audio devices and MIDI controllers still need hands-on validation.
 
-## Fixed in this beta
+## Added and fixed in this beta
 
-- Large record/capture/album reserve allocation and prefaulting happen outside the live lock.
-- Tape edits use independent prepared state and reject stale sources. Old history and media are reclaimed after unlocking.
-- Project/new-project DSP preparation and resampling, sample/patch preparation, imported-sample serialization and UI waveform calculations move out of the live lock.
-- Tape pools have a shared 2 GiB default reservation cap, with COM controls and recoverable admission failures. Save/export work is serialized per processor to reduce overlapping buffers.
-- Stop and newer-project operations invalidate suspended preparations. Five allocation-pause test paths verify pilot audio continues during heavy preparation.
+- Recreated CWO cow LCD, Dimension and DSynth screens, Delay circles, and permanent panel button legends, including secondary icons on sound keys 1–8. The README now shows CWO.
+- CWO now blends lower/upper frequency-shifted sidebands, includes both at midpoint, and introduces dry sound as Feedback rises. Its internal mechanisms respond to controls with continuous motion.
+- Delay Range moves the selected ring and centre together. Input Level controls new material entering the loop while preserving dry audio and circulating echoes. Slow settings add buffer colour. Held controls no longer produce invented circle wobble.
+- CWO/Delay Shift fine-adjusts all four native controls. The optional overall wet/dry override is in COM; new selections and active native imports use full module output. Existing saved blend settings are preserved.
+- Added engine/preset browsing, persistent dated snapshots, nested user folders, rename/copy/move/delete and 45 original starter presets. Fixed shifted number-key preset shortcuts.
+- Project saving and WAV export run on a bounded cancellable worker. Earlier prepared-media, tape reservation and stale-operation reliability improvements are retained.
+
+CWO/Delay sound can differ from earlier beta versions following the signal-path corrections. Back up projects before upgrading. Public hardware demonstrations informed these changes; exact hardware transfer curves, animation timing and present-firmware parity remain unverified. See docs/research/EFFECT_VISUAL_MOTION.md and docs/PARITY.md.
 
 ## Known limitations
 
