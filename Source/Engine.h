@@ -98,6 +98,7 @@ public:
     Engine(const Engine&) = delete;
     Engine& operator=(const Engine&) = delete;
     void prepare(double sampleRate, int maxBlock);
+    std::array<float,16> vocoderLevels() const {std::array<float,16> levels{};for(size_t i=0;i<levels.size();++i)levels[i]=vocoder[i].envelope;return levels;}
     void collectTapeStorage(size_t budgetPerTrack=256);
     uint64_t tapeWriteFailures() const noexcept { return tapeFailures; }
     void setParameters(const Parameters&);
@@ -282,11 +283,13 @@ private:
         uint32_t noise = 1;
         std::array<float, 4096> string{};
         int stringLength = 2, stringPos = 0;
-        std::array<float, 12> vocL1{}, vocL2{}, vocR1{}, vocR2{};
+        std::array<float, 16> vocL1{}, vocL2{}, vocR1{}, vocR2{};
     };
     struct Snapshot { int track = 0; unsigned mask = 0; std::array<Track,4> audio; double head = 0; };
     struct VocoderBand { float b0=0,b2=0,a1=0,a2=0,z1=0,z2=0,envelope=0; };
-    std::array<VocoderBand,12> vocoder;
+    std::array<VocoderBand,16> vocoder;
+    int vocoderCount=12;
+    void configureVocoder();
     Parameters params;
     std::array<Track, 4> tape;
     std::array<Voice, 24> voices;

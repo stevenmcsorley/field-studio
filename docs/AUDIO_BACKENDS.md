@@ -21,3 +21,7 @@ The [JUCE backend documentation](https://docs.juce.com/master/juce__audio__devic
 Windows ASIO runtime testing with a physical interface remains open. The earlier user report confirms plugin/automation and Faderfox/BeatStep MIDI use, not an ASIO interface test. The remaining shared live-engine lock can still interrupt audio during contention; backend support does not complete the real-time ownership rewrite.
 
 Bundled ASIO code uses its GPLv3 alternative with corresponding source and notices; see [licensing](../LICENSING.md). Downloads remain unsigned/not notarized.
+
+## Sampling and external capture
+
+The orange microphone button opens Sampling and an optional input picker. Windows WASAPI loopback can capture a shared output mix even when the main standalone output uses another backend. Linux uses PulseAudio/PipeWire-Pulse monitor inputs; macOS uses CoreAudio inputs and requires virtual routing for other-app audio. Host audio input and internal output resampling remain available. This is not universal process capture. See [source setup and limits](VOCODER_SAMPLING.md).

@@ -7,12 +7,14 @@
 #include "MidiLearn.h"
 #include "ControlJobs.h"
 #include "ControlBridge.h"
+#include "CaptureInput.h"
 #include "PresetLibrary.h"
 #include <mutex>
 
 class FieldProcessor final : public juce::AudioProcessor, private juce::Timer, private juce::AudioProcessorParameter::Listener {
 public:
     void enableControl(bool);
+    void serviceForTesting(){timerCallback();}
     void pollControlForTesting(){if(controlBridge)controlBridge->poll();}
     juce::String controlEndpoint() const;
     juce::var invokeControl(const juce::String&,const juce::var&);
@@ -43,6 +45,16 @@ public:
     field::Engine engine;
     void startSampleCapture(bool fromOutput=false);
     void stopSampleCapture();
+    bool captureIsOutput() const {return captureFromOutput;}
+    void startSelectedCapture(){startSampleCapture(value("captureSource")>.5f);}
+    juce::StringArray captureDevices(){externalSourceNames=externalCapture.devices();return externalSourceNames;}
+    bool selectCaptureDevice(int index,juce::String& error);
+    void useDeviceInput();
+    juce::String captureInputName(){const juce::ScopedLock lock(engineLock);return externalSourceName;}
+    std::atomic<bool> captureArmed{false};
+    std::atomic<double> captureSeconds{0},captureMaxSeconds{20};
+    std::atomic<float> inputPeak{0},capturePeak{0};
+    std::array<std::atomic<float>,16> vocoderMeters{};
     void startAlbumRecording(int);
     bool playAlbum(int);
     void stopAlbum();
@@ -122,7 +134,7 @@ public:
     std::atomic<uint64_t> midiReceived{0},rejectedMidiEvents{0};
     std::atomic<int> midiLastStatus{0},midiLastData1{0},midiLastData2{0};
 private:
-    enum ParamKey {P_engine,P_macro1,P_macro2,P_macro3,P_macro4,P_attack,P_decay,P_sustain,P_release,P_sampleStart,P_sampleLoopIn,P_sampleLoopOut,P_sampleEnd,P_sampleLoop,P_sampleReverse,P_sampleOneShot,P_fx1,P_fx2,P_fx3,P_fx4,P_seq1,P_seq2,P_seq3,P_seq4,P_lfoTarget,P_effect,P_effectMix,P_masterLow,P_masterMid,P_masterHigh,P_masterDrive,P_compressor,P_masterEffect,P_masterMix,P_volume,P_tempo,P_lfo,P_lfoRate,P_lfoDepth,P_sequencer,P_sequenceOn,P_tapeStyle,P_tapeSpeed,P_loop,P_masterFx1,P_masterFx2,P_masterFx3,P_masterFx4,P_seqSwing,P_seqGate,P_seqHold,P_sampleRootNote,P_voiceMode,P_glideTime,P_bendRange,P_patchGain,P_lfoWaveform,P_lfoRetrigger,P_lfoSync,P_lfoDivision,P_elementSource,P_elementManual,P_envelopeCurve,P_midiTarget1,P_midiTarget2,P_midiTarget3,P_midiTarget4,P_midiDepth1,P_midiDepth2,P_midiDepth3,P_midiDepth4,P_countInBeats,P_tapeRecordLevel,P_tapeRecordPan,P_metronomeLevel,P_midiInputChannel,P_midiOutputChannel,P_midiClockMode,P_midiThru,P_midiSendControls,P_midiRelativeControls,P_midiNotesIn,P_midiOtherIn,P_midiTransportIn,P_midiNotesOut,P_midiOtherOut,P_midiSppOrigin,P_masterLeft,P_masterRight,P_compressorRelease,P_eqAmount,P_eqLowOn,P_eqMidOn,P_eqHighOn,P_eqOn,P_sampleFineTune,P_sampleLoopFade,P_sampleGain,P_seqDivision,P_seqTriggerPattern,P_seqDirection,P_seqRotate,P_seqPlayMode,P_seqTranspose,P_seqCursor,P_seqErase,P_seqManual,P_seqSkipRest,P_arpTriggerMode,P_holdBreak,P_holdMono,P_holdLatch,P_tempoTapeLink,P_midiClockRelay,P_metronomeSound,P_count};
+    enum ParamKey {P_engine,P_macro1,P_macro2,P_macro3,P_macro4,P_attack,P_decay,P_sustain,P_release,P_sampleStart,P_sampleLoopIn,P_sampleLoopOut,P_sampleEnd,P_sampleLoop,P_sampleReverse,P_sampleOneShot,P_fx1,P_fx2,P_fx3,P_fx4,P_seq1,P_seq2,P_seq3,P_seq4,P_lfoTarget,P_effect,P_effectMix,P_masterLow,P_masterMid,P_masterHigh,P_masterDrive,P_compressor,P_masterEffect,P_masterMix,P_volume,P_tempo,P_lfo,P_lfoRate,P_lfoDepth,P_sequencer,P_sequenceOn,P_tapeStyle,P_tapeSpeed,P_loop,P_masterFx1,P_masterFx2,P_masterFx3,P_masterFx4,P_seqSwing,P_seqGate,P_seqHold,P_sampleRootNote,P_voiceMode,P_glideTime,P_bendRange,P_patchGain,P_lfoWaveform,P_lfoRetrigger,P_lfoSync,P_lfoDivision,P_elementSource,P_elementManual,P_envelopeCurve,P_midiTarget1,P_midiTarget2,P_midiTarget3,P_midiTarget4,P_midiDepth1,P_midiDepth2,P_midiDepth3,P_midiDepth4,P_countInBeats,P_tapeRecordLevel,P_tapeRecordPan,P_metronomeLevel,P_midiInputChannel,P_midiOutputChannel,P_midiClockMode,P_midiThru,P_midiSendControls,P_midiRelativeControls,P_midiNotesIn,P_midiOtherIn,P_midiTransportIn,P_midiNotesOut,P_midiOtherOut,P_midiSppOrigin,P_masterLeft,P_masterRight,P_compressorRelease,P_eqAmount,P_eqLowOn,P_eqMidOn,P_eqHighOn,P_eqOn,P_sampleFineTune,P_sampleLoopFade,P_sampleGain,P_seqDivision,P_seqTriggerPattern,P_seqDirection,P_seqRotate,P_seqPlayMode,P_seqTranspose,P_seqCursor,P_seqErase,P_seqManual,P_seqSkipRest,P_arpTriggerMode,P_holdBreak,P_holdMono,P_holdLatch,P_tempoTapeLink,P_midiClockRelay,P_metronomeSound,P_inputGain,P_captureThreshold,P_captureLength,P_captureKeyGate,P_captureSource,P_count};
     std::array<std::atomic<float>*,P_count> rawValues{};
     std::array<juce::RangedAudioParameter*,P_count> rawTargets{};
     std::array<juce::String,P_count> parameterIds;
@@ -163,7 +175,7 @@ private:
     std::mutex mediaEncodeMutex;
     juce::CriticalSection operationErrorLock;
     juce::String operationError;
-    double sampleRateFile=44100;
+    double sampleRateFile=44100,captureRate=44100;
     struct AlbumSide { field::TapeAudio audio; double rate=44100; };
     field::TapeAudio captureAudio;
     std::atomic<bool> captureExhausted{false};
@@ -171,7 +183,12 @@ private:
     double albumHead=0;
     size_t albumLimit=0;
     size_t captureLimit=0;
-    bool captureFromOutput=false;
+    bool captureFromOutput=false,captureTriggered=false;
+    std::atomic<bool> captureAutoStop{false};
+    CaptureInput externalCapture;
+    juce::String externalSourceName="Device / DAW input";
+    juce::StringArray externalSourceNames;
+    void captureBlock(const float*,const float*,int,bool);
     struct TapeState { std::array<field::Track,4> tracks; double position=0; };
     std::array<TapeState,8> tapes;
     juce::AudioBuffer<float> inputCopy;

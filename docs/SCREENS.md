@@ -34,3 +34,7 @@ Mixer T1 and EQ T2 now use the full reference-inspired LCD. Mixer needles read s
 ## Tempo LCD — beta 6
 
 The tempo page has original vector Song/Play BPM panels, tape ratio/cm/s/IPS, clock/link colours, metronome illustration and level strip. MIDI wait/lock values come from the actual follower; the illustration animates at engine BPM while playing, rather than measuring click phase. See [tempo controls and screenshots](TEMPO_SYNC.md).
+
+## Vocoder and sampling — beta 7
+
+The Vocoder head/voice illustration uses actual input-level and analysis-envelope values, original vector outlines and parameter-driven wave/formant/band/mix readings. Sampling has Standby/Recording badges, real elapsed time, meter, threshold and selected source. Screenshots use generated signals through the native engine. [Controls and screenshots](VOCODER_SAMPLING.md).

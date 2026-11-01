@@ -34,17 +34,17 @@ for archive in archives:
         root=next(iter(roots))+'/'
         metadata=json.loads(bundle.read(root+'BUILD_INFO.json'))
         revisions.add(metadata['revision']);versions.add(metadata['version'])
-        if (args.all_platforms or args.require_license) and (metadata['source_dirty'] or metadata.get('juce_source_dirty',True) or any(root+name not in names for name in ('LICENSE','LICENSING.md','LICENSES/AGPL-3.0.txt','LICENSES/GPL-3.0.txt','LICENSES/Steinberg-ASIO.txt'))):
+        if (args.all_platforms or args.require_license) and (metadata['source_dirty'] or metadata.get('juce_source_dirty',True) or any(root+name not in names for name in ('LICENSE','LICENSING.md','LICENSES/AGPL-3.0.txt','LICENSES/GPL-3.0.txt','LICENSES/Steinberg-ASIO.txt','LICENSES/miniaudio.txt'))):
             raise SystemExit(f'Release source is dirty or project licence missing: {archive.name}')
         if archive.name.endswith('-source.zip'):
-            required=['CMakeLists.txt','Source/PluginProcessor.cpp','vendor/JUCE/CMakeLists.txt','vendor/JUCE/LICENSE.md','scripts/build.sh','integrations/field-studio/server.py','integrations/field-studio/plugin.json','integrations/field-studio/mcp.json']
+            required=['CMakeLists.txt','Source/PluginProcessor.cpp','vendor/JUCE/CMakeLists.txt','vendor/miniaudio/miniaudio.h','vendor/JUCE/LICENSE.md','scripts/build.sh','integrations/field-studio/server.py','integrations/field-studio/plugin.json','integrations/field-studio/mcp.json']
             found.add('source')
         else:
             manifest=json.loads(bundle.read(root+'SHA256.json'))
             for name,digest in manifest.items():
                 if hashlib.sha256(bundle.read(root+name)).hexdigest()!=digest:
                     raise SystemExit(f'Invalid bundled file checksum: {name}')
-            required=['README.md','INSTALL.md','docs/CONTROLLERS.md','THIRD-PARTY-NOTICES/JUCE/LICENSE.md','integrations/field-studio/server.py','integrations/field-studio/mcp.json','docs/MCP.md','docs/AUDIO_BACKENDS.md','docs/TEMPO_SYNC.md','docs/screenshots/tempo-beat-match.png','docs/screenshots/tempo-midi-relay.png']
+            required=['README.md','INSTALL.md','docs/CONTROLLERS.md','THIRD-PARTY-NOTICES/JUCE/LICENSE.md','integrations/field-studio/server.py','integrations/field-studio/mcp.json','docs/MCP.md','docs/AUDIO_BACKENDS.md','docs/TEMPO_SYNC.md','docs/VOCODER_SAMPLING.md','docs/screenshots/vocoder-reference.png','docs/screenshots/sampling-recording.png','docs/screenshots/tempo-beat-match.png','docs/screenshots/tempo-midi-relay.png']
             if '-windows-' in archive.name:
                 found.add('windows');required+=['Standalone/Field Studio.exe','VST3/Field Studio.vst3/Contents/x86_64-win/Field Studio.vst3']
             elif '-macos-universal' in archive.name:

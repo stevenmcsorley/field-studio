@@ -25,3 +25,7 @@ Windows builds enable JUCE's bundled ASIO headers. We select their **GPL version
 - [JUCE licence at the exact pinned revision](https://github.com/juce-framework/JUCE/blob/ea77444750de45e036e0279bb0291144bf8e3688/LICENSE.md)
 - [GNU AGPLv3](https://www.gnu.org/licenses/agpl-3.0.html)
 - [MIT/Expat compatibility in the FSF licence list](https://www.gnu.org/licenses/license-list.html#Expat)
+
+## External audio capture
+
+The optional external capture backend uses miniaudio 0.11.23, pinned to commit `f40cf03f80cdb7e741d43e53b7e706e8c1394bcf`. It is used under its MIT option; see LICENSES/miniaudio.txt. The complete vendored header is included in the corresponding source archive. Decoding/encoding and high-level engine features are disabled; JUCE remains the application audio engine.

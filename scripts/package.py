@@ -82,7 +82,7 @@ if (root/'integrations').is_dir():
 shutil.copytree(root/'presets',destination/'Controller profiles') if (root/'presets').exists() else None
 instructions = {
     'Linux': '''Run ./run.sh on a graphical desktop. Copy the entire VST3/Field Studio.vst3 bundle to ~/.vst3/ and rescan plugins in your DAW.
-Built on Ubuntu 22.04 x86_64; requires glibc 2.35 or newer and standard ALSA, X11, FreeType/fontconfig and OpenGL runtime libraries. Other distributions have not been device-tested.
+Built on Ubuntu 22.04 x86_64; requires glibc 2.35 or newer and standard ALSA, X11, FreeType/fontconfig and OpenGL runtime libraries. Optional external capture requires the libpulse runtime and a running PulseAudio/PipeWire-Pulse server; otherwise use the standalone/DAW input. Other distributions have not been device-tested.
 ''',
     'Windows': '''Run Standalone/Field Studio.exe. Copy the entire VST3/Field Studio.vst3 bundle to C:\\Program Files\\Common Files\\VST3\\ (administrator permission) or a VST3 directory supported by your DAW, then rescan plugins.
 Windows x64 build with ASIO enabled. Install your interface vendor's 64-bit ASIO driver and select ASIO under Options > Audio/MIDI Settings in the standalone. VST3 uses the DAW audio driver. If Windows reports missing Microsoft runtime DLLs, install Microsoft's Visual C++ 2015-2022 x64 Redistributable from https://learn.microsoft.com/cpp/windows/latest-supported-vc-redist . This portable beta has no installer or code signature. Check the publisher/source before opening any security prompt; do not disable Windows security globally.
@@ -138,7 +138,7 @@ if args.source:
     # just GitHub's auto source tarball that omits the JUCE checkout.
     tracked=subprocess.check_output(['git','ls-files','-z'],cwd=root).decode().split('\0')
     source_label=f'Field-Studio-{version}-source'
-    sources=[(root/name,Path(source_label)/name) for name in tracked if name and (root/name).is_file() and not name.startswith('vendor/')]
+    sources=[(root/name,Path(source_label)/name) for name in tracked if name and (root/name).is_file() and (not name.startswith('vendor/') or name.startswith('vendor/miniaudio/'))]
     metadata=output/'source-build-info.json'
     metadata.write_text(json.dumps(dict(build_info,platform='source',architecture='source'),indent=2)+'\n')
     sources.append((metadata,Path(source_label)/'BUILD_INFO.json'))

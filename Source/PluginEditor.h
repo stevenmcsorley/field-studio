@@ -25,6 +25,8 @@ public:
     void mouseUp(const juce::MouseEvent&) override;
     void mouseDoubleClick(const juce::MouseEvent&) override;
     void showPageForTesting(int mode,int page);
+    void showCaptureSources();
+    bool observedSampling=false;
     void refreshForTesting() { timerCallback(); }
     juce::String macroMidiTargetForTesting(int i) const {return i>=0&&i<4?macros[(size_t)i].getProperties()["midiTarget"].toString():juce::String{};}
     bool macroEnabledForTesting(int i) const { return i>=0&&i<4&&macros[(size_t)i].isEnabled(); }
@@ -41,6 +43,7 @@ private:
     juce::ComboBox engineBox,effectBox,sequenceBox;
     juce::TextButton newButton{"New"},openButton{"Open"},saveButton{"Save"},importButton{"Import audio"},exportButton{"Export WAV"},helpButton{"?"};
     juce::OwnedArray<juce::TextButton> functionButtons,transportButtons;
+    juce::TextButton sourceButton{"Input"};
     juce::TextButton presetsButton{"Presets"},presetDone{"Load / done"},presetSave{"Save snapshot"},presetNewFolder{"New folder"},presetManage{"Manage..."},presetClose{"Close"};
     bool presetBrowser=false,presetDrum=false,suppressSlotClick=false,heldPresetKeyboard=false;
     int presetSlot=0,presetFolderIndex=0,presetIndex=0,heldPresetSlot=-1;

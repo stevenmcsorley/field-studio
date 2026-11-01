@@ -2,7 +2,7 @@
 
 A native synthesizer, sampler and four-track stereo tape instrument inspired by the OP–1 field workflow. Builds a standalone application and VST3 from the same C++ audio engine; macOS also builds AU.
 
-**[Download the latest beta](https://github.com/stevenmcsorley/field-studio/releases/tag/v0.2.2-beta.6)** · [VST3 setup](#vst3-and-daw-workflow) · [Recent features and screenshots](#recent-improvements) · [Controller mapping](#controller-mapping)
+**[Download the latest beta](https://github.com/stevenmcsorley/field-studio/releases/tag/v0.2.2-beta.7)** · [VST3 setup](#vst3-and-daw-workflow) · [Recent features and screenshots](#recent-improvements) · [Controller mapping](#controller-mapping)
 
 ![Field Studio running on Linux, showing the CWO cow effect, four coloured encoders and two-octave keyboard](docs/screenshots/field-studio.png)
 
@@ -19,6 +19,8 @@ Play synths and drums, import samples, build a sequence, record it onto four ste
 - **Presets and controllers:** eight synth and eight drum sound slots, dated snapshots, preset browsing, nested user folders, MIDI learn and reusable controller profiles.
 
 ## Recent improvements
+
+**Vocoder and sampling:** the vocoder now has a dedicated head/voice LCD and independent Waveform, Formant, 4–16 Bands and dry/wet Mix controls. The orange microphone button opens a source picker and Standby/Recording page with live meter, threshold, input gain and 6/20/60/120-second limits. Click ARM or press Record; Shift-click ARM enables held-key capture. Empty captures preserve your previous sample. Choose microphone/interface/DAW input, Windows system loopback, Linux monitor sources, routed macOS virtual inputs, imported files or Field Studio's internal output resampling. macOS computer audio needs routing through a virtual device; automatic app/process capture is not included. [Step-by-step setup, controls and limits](docs/VOCODER_SAMPLING.md).
 
 **Tempo and generic MIDI sync:** a dedicated tempo LCD shows Song/Play BPM, tape ratio, cm/s and IPS, link state, clock receipt and metronome level. Blue/Shift-blue provide coarse/fine adjustment; tap the BPM display or press T, and use arrows to nudge. Added three original click sounds, optional tape-tempo linking and received-clock relay. Free, Beat Match (MIDI send), MIDI receive and DAW follow work with compatible OS-visible MIDI devices. Relay uses standard 24-PPQN MIDI; PO/analogue pulse output is not implemented. [Controls, routing and parity limits](docs/TEMPO_SYNC.md).
 
@@ -71,6 +73,11 @@ These are native screenshots of Field Studio. Screen artwork and DSP remain inde
 | [![Tempo Beat Match](docs/screenshots/tempo-beat-match.png)](docs/screenshots/tempo-beat-match.png) | [![Tempo MIDI relay](docs/screenshots/tempo-midi-relay.png)](docs/screenshots/tempo-midi-relay.png) |
 | **Tempo: Free** | **Tempo: waiting for MIDI clock** |
 | [![Free tempo](docs/screenshots/tempo-free.png)](docs/screenshots/tempo-free.png) | [![MIDI clock waiting state](docs/screenshots/tempo-midi-wait.png)](docs/screenshots/tempo-midi-wait.png) |
+
+| **Vocoder: carrier, formant, bands and mix** | **Sampling: recording** |
+| [![Vocoder](docs/screenshots/vocoder-reference.png)](docs/screenshots/vocoder-reference.png) | [![Sampling recording screen](docs/screenshots/sampling-recording.png)](docs/screenshots/sampling-recording.png) |
+| **Sampling: held-key standby** | **Sampling setup guide** |
+| [![Sampling standby](docs/screenshots/sampling-standby.png)](docs/screenshots/sampling-standby.png) | [Microphone, computer audio and internal resampling instructions](docs/VOCODER_SAMPLING.md) |
 
 <details>
 <summary>CWO and Delay animated previews</summary>
@@ -129,7 +136,7 @@ Right-click a knob and choose **MIDI learn**, then move a control on your Faderf
 
 ## Downloads
 
-[Field Studio 0.2.2 beta 4 downloads](https://github.com/stevenmcsorley/field-studio/releases/tag/v0.2.2-beta.6) are available for Windows, macOS and Linux. All automated release gates passed. The pipeline packages Windows x64 standalone/VST3, macOS universal standalone/VST3/AU and Linux x86_64 standalone/VST3, with checksums and complete corresponding source. See [beta notes](docs/RELEASE_NOTES.md) and [build/release status](docs/BUILD_STATUS.md). Binaries are unsigned development builds.
+[Field Studio 0.2.2 beta 4 downloads](https://github.com/stevenmcsorley/field-studio/releases/tag/v0.2.2-beta.7) are available for Windows, macOS and Linux. All automated release gates passed. The pipeline packages Windows x64 standalone/VST3, macOS universal standalone/VST3/AU and Linux x86_64 standalone/VST3, with checksums and complete corresponding source. See [beta notes](docs/RELEASE_NOTES.md) and [build/release status](docs/BUILD_STATUS.md). Binaries are unsigned development builds.
 
 ## Run the Linux build
 

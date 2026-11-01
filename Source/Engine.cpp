@@ -102,12 +102,12 @@ void Engine::prepare(double rate, int /* maxBlock */) {
     isRecording=false; isPlaying=false;countInRemaining=0;countInElapsed=0;reverseHeld=false;brakeHeld=false;rollHeld=false;
     sequenceFinished=false;seqTicks=0;seqBounce=1;seqPhase=0; seqStep=-1;seqPositionPending=-1; seqLastNote=-1;
     peakValue=0;
-    for(size_t i=0;i<vocoder.size();++i){
-        const double frequency=std::min(sr*.42,100.0*std::pow(1.5,static_cast<double>(i)));
-        const double omega=tau*frequency/sr,alpha=std::sin(omega)/(2*3.5),a0=1+alpha;
-        vocoder[i]={};vocoder[i].b0=static_cast<float>(alpha/a0);vocoder[i].b2=-vocoder[i].b0;
-        vocoder[i].a1=static_cast<float>(-2*std::cos(omega)/a0);vocoder[i].a2=static_cast<float>((1-alpha)/a0);
-    }
+    configureVocoder();
+}
+void Engine::configureVocoder(){
+ vocoderCount=4+(int)std::round(std::clamp(params.macro[2],0.f,1.f)*12);
+ for(size_t i=0;i<vocoder.size();++i){const double frequency=100*std::pow(std::min(sr*.4,8000.)/100.,(double)i/std::max(1,vocoderCount-1));const double omega=tau*std::min(sr*.42,frequency)/sr,alpha=std::sin(omega)/(2*3.5),a0=1+alpha;vocoder[i]={};vocoder[i].b0=(float)(alpha/a0);vocoder[i].b2=-vocoder[i].b0;vocoder[i].a1=(float)(-2*std::cos(omega)/a0);vocoder[i].a2=(float)((1-alpha)/a0);}
+ for(auto& v:voices){v.vocL1.fill(0);v.vocL2.fill(0);v.vocR1.fill(0);v.vocR2.fill(0);}
 }
 void Engine::setParameters(const Parameters& p) {
     const bool modeChanged=params.voiceMode!=p.voiceMode;const bool sequenceWasOn=params.sequenceOn;
@@ -134,6 +134,7 @@ void Engine::setParameters(const Parameters& p) {
     params.lfoRate=clamp(params.lfoRate,.01f,30); params.lfoDepth=clamp(params.lfoDepth);
     params.seqDivision=std::clamp(params.seqDivision,0,8);params.seqTriggerPattern=std::clamp(params.seqTriggerPattern,0,7);params.seqDirection=std::clamp(params.seqDirection,0,3);params.seqRotate=std::clamp(params.seqRotate,-998,998);params.seqPlayMode=std::clamp(params.seqPlayMode,0,2);params.seqTranspose=std::clamp(params.seqTranspose,-24,24);params.arpTriggerMode=std::clamp(params.arpTriggerMode,0,2);params.holdBreak=std::clamp(params.holdBreak,0,127);
     params.tapeSpeed=clamp(params.tapeSpeed,-4,4);
+    if(params.engine==12&&4+(int)std::round(clamp(params.macro[2])*12)!=vocoderCount)configureVocoder();
     params.metronomeLevel=clamp(params.metronomeLevel);params.metronomeSound=std::clamp(params.metronomeSound,0,2);
     params.tapeRecordLevel=clamp(params.tapeRecordLevel,0,2);params.tapeRecordPan=clamp(params.tapeRecordPan,-1,1);
     params.sampleRootNote=clamp(params.sampleRootNote,0,127);params.sampleStart=clamp(params.sampleStart);params.sampleEnd=clamp(params.sampleEnd,params.sampleStart,1);
@@ -567,15 +568,16 @@ std::pair<float,float> Engine::renderVoice(Voice& v,float modulation,float inL,f
                 break;
             }
             case 12: { // Original twelve-band analysis/synthesis vocoder.
-                const float carrierL=saw(p,dt)*(1-y)+pulse(p,dt,.1+x*.8)*y;
-                const float carrierR=saw(wrap(p+w*.008),dt)*(1-y)+pulse(wrap(p+w*.008),dt,.1+x*.8)*y;
-                for(size_t band=0;band<vocoder.size();++band){
+                const int wave=std::min(7,(int)(x*8));
+                auto carrier=[&](double phase){switch(wave){case 0:return saw(phase,dt);case 1:return pulse(phase,dt,.5);case 2:return (float)(1-4*std::abs(phase-.5));case 3:return sine(phase);case 4:return pulse(phase,dt,.2);case 5:return .7f*saw(phase,dt)+.3f*sine(wrap(phase*2));case 6:return pulse(phase,dt,.7);default:return .5f*saw(phase,dt)+.5f*pulse(wrap(phase*2),dt,.5);}};
+                const float carrierL=carrier(p),carrierR=carrier(wrap(p+.003));
+                for(size_t band=0;band<(size_t)vocoderCount;++band){
                     const auto& b=vocoder[band];
                     const float cl=b.b0*carrierL+v.vocL1[band];
                     v.vocL1[band]=-b.a1*cl+v.vocL2[band];v.vocL2[band]=b.b2*carrierL-b.a2*cl;
                     const float cr=b.b0*carrierR+v.vocR1[band];
                     v.vocR1[band]=-b.a1*cr+v.vocR2[band];v.vocR2[band]=b.b2*carrierR-b.a2*cr;
-                    const float envelope=vocoder[band].envelope;
+                    const float shifted=std::clamp((float)band-(y-.5f)*vocoderCount*.8f,0.f,(float)(vocoderCount-1));const int lo=(int)shifted,hi=std::min(vocoderCount-1,lo+1);const float envelope=vocoder[(size_t)lo].envelope+(vocoder[(size_t)hi].envelope-vocoder[(size_t)lo].envelope)*(shifted-lo);
                     l+=cl*envelope*18;r+=cr*envelope*18;
                 }
                 break;
@@ -588,7 +590,7 @@ std::pair<float,float> Engine::renderVoice(Voice& v,float modulation,float inL,f
         const float filter=clamp((v.engine==7?x:z)+(voiceRoute(7,v.velocity)*.5f));
         const float cutoff=std::min(static_cast<float>(sr*.4),100.0f+filter*filter*18000.0f);
         const float coefficient=1.0f-std::exp(-static_cast<float>(tau)*cutoff/static_cast<float>(sr));
-        if((v.engine!=11&&v.engine!=0&&v.engine!=6) || (voiceRoute(7,v.velocity)!=0)){
+        if((v.engine!=11&&v.engine!=0&&v.engine!=6&&v.engine!=12) || (voiceRoute(7,v.velocity)!=0)){
             v.lp+=coefficient*(l-v.lp);
             v.hp+=coefficient*(r-v.hp);
             l=v.lp; r=v.hp;
@@ -736,6 +738,7 @@ void Engine::process(float* left,float* right,const float* inputLeft,const float
         }
         float synthL=0,synthR=0;
         for(auto& v:voices){if(v.active){const auto s=renderVoice(v,modulation,inL,inR);synthL+=s.first;synthR+=s.second;}if(!v.active)releaseVoiceSample(v);}
+        if(params.engine==12){const float wet=clamp(params.macro[3]);synthL=synthL*wet+inL*(1-wet);synthR=synthR*wet+inR*(1-wet);}
         // Amp/input processing works without a held key, as an input engine.
         if(params.engine==13 && !params.drumMode){synthL=std::tanh(inL*(1+params.macro[0]*14))*.65f;synthR=std::tanh(inR*(1+params.macro[0]*14))*.65f;}
         if(params.monitorInput && params.engine!=13 && params.engine!=12){synthL+=inL;synthR+=inR;}

@@ -22,6 +22,7 @@ void FieldLookAndFeel::drawButtonText(juce::Graphics& g,juce::TextButton& button
         const int utility=(int)button.getProperties()["panelUtility"];
         if(utility==0){g.drawRoundedRectangle({24,24,19,12},5,1.2f);g.drawLine(30,36,30,42,1.2f);g.drawLine(37,36,37,42,1.2f);}
         else if(utility==1){juce::Path metronome;metronome.startNewSubPath(26,41);metronome.lineTo(30,25);metronome.lineTo(36,25);metronome.lineTo(41,41);metronome.closeSubPath();g.strokePath(metronome,juce::PathStrokeType(1));g.drawLine(31,37,39,23,1.1f);}
+        else if(utility==3){g.setColour(juce::Colour(0xffdc6b49));g.fillEllipse(29,21,9,9);g.drawLine(32,29,22,41,2);}
         else{g.drawEllipse(29,22,10,10,1);g.fillEllipse(32,25,4,4);text("COM",{20,34,28,13},9);}
         return;
     }

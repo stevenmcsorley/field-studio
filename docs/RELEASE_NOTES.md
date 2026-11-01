@@ -1,4 +1,4 @@
-# Field Studio 0.2.2 beta 6
+# Field Studio 0.2.2 beta 7
 
 Reliability update to the portable multi-platform beta of the independent synthesizer, sampler and four-track stereo tape instrument. Exact OP-1 field sound, feature and visual parity is not established.
 
@@ -15,7 +15,18 @@ Original Field Studio code/graphics: **MIT**. Combined app/plugin binaries with 
 
 Each download has a SHA-256 sidecar. Binary bundles include installation instructions, dependency notices and a per-file hash manifest. These are portable archives, not signed installers. Windows binaries are unsigned; macOS binaries are not Developer ID signed/notarized. The project owner reports working plugin operation, automation, Faderfox assignment and BeatStep use; DAW/OS/model details were not recorded. Broader device/host coverage remains open.
 
-## Added in beta 6
+## Added in beta 7
+
+- Original full-LCD Vocoder head/voice illustration with real input activity, analysis envelopes and source label. Waveform now selects eight carriers, Formant remaps envelopes, Bands selects 4–16 bands and Mix blends dry/wet independently. Existing Vocoder patches can sound different after these corrections.
+- Sampling input page with source header, Standby/Recording states, real meter, threshold, input gain and 6/20/60/120-second maximums (20-second default). Record/Stop and held-key capture are supported; empty armed captures retain the previous sample.
+- The orange microphone button now works as an input/sampling control. It opens the page, then the source picker on a second click. Shift-record samples the selected source; main-output resampling and audio-file import remain available.
+- Optional external stereo capture using pinned miniaudio 0.11.23 under MIT: Windows WASAPI system loopback, Linux PulseAudio/PipeWire monitor inputs and macOS CoreAudio inputs including routed virtual devices. macOS automatic process/system capture is not implemented; virtual routing is required for other apps.
+- New settings support saved state, automation, MIDI learn and MCP parameter editing. Device connections are transient and explicitly selected, with direct monitoring disabled on selection. Added native screenshots, routing instructions, license/source notices and package gates.
+- Tests cover vocoder control independence, bounded audio, dry/wet gating, capture threshold/gain, held-key stop, empty capture, saved settings and bounded FIFO behaviour.
+
+Physical input/loopback listening tests, exact hardware sound/gestures and seamless live capture remain open. Separate capture-device clocks and FIFO underflow/overflow can affect recordings; the shared engine lock remains a limitation. See docs/VOCODER_SAMPLING.md.
+
+## Retained from beta 6
 
 - Full-LCD tempo page with Song/Play BPM, tape ratio and nominal cm/s / IPS, animated metronome, level strip and clock/link indicators. Four new native screenshots and a dedicated setup guide.
 - Blue/Shift-blue coarse/fine adjustment, averaged tap tempo, 1 / 0.01 BPM arrow nudges and three original metronome sounds. Playback metronome timing now stays independent of tape speed and reverse.
