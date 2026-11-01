@@ -734,7 +734,7 @@ void Engine::process(float* left,float* right,const float* inputLeft,const float
         lfoEnvelopeAge+=1/sr;
         lfoPhase=wrap(lfoPhase+rate/sr);
         lfoClock+=rate/sr;
-        if(lfoClock>=1){lfoClock-=1;randomLfo=noise(randomState);}
+        if(lfoClock>=1){lfoClock-=1;randomLfo=noise(randomState);for(size_t h=0;h+1<randomLfoHistory.size();++h)randomLfoHistory[h]=randomLfoHistory[h+1];randomLfoHistory.back()=randomLfo;}
         float modulation=0;
         switch(params.lfo){case 0:modulation=randomLfo;break;case 1:{float source=inputEnv;if(params.elementSource==1){source=0;for(const auto& voice:voices)if(voice.active)source=std::max(source,voice.env);}else if(params.elementSource==2)source=previousOutputEnvelope;else if(params.elementSource==3)source=params.elementManual;modulation=clamp(source)*2-1;break;}case 2:modulation=modWheel*2-1;break;case 3:switch(params.lfoWaveform){case 0:modulation=sine(lfoPhase);break;case 1:modulation=1.f-4.f*std::abs(static_cast<float>(lfoPhase)-.5f);break;case 2:modulation=static_cast<float>(lfoPhase)*2-1;break;case 3:modulation=lfoPhase<.5?1.f:-1.f;break;case 4:modulation=2.f*(std::exp(4.f*static_cast<float>(lfoPhase))-1.f)/(std::exp(4.f)-1.f)-1.f;break;case 5:modulation=lfoPhase<.1?1.f:-1.f;break;}break;case 4:modulation=params.lfoModel?lfoWave(params.lfoWaveform==1?6:params.lfoWaveform,lfoPhase):params.macro[3]*2-1;break;case 5:modulation=heldLfo*2-1;break;default:break;}
         modulation*=params.lfoDepth;
@@ -742,7 +742,7 @@ void Engine::process(float* left,float* right,const float* inputLeft,const float
         bool midiMatrix=params.lfoModel&&params.lfo==2;
         if(params.lfo==2)for(size_t c=0;c<4;++c)if(params.midiLfoDepth[c]!=0&&(!params.lfoModel||midiControllerSeen[c])){midiMatrix=true;auto& route=modulationRoutes[params.midiLfoTargets[c]];route=clamp(route+(midiControllers[c]*2-1)*params.midiLfoDepth[c],-1,1);}
         if(!midiMatrix)modulationRoutes[params.lfoTarget]=modulation;
-        if(params.lfoModel&&params.lfo==0){const int group=lfoGroup(params.lfoTarget);const float shaped=modulation*lfoEnvelope(params.lfoEnvelope,lfoEnvelopeAge);for(int n=0;n<lfoGroupSizes[group];++n)modulationRoutes[lfoDestination(group,n)]=shaped;}
+        if(params.lfoModel&&params.lfo==0){const int group=lfoGroup(params.lfoTarget);const float shaped=modulation*lfoEnvelope(params.lfoEnvelope,lfoEnvelopeAge);if(params.lfoRandomAll)for(int n=0;n<lfoGroupSizes[group];++n)modulationRoutes[lfoDestination(group,n)]=shaped;else modulationRoutes[params.lfoTarget]=shaped;}
         if(params.lfoModel&&params.lfo==3){modulationRoutes.fill(0);const float wave=lfoWave(params.lfoWaveform,lfoPhase);modulationRoutes[0]=wave*params.lfoPitchAmount*lfoEnvelope(params.lfoEnvelope,lfoEnvelopeAge);modulationRoutes[5]=wave*params.lfoVolumeAmount;}
         if(!params.lfoEnabled)modulationRoutes.fill(0);
         if(params.engine==12){

@@ -25,7 +25,7 @@ struct Parameters {
     int effect = 0;
     float effectMix = .2f, volume = .65f, tempo = 110;
     int lfo = 0;
-    bool lfoModel=false,lfoEnabled=true; // false preserves pre-reference projects
+    bool lfoModel=false,lfoEnabled=true,lfoRandomAll=true; // false preserves pre-reference projects
     float lfoEnvelope=0,lfoPitchAmount=0,lfoVolumeAmount=0,lfoVelocityVolume=1;
     int lfoTarget = 0; // pitch, source macros, gain, pan, filter, ADSR, FX macros/mix, patch/tape/master
     int lfoWaveform = 0; // sine, triangle, saw, square, exponential, blip
@@ -276,6 +276,7 @@ public:
 
     void setPitchBend(float semitones);
     void setModWheel(float value);
+    std::array<float,8> lfoRandomSamples() const {return randomLfoHistory;}
     std::array<float,4> midiLfoInputs() const {return midiControllers;}
     void setMidiCC(int cc, float value);
     float modulationAt(int target) const { return target >= 0 && target < 20 ? modulationRoutes[static_cast<size_t>(target)] : 0; }
@@ -357,6 +358,7 @@ private:
     float voiceRoute(int target, float velocity) const;
     double lfoEnvelopeAge=0;
     double fxPhase = 0, lfoPhase = 0, lfoClock = 0, seqPhase = 0;
+    std::array<float,8> randomLfoHistory{};
     float randomLfo = 0, inputEnv = 0, heldLfo = 0;
     uint32_t randomState = 0x12345678u;
     std::array<int, 32> heldNotes{};

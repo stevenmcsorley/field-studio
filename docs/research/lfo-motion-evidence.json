@@ -1,0 +1,95 @@
+{
+  "video": {
+    "url": "https://www.youtube.com/watch?v=myC27d3JhVE",
+    "id": "myC27d3JhVE",
+    "creator": "SON WU",
+    "title": "LFO Masterclass // OP-1 field TUTORIAL",
+    "upload_date": "2023-03-12",
+    "inspected_resolution": [
+      640,
+      360
+    ],
+    "sha256": "768f1d1fb9b214d106e9c5bb6d7e42ea712ed2be095deabe9f727f0c1ffafc52",
+    "samples_seconds": [
+      380,
+      380.2,
+      380.4,
+      380.6,
+      380.8,
+      381,
+      760,
+      990,
+      1095,
+      1160,
+      1160.2,
+      1160.4,
+      1160.6,
+      1160.8,
+      1161,
+      1260,
+      1430,
+      1470
+    ]
+  },
+  "guide_images": [
+    {
+      "name": "lfo_1.png",
+      "sha256": "cc208b632bc1279540cb022aa056f02dd141a212c555dc45c4308fc1a66bd491"
+    },
+    {
+      "name": "lfo_2.png",
+      "sha256": "b85fc25f3de7d5b5dfbdeadbe5a28378dc6cd9d520cfcaf022fe08fcf1c0301c"
+    },
+    {
+      "name": "lfo_3.png",
+      "sha256": "7a97f60b91a85dec8404f770d48e9c31193e7151c202e63374977f0cea87959e"
+    },
+    {
+      "name": "lfo_4.png",
+      "sha256": "40c74a10e10ede0133d6396c28d1a8672ae4b733b520e7bc1340bc1b1677698c"
+    },
+    {
+      "name": "lfo_5.png",
+      "sha256": "5772cb9eeb8a60b19af910c89e50996d3b5f1a41e2387b1fc95ce5e4d69a5003"
+    },
+    {
+      "name": "lfo_6.png",
+      "sha256": "fbba89e7d2caec83a5cc2a70512d444f4decf9055b1a35ca1096ee2225034f93"
+    }
+  ],
+  "observations": [
+    "Random trace changes between nearby frames; routing block locations remain fixed.",
+    "Random supports individual parameter selection and an All selection, demonstrated around 18:22\u201318:40.",
+    "Value supports four shape options. The top-left waveform icon is a source thumbnail, not a modulation-history chart occupying the whole screen.",
+    "The inspected footage does not isolate exact present-firmware clock/animation rates or establish pixel equality."
+  ],
+  "implementation": [
+    "Measured six guide layouts at their native 604\u00d7292 canvas.",
+    "Independent stroke lettering replaces platform-font-dependent captions and numerals.",
+    "Value thumbnail phase and free clock hand read audio telemetry.",
+    "Random trace retains actual generated samples; no GUI-only random generator.",
+    "Stationary modules/envelopes are not subjected to arbitrary wobble or flow particles."
+  ],
+  "unverified": [
+    "Exact hardware font outline and antialiasing equivalence",
+    "Current firmware animation rates and interpolation",
+    "All input-dependent micro-animations and every shifted control state"
+  ],
+  "native_previews": {
+    "random": {
+      "rendered_frames": 192,
+      "encoded_frames": 176,
+      "duration_ms": 8000
+    },
+    "tremolo": {
+      "rendered_frames": 24,
+      "encoded_frames": 24,
+      "duration_ms": 1000
+    },
+    "value": {
+      "rendered_frames": 24,
+      "encoded_frames": 24,
+      "duration_ms": 1000
+    }
+  }
+}

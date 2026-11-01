@@ -159,6 +159,8 @@ private:
     void configureLfoControls();
     int lfoControlStamp() const;
     void showLfoBrowser();
+    std::array<float,8> lfoRandomSnapshot{};
+    int lfoFocus=-1;double lfoFocusUntil=0;
     std::array<float,4> lfoMidiSnapshot{};
     int lastLfoControls=-1,lfoEditingBase=-1,lfoBrowserIndex=0;bool lfoBrowser=false;
     void drawModulation(juce::Graphics&,juce::Rectangle<float>);

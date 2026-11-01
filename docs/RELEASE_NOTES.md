@@ -4,7 +4,7 @@ Six dedicated routing LCDs and corrected LFO controls for synth and drum modes. 
 
 - T4 bypass/enable, Shift+T4 type selection, grouped destinations and parameter selection, supported base-value editing from LCD knobs.
 - Value oscillates with square/ramp/saw/sine shapes instead of depending on the synth orange macro.
-- Random routes to a whole selected module and gains a signed attack/decay envelope.
+- Random routes to an individual parameter or the whole selected module and gains a signed attack/decay envelope.
 - Tremolo has independent signed pitch/volume amounts, pitch envelope and shifted shape selection.
 - Velocity has independent target amount and volume response, including DBox.
 - MIDI has four parameter/destination selectors, signed route gain/off and no modulation from unreceived controllers.

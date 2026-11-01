@@ -20,7 +20,7 @@ Play synths and drums, import samples, build a sequence, record it onto four ste
 
 ## Recent improvements
 
-**LFO reference update (0.4.0):** six dedicated routing LCDs, corrected encoder roles, T4 bypass and Shift+T4 selection. Value now oscillates; Random modulates its selected module; Tremolo has signed pitch and volume paths; Velocity has independent volume sensitivity. MIDI has four parameter/destination selectors and route amounts. Element follows input, envelope, main output or a clearly marked manual G substitute. Old projects retain their previous LFO behaviour until you choose **COM → Reference LFO behaviour**. [Controls, screenshots and compatibility](docs/LFO.md).
+**LFO reference update (0.4.0):** six dedicated routing LCDs, corrected encoder roles, T4 bypass and Shift+T4 selection. Value now oscillates; Random modulates a selected parameter or the whole module; Tremolo has signed pitch and volume paths; Velocity has independent volume sensitivity. MIDI has four parameter/destination selectors and route amounts. Element follows input, envelope, main output or a clearly marked manual G substitute. Old projects retain their previous LFO behaviour until you choose **COM → Reference LFO behaviour**. [Controls, screenshots and compatibility](docs/LFO.md).
 
 | Random | Element | MIDI |
 |---|---|---|
