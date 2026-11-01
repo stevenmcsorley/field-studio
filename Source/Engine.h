@@ -49,6 +49,7 @@ struct Parameters {
     float sampleStart = 0, sampleLoopIn = 0, sampleLoopOut = 1, sampleEnd = 1;
     bool sampleLoop = false, sampleReverse = false, sampleOneShot = false;
     float sampleRootNote = 60;
+    float sampleFineTune=0,sampleLoopFade=0,sampleGain=1;
     int voiceMode=0; // Poly, Mono, Legato, Unison
     float glideTime=0,patchGain=1;
 };

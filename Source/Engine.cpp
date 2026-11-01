@@ -134,6 +134,7 @@ void Engine::setParameters(const Parameters& p) {
     params.metronomeLevel=clamp(params.metronomeLevel);
     params.tapeRecordLevel=clamp(params.tapeRecordLevel,0,2);params.tapeRecordPan=clamp(params.tapeRecordPan,-1,1);
     params.sampleRootNote=clamp(params.sampleRootNote,0,127);params.sampleStart=clamp(params.sampleStart);params.sampleEnd=clamp(params.sampleEnd,params.sampleStart,1);
+    params.sampleFineTune=clamp(params.sampleFineTune,-1,1);params.sampleLoopFade=clamp(params.sampleLoopFade);params.sampleGain=clamp(params.sampleGain,0,2);
     params.sampleLoopIn=clamp(params.sampleLoopIn,params.sampleStart,params.sampleEnd);
     params.sampleLoopOut=clamp(params.sampleLoopOut,params.sampleLoopIn,params.sampleEnd);
     if (sequenceWasOn!=params.sequenceOn || drumChanged || sequencerChanged || modeChanged) {
@@ -180,7 +181,8 @@ void Engine::triggerVoice(int note,float velocity,float detune) {
     v.stringLength=std::clamp(static_cast<int>(sr/frequency),2,4096);
     v.stringPos=0;
     if (v.engine==6) {
-        for (int j=0;j<4096;++j) v.string[static_cast<size_t>(j)]=noise(v.noise)*.8f;
+        const int type=std::min(3,(int)(params.macro[3]*4));float previous=0;
+        for(int j=0;j<4096;++j){float n=noise(v.noise);previous+=.2f*(n-previous);v.string[(size_t)j]=type==0?n*.8f:type==1?previous*1.6f:type==2?(j<v.stringLength/4?n*.8f:0):std::sin(j*tau/std::max(2,v.stringLength))*.5f+n*.15f;}v.stringPrevious=0;
     }
     if(v.engine==14){
         padSelected=padIndex;v.pad=padIndex;v.dbox=dboxPads[static_cast<size_t>(padIndex)];
@@ -466,11 +468,10 @@ std::pair<float,float> Engine::renderVoice(Voice& v,float modulation,float inL,f
         const double p=v.phase, q=v.phase2;
         const float n=noise(v.noise);
         switch (v.engine) {
-            case 0: { // Voltage: band-limited saw/pulse/triangle blend.
-                const float sa=saw(p,dt), pu=pulse(p,dt,.08+.84*y);
-                const float tri=static_cast<float>(1.0-4.0*std::abs(p-.5));
-                l=x<.5f ? sa*(1-x*2)+pu*x*2 : pu*(2-x*2)+tri*(x*2-1);
-                l=l*.8f+sine(q)*w*.2f; r=l; break;
+            case 0: { // Original phase-modulated, detuned electrical oscillator.
+                const float left=saw(wrap(p+sine(q)*x*.12),dt)*.65f+pulse(q,dt,.5)*.35f+n*y*.18f;
+                const float right=saw(wrap(q+sine(p)*x*.12),dt)*.65f+pulse(p,dt,.5)*.35f+n*y*.18f;
+                const float a=.05f+z*.9f;l=-a*left+v.lp;v.lp=left+a*l;r=-a*right+v.hp;v.hp=right+a*r;break;
             }
             case 1: { // FM: carrier/modulator ratios and feedback-like phase warp.
                 const double ratio=1+std::round(x*11);
@@ -497,15 +498,15 @@ std::pair<float,float> Engine::renderVoice(Voice& v,float modulation,float inL,f
                 l=(sine(p)+saw(q,dt)*x+sine(p*fifth)*y*.5f)*.55f;
                 r=(sine(p)+saw(wrap(p-(q-p)),dt)*x+sine(p*fifth+w*.03)*y*.5f)*.55f; break;
             }
-            case 6: { // Fractional-delay waveguide supports glide and pitch bend.
-                const double delay=std::clamp(sr/freq,2.0,4094.0);double read=v.stringPos-delay;if(read<0)read+=4096;
-                int j=(int)read,k=(j+1)%4096;float fraction=(float)(read-j);l=v.string[(size_t)j]+(v.string[(size_t)k]-v.string[(size_t)j])*fraction;
-                v.string[(size_t)v.stringPos]=(l*(.35f+x*.3f)+v.stringPrevious*(.65f-x*.3f))*(.99f+z*.0097f);v.stringPrevious=l;v.stringPos=(v.stringPos+1)%4096;r=l;break;
+            case 6: { // Original fractional-delay waveguide with stereo detune.
+                auto readString=[&](double offset){double at=v.stringPos-std::clamp(offset,2.,4094.);if(at<0)at+=4096;if(at>=4096)at=0;int j=(int)at,k=(j+1)%4096;return v.string[(size_t)j]+(v.string[(size_t)k]-v.string[(size_t)j])*(float)(at-j);};
+                l=readString(sr/freq);r=readString(sr/(freq*(1+z*.01)));
+                v.string[(size_t)v.stringPos]=(l*(.35f+x*.3f)+v.stringPrevious*(.65f-x*.3f))*(.98f+y*.0198f);v.stringPrevious=l;v.stringPos=(v.stringPos+1)%4096;break;
             }
-            case 7: { // Pulse: pulse-width and hard-sync-like overtones.
-                l=pulse(p,dt,.05+.9*x);
-                r=pulse(wrap(p+y*.015),dt,.05+.9*x);
-                l=l*(1-z*.5f)+sine(p*(1+std::round(w*7)))*z*.5f; break;
+            case 7: { // Independent filter, amplitude, second pulse and modulation.
+                const double mod=sine(q)*w*.12;
+                l=y*(pulse(wrap(p+mod),dt,.25)+z*pulse(wrap(p+.27-mod),dt,.4))/(1+z);
+                r=y*(pulse(wrap(q+mod),dt,.25)+z*pulse(wrap(q+.27-mod),dt,.4))/(1+z);break;
             }
             case 8: { // Phase: phase distortion.
                 const double pivot=.05+.9*x;
@@ -526,19 +527,22 @@ std::pair<float,float> Engine::renderVoice(Voice& v,float modulation,float inL,f
             }
             case 11: {
                 if(!v.sampleAsset || v.sampleAsset->left.empty() || v.sampleFinish<=v.sampleBegin){v.active=false;return {0,0};}
+                const bool reverse=v.drum?v.sampleReverse:params.sampleReverse;
                 l=interpolate(v.sampleAsset->left,v.samplePos);r=interpolate(v.sampleAsset->right,v.samplePos);
+                const bool loop=v.sampleLooped&&v.gate&&v.sampleLoopFinish-v.sampleLoopBegin>=1;
+                const double span=v.sampleLoopFinish-v.sampleLoopBegin,fade=loop&&!v.drum?span*.5*params.sampleLoopFade:0;
+                if(fade>0){double secondary=0,blend=0;if(!reverse&&v.samplePos>=v.sampleLoopFinish-fade&&v.samplePos<v.sampleLoopFinish){blend=(v.samplePos-(v.sampleLoopFinish-fade))/fade;secondary=v.sampleLoopBegin+v.samplePos-(v.sampleLoopFinish-fade);}else if(reverse&&v.samplePos<v.sampleLoopBegin+fade&&v.samplePos>=v.sampleLoopBegin){blend=(v.sampleLoopBegin+fade-v.samplePos)/fade;secondary=v.sampleLoopFinish-fade+(v.samplePos-v.sampleLoopBegin);}if(blend>0){l=l*(1-(float)blend)+interpolate(v.sampleAsset->left,secondary)*(float)blend;r=r*(1-(float)blend)+interpolate(v.sampleAsset->right,secondary)*(float)blend;}}
+                if(!v.drum){l*=params.sampleGain;r*=params.sampleGain;}
                 l*=v.sampleLevel*(v.samplePan>0?1-v.samplePan:1);
                 r*=v.sampleLevel*(v.samplePan<0?1+v.samplePan:1);
-                const double tune=v.sampleTune+(v.drum?0:v.pitch-v.sampleRootNote)+pitchBend+pitchMod;
-                const double inc=v.sampleAsset->sampleRate/sr*std::pow(2.0,tune/12.0)*(v.sampleReverse?-1:1);
+                const double tune=v.sampleTune+(v.drum?0:v.pitch-v.sampleRootNote+params.sampleFineTune)+pitchBend+pitchMod;
+                const double inc=v.sampleAsset->sampleRate/sr*std::pow(2.0,tune/12.0)*(reverse?-1:1);
                 v.samplePos+=inc;
-                const bool loop=v.sampleLooped && v.gate && v.sampleLoopFinish-v.sampleLoopBegin>=1;
                 if(loop){
-                    const double span=v.sampleLoopFinish-v.sampleLoopBegin;
-                    if(!v.sampleReverse && v.samplePos>=v.sampleLoopFinish)
-                        v.samplePos=v.sampleLoopBegin+std::fmod(v.samplePos-v.sampleLoopFinish,span);
-                    else if(v.sampleReverse && v.samplePos<v.sampleLoopBegin)
-                        v.samplePos=v.sampleLoopFinish-1-std::fmod(v.sampleLoopBegin-v.samplePos-1,span);
+                    if(!reverse && v.samplePos>=v.sampleLoopFinish)
+                        v.samplePos=v.sampleLoopBegin+fade+std::fmod(v.samplePos-v.sampleLoopFinish,span-fade);
+                    else if(reverse && v.samplePos<v.sampleLoopBegin)
+                        {if(fade>0){double offset=std::fmod(v.samplePos-v.sampleLoopBegin,span-fade);if(offset<0)offset+=span-fade;v.samplePos=v.sampleLoopBegin+offset;}else v.samplePos=v.sampleLoopFinish-1-std::fmod(v.sampleLoopBegin-v.samplePos-1,span);}
                 }
                 if(v.samplePos>=v.sampleFinish || v.samplePos<v.sampleBegin)v.active=false;
                 break;
@@ -561,11 +565,11 @@ std::pair<float,float> Engine::renderVoice(Voice& v,float modulation,float inL,f
             default: break;
         }
         v.phase=wrap(v.phase+dt);
-        v.phase2=wrap(v.phase2+dt*(1.0+(x-.5)*.025));
-        const float filter=clamp(z+(voiceRoute(7,v.velocity)*.5f));
+        v.phase2=wrap(v.phase2+dt*(1.0+(v.engine==0?w*.02:(x-.5)*.025)));
+        const float filter=clamp((v.engine==7?x:z)+(voiceRoute(7,v.velocity)*.5f));
         const float cutoff=std::min(static_cast<float>(sr*.4),100.0f+filter*filter*18000.0f);
         const float coefficient=1.0f-std::exp(-static_cast<float>(tau)*cutoff/static_cast<float>(sr));
-        if(v.engine!=11 || (voiceRoute(7,v.velocity)!=0)){
+        if((v.engine!=11&&v.engine!=0&&v.engine!=6) || (voiceRoute(7,v.velocity)!=0)){
             v.lp+=coefficient*(l-v.lp);
             v.hp+=coefficient*(r-v.hp);
             l=v.lp; r=v.hp;

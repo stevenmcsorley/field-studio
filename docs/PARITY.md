@@ -82,3 +82,7 @@ Reference-based full-LCD mixer meters/pan/levels and EQ faders/curve/Amount are 
 ## Master Out and spatial FX — beta 3
 
 Master Out, Grid and Mother now use reference-inspired full LCDs. Master Out has separate stereo meters, Drive/Release, and a UI Shift-link gesture. Grid/Mother have dedicated four-control audio paths and native Mix semantics; Master Drive includes makeup/saturation. Algorithms and exact hardware link/meter/parameter laws remain original approximations. Existing sounds can change; see [controls, compatibility and test scope](MASTER_SPATIAL.md).
+
+## String, Voltage, Pulse and Sampler — beta 4
+
+Dedicated reference-based LCDs and corrected synth control roles are implemented. Melodic Sampler has actual stereo previews, marker zoom and persistent Shift direction/fine-tune/crossfade/gain controls. The synth DSP, stereo detune, crossfade law, native parameter conversion and hardware gestures still differ or remain unverified; region bounds are latched at note start. See [precise scope and compatibility](INSTRUMENT_SCREENS.md).

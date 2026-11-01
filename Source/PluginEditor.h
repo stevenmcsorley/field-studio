@@ -29,6 +29,8 @@ public:
     juce::String macroMidiTargetForTesting(int i) const {return i>=0&&i<4?macros[(size_t)i].getProperties()["midiTarget"].toString():juce::String{};}
     bool macroEnabledForTesting(int i) const { return i>=0&&i<4&&macros[(size_t)i].isEnabled(); }
     void openPresetBrowserForTesting(int slot){openPresetBrowser(slot);}
+    void zoomSampleBoundaryForTesting(int i){zoomSampleBoundary(i);}
+    double sampleViewWidthForTesting() const {return sampleViewEnd-sampleViewStart;}
     bool presetBrowserVisibleForTesting() const {return presetBrowser;}
     void presetFunctionForTesting(int index){functionAction(index);}
     void selectPresetForTesting(int folder,int preset){selectPresetFolder(folder);selectPreset(preset,true);}
@@ -77,7 +79,7 @@ private:
     juce::StringArray macroLabels;
     int mode=0,page=0,tick=0,mouseNote=-1,lastElementSource=-1,lastLfoSync=-1,lastLfo=-1,lastVoiceMode=-1,lastEngine=-1,lastEffect=-1,lastMasterEffect=-1,lastSynthEngine=0;
     bool shifted=false,shiftLatched=false,draggingSelection=false,drawingSketch=false;
-    int draggingSampleMarker=-1;
+    int draggingSampleMarker=-1,sampleZoomMarker=-1;
     double sampleViewStart=0,sampleViewEnd=1;
     struct SampleBin { float low=0,high=0; };
     std::array<std::array<SampleBin,256>,2> samplePreview{};
@@ -142,6 +144,7 @@ private:
     void drawModulation(juce::Graphics&,juce::Rectangle<float>);
     juce::Rectangle<float> samplePlotBounds() const;
     void moveSampleMarker(float x);
+    void zoomSampleBoundary(int marker);
     bool padIsHeld(int pad) const;
     void drawTape(juce::Graphics&,juce::Rectangle<float>);
     void drawMixer(juce::Graphics&,juce::Rectangle<float>);

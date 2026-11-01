@@ -1,4 +1,4 @@
-# Field Studio 0.2.2 beta 3
+# Field Studio 0.2.2 beta 4
 
 Reliability update to the portable multi-platform beta of the independent synthesizer, sampler and four-track stereo tape instrument. Exact OP-1 field sound, feature and visual parity is not established.
 
@@ -15,7 +15,18 @@ Original Field Studio code/graphics: **MIT**. Combined app/plugin binaries with 
 
 Each download has a SHA-256 sidecar. Binary bundles include installation instructions, dependency notices and a per-file hash manifest. These are portable archives, not signed installers. Windows binaries are unsigned; macOS binaries are not Developer ID signed/notarized. The project owner reports working plugin operation, automation, Faderfox assignment and BeatStep use; DAW/OS/model details were not recorded. Broader device/host coverage remains open.
 
-## Added in beta 3
+## Added in beta 4
+
+- Full-LCD String, Voltage and Pulse screens with original parameter-driven vector illustrations matching the supplied reference layouts.
+- Corrected their four-control roles: String uses ochre for decay, grey for stereo detune and orange for impulse type; Voltage has dedicated modulation/noise/phase-filter/detune behaviour; Pulse separates amplitude, second pulse and modulation from its blue filter.
+- Full-LCD melodic Sampler with actual stereo waveform data, coloured markers, loop-fade shading and direction/tuning/fade/gain readouts. Drum sampler retains its existing pad view.
+- Sampler Shift exposes direction, ±100-cent fine tune, loop crossfade and 0–2 gain. New parameters are host-automatable, MIDI-learnable and saved in projects, DAW state and sound presets. Existing projects/imports use neutral defaults.
+- Boundary-focused zoom is available from marker-knob right-click menus or the four LCD header zones. Choose again for overview; Shift shows the entire stereo sample.
+- Tests cover each synth control, zero Pulse amplitude, sampler tuning/gain, both crossfade directions, allocation-free processing, Shift control targets, zoom and host state restoration.
+
+**Sound compatibility:** String, Voltage and Pulse can sound different from beta 3 following the control-role corrections. Sampler fine tune/fade/gain default to 0/0/1, preserving earlier sample playback. Nonzero loop crossfade shortens the repeated loop by its overlap. Hardware algorithms, curves, gestures, animation timing and exact sound remain unverified. See docs/INSTRUMENT_SCREENS.md.
+
+## Retained from beta 3
 
 - Full-LCD Master Out with separate audio-driven left/right meters, peak indicators, level faders and Drive/Release readouts. Shift-blue/ochre sets both output levels together. Existing host parameter IDs are preserved.
 - Full-LCD Grid with parameter-driven 3D grid, dimensions, feedback and Mix meter, for insert and master FX.

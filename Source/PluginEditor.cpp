@@ -6,6 +6,7 @@
 #include "TapeScreen.h"
 #include "MixerScreen.h"
 #include "SpatialScreens.h"
+#include "InstrumentScreens.h"
 #include <cmath>
 #include <algorithm>
 
@@ -114,7 +115,7 @@ FieldEditor::~FieldEditor(){stopTimer();panic();for(auto& a:attachments)a.reset(
 void FieldEditor::showPageForTesting(int m,int p){setMode(juce::jlimit(0,4,m));page=juce::jlimit(0,3,p);configureMacros();timerCallback();repaint();}
 void FieldEditor::setMode(int m){presetBrowser=false;heldPresetSlot=-1;if(mode==2&&m!=2)processor.releaseTapePerformance();mode=m;page=0;for(auto& b:tapePerformance)b.setVisible(mode==2);tapeEditButton.setVisible(mode==2);configureMacros();resized();repaint();}
 void FieldEditor::setPage(int p){page=p;if(mode>1&&mode!=3)mode=processor.drumMode?1:0;configureMacros();repaint();}
-void FieldEditor::setShift(bool s){if(shifted==s)return;shifted=s;shiftButton.setToggleState(s,juce::dontSendNotification);configureMacros();repaint();}
+void FieldEditor::setShift(bool s){if(shifted==s)return;shifted=s;if(s&&mode==0&&page==0&&(int)processor.value("engine")==11){sampleViewStart=0;sampleViewEnd=1;sampleZoomMarker=-1;}shiftButton.setToggleState(s,juce::dontSendNotification);configureMacros();repaint();}
 void FieldEditor::configureMacros(){
     for(size_t i=0;i<4;++i){attachments[i].reset();macros[i].onValueChange=nullptr;macros[i].setTextValueSuffix("");macros[i].getProperties().set("midiTarget",juce::String{});macros[i].setEnabled(true);macros[i].setMouseDragSensitivity(250);}
     macroLabels.clear();juce::StringArray ids;effectBox.getProperties().set("midiTarget",mode==3?"masterEffect":"effect");
@@ -161,6 +162,7 @@ void FieldEditor::configureMacros(){
             else if(seq==0){ids={"macro1","macro2","macro3","macro4"};macroLabels={"SELECT A MODE","SELECT A MODE","SELECT A MODE","SELECT A MODE"};}
             else{ids={"tempo","seqSwing","seqGate","seqHold"};macroLabels={"TEMPO","SWING","GATE LENGTH","LATCH"};}
         }
+        else if(mode==0&&page==0&&(int)processor.value("engine")==11){ids=shifted?juce::StringArray{"sampleReverse","sampleFineTune","sampleLoopFade","sampleGain"}:juce::StringArray{"sampleStart","sampleLoopIn","sampleLoopOut","sampleEnd"};macroLabels=shifted?juce::StringArray{"DIRECTION","FINE TUNE / ST","LOOP FADE","SAMPLE GAIN"}:juce::StringArray{"START","LOOP IN","LOOP OUT","END"};}
         else if(page==1&&shifted&&mode==0){ids={"voiceMode","glideTime","bendRange","patchGain"};macroLabels={"VOICE MODE","GLIDE SECONDS","BEND SEMITONES","PATCH LEVEL"};}
         else if(page==1){ids={"attack","decay","sustain","release"};macroLabels={"ATTACK","DECAY","SUSTAIN","RELEASE"};}
         else if(page==2){ids={"fx1","fx2","fx3",(shifted&&(int)processor.value("effect")!=1&&(int)processor.value("effect")!=7)?"effectMix":"fx4"};macroLabels=effectLabels((int)processor.value("effect"),shifted,false);}
@@ -262,6 +264,8 @@ void FieldEditor::drawScreen(juce::Graphics& g){
     if((masterCwo||patchCwo)&&((int)processor.value(masterCwo?"masterEffect":"effect")==3||(int)processor.value(masterCwo?"masterEffect":"effect")==9)){drawEffect(g,r,masterCwo);g.restoreState();return;}
     if(mode==2){drawTape(g,r);g.restoreState();return;}if(mode==3){drawMixer(g,(page<2||page==3)?r:content);g.restoreState();return;}if(mode==4){drawSequence(g,content);g.restoreState();return;}
     const int engine=(int)processor.value("engine");
+    if(mode==0&&page==0&&(engine==0||engine==6||engine==7)){std::array<float,4> values{};for(int i=0;i<4;++i)values[(size_t)i]=processor.value("macro"+juce::String(i+1));if(engine==0)field::drawVoltageScreen(g,r,values,processor.outputPeak.load());else if(engine==6)field::drawStringScreen(g,r,values);else field::drawPulseScreen(g,r,values);g.restoreState();return;}
+    if(mode==0&&page==0&&engine==11){drawSampler(g,r);g.restoreState();return;}
     if(mode==0&&page==0&&engine==5){field::drawDimensionScreen(g,r,processor.value("macro1"),processor.value("macro2"),processor.value("macro3"),processor.value("macro4"),processor.getSampleRate()>0?processor.getSampleRate():44100.,tick/30.f);g.restoreState();return;}
     if(mode==0&&page==0&&engine==10){field::drawDSynthScreen(g,r,{{processor.value("macro1"),processor.value("macro2"),processor.value("macro3"),processor.value("macro4")}},shifted,tick/30.f);g.restoreState();return;}
     juce::String title=mode==1?"DRUM / PAD "+juce::String(selectedPad+1):FieldProcessor::engineNames[juce::jlimit(0,14,engine)].toUpperCase();
@@ -309,8 +313,10 @@ bool FieldEditor::padIsHeld(int pad) const {
     for(int n=0;n<128;++n)if(held[(size_t)n]&&((n-53)%24+24)%24==pad)return true;
     return false;
 }
-juce::Rectangle<float> FieldEditor::samplePlotBounds() const {return {316,73,247,mode==1?48.f:57.f};}
+juce::Rectangle<float> FieldEditor::samplePlotBounds() const {if(mode==0)return {304+20*271/604.f,38+63*134/292.f,564*271/604.f,206*134/292.f};return {316,73,247,48};}
+void FieldEditor::zoomSampleBoundary(int marker){if(mode!=0||page!=0||(int)processor.value("engine")!=11||!samplePreviewReady||marker<0||marker>3)return;if(sampleZoomMarker==marker&&sampleViewEnd-sampleViewStart<.5){sampleViewStart=0;sampleViewEnd=1;sampleZoomMarker=-1;status="Sample overview";}else{const char* ids[]{"sampleStart","sampleLoopIn","sampleLoopOut","sampleEnd"};double centre=processor.value(ids[marker]);sampleViewStart=juce::jlimit(0.,.75,centre-.125);sampleViewEnd=sampleViewStart+.25;sampleZoomMarker=marker;status="Boundary detail x4 / choose again for overview";}timerCallback();repaint();}
 void FieldEditor::drawSampler(juce::Graphics& g,juce::Rectangle<float> area){
+    if(mode==0){field::SamplerScreenState state;state.ready=samplePreviewReady;state.markers={{processor.value("sampleStart"),processor.value("sampleLoopIn"),processor.value("sampleLoopOut"),processor.value("sampleEnd")}};state.viewStart=sampleViewStart;state.viewEnd=sampleViewEnd;state.reverse=processor.value("sampleReverse")>.5f;state.loop=processor.value("sampleLoop")>.5f;state.tune=processor.value("sampleFineTune");state.fade=processor.value("sampleLoopFade");state.gain=processor.value("sampleGain");field::drawSamplerScreen(g,area,samplePreview,state);return;}
     const auto plot=samplePlotBounds();
     if(!samplePreviewReady){text(g,"IMPORT OR RECORD AUDIO",plot,11,colours[2]);return;}
     const float start=mode==1?padState.start:processor.value("sampleStart"),end=mode==1?padState.end:processor.value("sampleEnd");
@@ -654,10 +660,11 @@ void FieldEditor::mouseDown(const juce::MouseEvent& e){
         if(p.y>=64&&p.y<148){int row=(int)((p.y-64)/10.5f);if(p.x<454){int start=juce::jlimit(0,juce::jmax(0,presetFolders.size()-8),presetFolderIndex-3);selectPresetFolder(start+row);}else{int start=juce::jlimit(0,juce::jmax(0,(int)presetEntries.size()-8),presetIndex-3);selectPreset(start+row,true);}}return;
     }
     int n=noteAt(p);if(n>=0){mouseNote=n;keyboardNote(n,juce::jlimit(.25f,1.f,(p.y-240)/205),true);return;}
-    juce::Rectangle<float> screen(316,47,247,116);if(!((mode==2||(mode==3&&page<2))?juce::Rectangle<float>(304,38,271,134):screen).contains(p))return;
+    juce::Rectangle<float> screen(316,47,247,116);if(!((mode==2||(mode==3&&page<2)||(mode==0&&page==0&&(int)processor.value("engine")==11))?juce::Rectangle<float>(304,38,271,134):screen).contains(p))return;
     if(mode==2){const juce::ScopedLock lock(processor.engineLock);double pos=processor.snapTapeTime(juce::jlimit(0.,visibleSeconds,field::tapeScreenTime(p.x,304,271,visibleSeconds)));if(e.mods.isShiftDown()||shifted){draggingSelection=true;processor.selectionStart=juce::jmin(359.9,pos);processor.selectionEnd=processor.selectionStart+.1;}else processor.engine.seek(pos);}
     else if(mode==1&&page==0&&(int)processor.value("engine")==14&&p.y>screen.getBottom()-32){int pad=juce::jlimit(0,23,(int)((p.x-screen.getX())/10.25f));const juce::ScopedLock lock(processor.engineLock);processor.engine.setSelectedPad(pad);selectedPad=pad;configureMacros();}
     else if((mode==0||mode==1)&&page==0&&(int)processor.value("engine")==11){
+        if(mode==0&&samplePreviewReady&&p.y<samplePlotBounds().getY()){zoomSampleBoundary(juce::jlimit(0,3,(int)((p.x-304)/271*4)));return;}
         if(mode==1&&p.y>=135&&p.y<=147){selectedPad=juce::jlimit(0,23,(int)((p.x-316)/(247.f/24)));{const juce::ScopedLock lock(processor.engineLock);processor.engine.setSelectedPad(selectedPad);padState=processor.engine.drumPad(selectedPad);}configureMacros();}
         else if(samplePreviewReady&&samplePlotBounds().contains(p)){std::array<float,4> markers{{mode==1?padState.start:processor.value("sampleStart"),processor.value("sampleLoopIn"),processor.value("sampleLoopOut"),mode==1?padState.end:processor.value("sampleEnd")}};float distance=11;draggingSampleMarker=-1;for(int i=0;i<4;++i){if(mode==1&&(i==1||i==2))continue;float x=samplePlotBounds().getX()+(float)((markers[(size_t)i]-sampleViewStart)/(sampleViewEnd-sampleViewStart))*samplePlotBounds().getWidth();float delta=std::abs(x-p.x);if(delta<distance){distance=delta;draggingSampleMarker=i;}}if(draggingSampleMarker>=0)moveSampleMarker(p.x);else status="Drag a colour marker; double-click waveform to zoom";}
     }
@@ -708,7 +715,7 @@ void FieldEditor::timerCallback(){
         modulationHistory[modulationWrite++%modulationHistory.size()]=modulationSnapshot;
         if((int)processor.value("engine")==11){
             sampleSnapshot=processor.samplePreviewSnapshot();const auto& left=sampleSnapshot->left;
-            if(sampleFrames!=left.size()){sampleViewStart=0;sampleViewEnd=1;sampleFrames=left.size();}
+            if(sampleFrames!=left.size()){sampleViewStart=0;sampleViewEnd=1;sampleZoomMarker=-1;sampleFrames=left.size();}
             samplePreviewReady=!left.empty();sampleSeconds=left.size()/juce::jmax(1.,sampleSnapshot->rate);
         }
         if(tick%15==0){albumDurations[0]=processor.albumDuration(0);albumDurations[1]=processor.albumDuration(1);}
@@ -728,7 +735,8 @@ void FieldEditor::timerCallback(){
 
 void FieldEditor::showMidiMappingMenu(const juce::String& target){
     juce::PopupMenu menu;menu.addSectionHeader(processor.midiMappingLabel(target));menu.addSectionHeader(processor.midiMappingDescription(target));const juce::StringArray modes{"Absolute CC (pickup / no jump)","Absolute CC (jump)","Relative CC (two's complement)","Relative CC (offset 64)","Relative CC (sign/magnitude)"};for(int i=0;i<5;++i)menu.addItem(i+1,"Learn "+modes[i]);juce::PopupMenu reversed;for(int i=0;i<5;++i)reversed.addItem(i+6,modes[i]);menu.addSubMenu("Learn with reversed direction",reversed);menu.addSeparator();menu.addItem(20,"Remove assignment");menu.addItem(21,"Cancel MIDI learn");
-    menu.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(this),[safe=juce::Component::SafePointer<FieldEditor>(this),target](int choice){if(!safe)return;if(choice>=1&&choice<=10){const int kind=(choice-1)%5+1;auto mode=kind<=2?field::EncoderMode::absolute:(field::EncoderMode)(kind-2);safe->processor.beginMidiLearn(target,mode,kind==1,choice>5);safe->status="MIDI learn: turn the hardware knob for "+safe->processor.midiMappingLabel(target);}else if(choice==20){safe->processor.clearMidiMapping(target);safe->status="MIDI mapping removed";}else if(choice==21)safe->processor.cancelMidiLearn();});
+    if(mode==0&&page==0&&(int)processor.value("engine")==11&&juce::StringArray{"sampleStart","sampleLoopIn","sampleLoopOut","sampleEnd"}.contains(target))menu.addItem(22,"Zoom around this sample marker / overview");
+    menu.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(this),[safe=juce::Component::SafePointer<FieldEditor>(this),target](int choice){if(!safe)return;if(choice>=1&&choice<=10){const int kind=(choice-1)%5+1;auto mode=kind<=2?field::EncoderMode::absolute:(field::EncoderMode)(kind-2);safe->processor.beginMidiLearn(target,mode,kind==1,choice>5);safe->status="MIDI learn: turn the hardware knob for "+safe->processor.midiMappingLabel(target);}else if(choice==20){safe->processor.clearMidiMapping(target);safe->status="MIDI mapping removed";}else if(choice==21)safe->processor.cancelMidiLearn();else if(choice==22)safe->zoomSampleBoundary(juce::StringArray{"sampleStart","sampleLoopIn","sampleLoopOut","sampleEnd"}.indexOf(target));});
 }
 void FieldEditor::controllerFileAction(bool save){
     chooser=std::make_unique<juce::FileChooser>(save?"Save controller profile":"Load controller profile",juce::File{},"*.field-midi");

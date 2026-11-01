@@ -2,7 +2,7 @@
 
 A native synthesizer, sampler and four-track stereo tape instrument inspired by the OP–1 field workflow. Builds a standalone application and VST3 from the same C++ audio engine; macOS also builds AU.
 
-**[Download the latest beta](https://github.com/stevenmcsorley/field-studio/releases/tag/v0.2.2-beta.3)** · [VST3 setup](#vst3-and-daw-workflow) · [Recent features and screenshots](#recent-improvements) · [Controller mapping](#controller-mapping)
+**[Download the latest beta](https://github.com/stevenmcsorley/field-studio/releases/tag/v0.2.2-beta.4)** · [VST3 setup](#vst3-and-daw-workflow) · [Recent features and screenshots](#recent-improvements) · [Controller mapping](#controller-mapping)
 
 ![Field Studio running on Linux, showing the CWO cow effect, four coloured encoders and two-octave keyboard](docs/screenshots/field-studio.png)
 
@@ -19,6 +19,8 @@ Play synths and drums, import samples, build a sequence, record it onto four ste
 - **Presets and controllers:** eight synth and eight drum sound slots, dated snapshots, preset browsing, nested user folders, MIDI learn and reusable controller profiles.
 
 ## Recent improvements
+
+**String, Voltage, Pulse and Sampler:** dedicated full-LCD synth illustrations now follow the guide layouts. String has independent decay/stereo-detune and impulse types; Voltage has modulation, ground noise, phase filtering and detune; Pulse has independent filter, amplitude, second pulse and modulation. Sampler displays actual stereo audio with coloured boundaries and loop-fade shading. Hold Shift for direction, fine tune, loop fade and gain; zoom around any marker from its knob's right-click menu or the LCD header. Fine tune, fade and gain support host automation, MIDI learn and project/preset state. [Controls and compatibility](docs/INSTRUMENT_SCREENS.md).
 
 **Master Out, Grid and Mother:** Master Out now has independent left/right meters, output faders, peak indicators and Drive/Release readouts; hold Shift while adjusting blue/ochre to set both output levels together. Grid has a three-dimensional size/feedback illustration. Mother has a perspective room and distance/gate/colour controls. Both spatial effects now give their four native controls dedicated sound paths, including a true orange dry/wet mix. Master Drive adds makeup gain and saturation with release-dependent compression. [Controls, compatibility and parity limits](docs/MASTER_SPATIAL.md).
 
@@ -41,6 +43,10 @@ These are native screenshots of Field Studio. Screen artwork and DSP remain inde
 | [![Master Out](docs/screenshots/master-out-reference.png)](docs/screenshots/master-out-reference.png) | [![Grid](docs/screenshots/grid-reference.png)](docs/screenshots/grid-reference.png) |
 | **Mother** | **CWO** |
 | [![Mother](docs/screenshots/mother-reference.png)](docs/screenshots/mother-reference.png) | [![CWO](docs/screenshots/cwo-reference.png)](docs/screenshots/cwo-reference.png) |
+| **String** | **Voltage** |
+| [![String](docs/screenshots/string-reference.png)](docs/screenshots/string-reference.png) | [![Voltage](docs/screenshots/voltage-reference.png)](docs/screenshots/voltage-reference.png) |
+| **Pulse** | **Stereo Sampler** |
+| [![Pulse](docs/screenshots/pulse-reference.png)](docs/screenshots/pulse-reference.png) | [![Stereo Sampler](docs/screenshots/sampler-reference.png)](docs/screenshots/sampler-reference.png) |
 | **Dimension synth** | **DSynth** |
 | [![Dimension](docs/screenshots/dimension-reference.png)](docs/screenshots/dimension-reference.png) | [![DSynth](docs/screenshots/dsynth-reference.png)](docs/screenshots/dsynth-reference.png) |
 
@@ -101,7 +107,7 @@ Right-click a knob and choose **MIDI learn**, then move a control on your Faderf
 
 ## Downloads
 
-[Field Studio 0.2.2 beta 3 downloads](https://github.com/stevenmcsorley/field-studio/releases/tag/v0.2.2-beta.3) are available for Windows, macOS and Linux. All automated release gates passed. The pipeline packages Windows x64 standalone/VST3, macOS universal standalone/VST3/AU and Linux x86_64 standalone/VST3, with checksums and complete corresponding source. See [beta notes](docs/RELEASE_NOTES.md) and [build/release status](docs/BUILD_STATUS.md). Binaries are unsigned development builds.
+[Field Studio 0.2.2 beta 4 downloads](https://github.com/stevenmcsorley/field-studio/releases/tag/v0.2.2-beta.4) are available for Windows, macOS and Linux. All automated release gates passed. The pipeline packages Windows x64 standalone/VST3, macOS universal standalone/VST3/AU and Linux x86_64 standalone/VST3, with checksums and complete corresponding source. See [beta notes](docs/RELEASE_NOTES.md) and [build/release status](docs/BUILD_STATUS.md). Binaries are unsigned development builds.
 
 ## Run the Linux build
 
