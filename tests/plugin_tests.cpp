@@ -4,6 +4,7 @@
 #include "PluginEditor.h"
 #include "CwoScreen.h"
 #include "DelayScreen.h"
+#include "TapeScreen.h"
 #include <iostream>
 #include <stdexcept>
 #include <cmath>
@@ -55,6 +56,17 @@ int main(int argc,char** argv){
         juce::ScopedJuceInitialiser_GUI gui;auto processor=std::make_unique<FieldProcessor>();processor->prepareToPlay(44100,256);juce::File directory(argv[2]);juce::Array<juce::File> files;directory.findChildFiles(files,juce::File::findFiles,true,"*.wav;*.aif;*.aiff;*.aifc");juce::Array<juce::var> results;int accepted=0;for(auto& file:files){juce::String error;bool ok=processor->loadSampleFile(file,error);auto* row=new juce::DynamicObject;row->setProperty("file",file.getFileName());row->setProperty("accepted",ok);row->setProperty("summary",ok?processor->lastImportSummary:error);row->setProperty("details",ok?processor->lastImportDetails:juce::String{});results.add(juce::var(row));if(ok)++accepted;}auto report=directory.getSiblingFile("official-snaps-import-audit.json");require(report.replaceWithText(juce::JSON::toString(results)),"Audit report save failed");std::cout<<"Preset audit: "<<accepted<<"/"<<files.size()<<" accepted; report "<<report.getFullPathName()<<"\n";return files.isEmpty()?1:0;
     }
     juce::ScopedJuceInitialiser_GUI gui;
+    {
+        require(field::tapeScreenTime(20,0,604,360)==0&&field::tapeScreenTime(584,0,604,360)==360,"Tape seek endpoints disagree with painted timeline");
+        require(std::abs(field::tapeScreenTime(302,0,604,360)-180)<1e-6,"Tape seek midpoint shifted");
+        auto render=[](const field::TapeScreenState& state){juce::Image image(juce::Image::ARGB,604,292,true);juce::Graphics g(image);field::drawTapeScreen(g,image.getBounds().toFloat(),state);return image;};
+        auto differs=[](const juce::Image& a,const juce::Image& b,juce::Rectangle<int> region){for(int y=region.getY();y<region.getBottom();++y)for(int x=region.getX();x<region.getRight();++x)if(a.getPixelAt(x,y)!=b.getPixelAt(x,y))return true;return false;};
+        field::TapeScreenState state;state.position=260;state.visible=360;state.loopIn=40;state.loopOut=310;state.playing=true;state.durations={{280,300,240,0}};
+        auto initial=render(state);require(!differs(initial,render(state),initial.getBounds()),"Tape geometry changes without transport movement");
+        auto changed=state;changed.position+=.5;require(differs(initial,render(changed),{113,41,136,136}),"Tape position fails to turn reel");changed=state;changed.speed=-1;require(differs(initial,render(changed),{270,90,60,40}),"Reverse tape direction missing");changed=state;changed.recordLevel=0;require(differs(initial,render(changed),{560,20,25,200}),"Tape record-level indicator stale");
+        changed=state;changed.shifted=true;changed.recordPan=-1;require(differs(initial,render(changed),{560,20,25,200}),"Tape shifted pan indicator stale");
+        if(argc>1&&juce::String(argv[1])!="--effect-motion-previews"){auto directory=juce::File::getCurrentWorkingDirectory().getChildFile(argv[1]);directory.createDirectory();juce::FileOutputStream stream(directory.getChildFile("tape-lcd-reference.png"));juce::PNGImageFormat png;require(png.writeImageToStream(initial,stream),"Tape reference preview failed");}
+    }
     if(argc==3&&juce::String(argv[1])=="--effect-motion-previews"){
         const juce::File directory(argv[2]);require(directory.createDirectory().wasOk(),"Preview directory failed");
         auto write=[&](const juce::Image& image,const juce::String& name){juce::FileOutputStream stream(directory.getChildFile(name+".png"));require(stream.openedOk(),"Preview file failed");juce::PNGImageFormat png;require(png.writeImageToStream(image,stream),"Preview image failed");};
@@ -244,6 +256,15 @@ int main(int argc,char** argv){
     p.setValue("lfoDepth",.65f);p.setValue("lfoTarget",0);
     for(int type=0;type<FieldProcessor::lfoNames.size();++type){p.setValue("lfo",(float)type);for(int shape=0;shape<6;++shape){p.setValue("lfoWaveform",(float)shape);ui->showPageForTesting(0,3);require(editor->createComponentSnapshot(editor->getLocalBounds()).isValid(),"LFO source/shape did not render");if(shape==0)captureNamed("lfo-"+juce::String(type));if(type==3)captureNamed("lfo-wave-"+juce::String(shape));}}
     p.drumMode=false;p.setValue("engine",1);ui->setShiftForTesting(false);ui->showPageForTesting(0,0);require(ui->macroMidiTargetForTesting(0)=="macro1","Synth knob learns wrong parameter");ui->showPageForTesting(3,0);require(ui->macroMidiTargetForTesting(0)=="track1Level","Mixer knob learns wrong parameter");ui->setShiftForTesting(true);require(ui->macroMidiTargetForTesting(0)=="track1Pan","Shifted mixer knob learns wrong parameter");p.drumMode=true;p.setValue("engine",14);ui->setShiftForTesting(false);ui->showPageForTesting(1,0);require(ui->macroMidiTargetForTesting(2)=="dboxEnvelope1","DBox knob learns wrong parameter");ui->setShiftForTesting(true);require(ui->macroMidiTargetForTesting(2)=="dboxEnvelope2","Shifted DBox knob learns wrong parameter");p.setValue("engine",11);ui->setShiftForTesting(false);ui->showPageForTesting(1,0);require(ui->macroMidiTargetForTesting(0)=="padStart","Sampler pad knob learns wrong parameter");p.drumMode=false;p.setValue("engine",1);ui->showPageForTesting(0,0);p.beginMidiLearn("macro1",field::EncoderMode::absolute,true);captureNamed("midi-learn");p.cancelMidiLearn();
+    ui->setShiftForTesting(false);ui->showPageForTesting(2,0);
+    require(ui->macroMidiTargetForTesting(0)=="tapeSeek"&&ui->macroMidiTargetForTesting(1)=="loopEnd"&&ui->macroMidiTargetForTesting(3)=="tapeRecordLevel","Tape encoder roles differ from guide");
+    ui->setShiftForTesting(true);require(ui->macroMidiTargetForTesting(1)=="loopStart"&&ui->macroMidiTargetForTesting(2)=="tapeSpeed"&&ui->macroMidiTargetForTesting(3)=="tapeRecordPan","Shifted tape encoder roles differ from guide");ui->setShiftForTesting(false);
+    p.transport("stop");p.setValue("tempo",120);p.setValue("loop",0);p.setValue("tapeSpeed",1);p.engine.seek(1);p.transport("play");
+    auto* brake=dynamic_cast<juce::Button*>(ui->findChildWithID("sound-slot-4"));auto* reverse=dynamic_cast<juce::Button*>(ui->findChildWithID("sound-slot-5"));auto* chop=dynamic_cast<juce::Button*>(ui->findChildWithID("sound-slot-6"));require(brake&&reverse&&chop,"Tape trick buttons missing");
+    auto stepTape=[&]{b.clear();midi.clear();p.processBlock(b,midi);};
+    brake->setState(juce::Button::buttonDown);double heldAt=p.engine.positionSeconds();stepTape();require(p.engine.positionSeconds()==heldAt,"Panel key 4 does not brake tape while held");brake->setState(juce::Button::buttonNormal);stepTape();require(p.engine.positionSeconds()>heldAt,"Panel brake release fails to resume");
+    reverse->setState(juce::Button::buttonDown);heldAt=p.engine.positionSeconds();stepTape();require(p.engine.positionSeconds()<heldAt,"Panel key 5 does not reverse while held");reverse->setState(juce::Button::buttonNormal);heldAt=p.engine.positionSeconds();stepTape();require(p.engine.positionSeconds()>heldAt&&p.value("tapeSpeed")==1,"Reverse release changes stored tape speed");
+    chop->setState(juce::Button::buttonDown);heldAt=p.engine.positionSeconds();for(int i=0;i<50;++i)stepTape();require(p.engine.positionSeconds()<heldAt+.15,"Panel key 6 does not repeat bounded chop window");chop->setState(juce::Button::buttonNormal);p.transport("stop");ui->refreshForTesting();captureNamed("tape-reference");
     editor->setSize(1000,520);ui->showPageForTesting(2,0);auto minimumShot=editor->createComponentSnapshot(editor->getLocalBounds());require(minimumShot.isValid()&&minimumShot.getWidth()==1000&&minimumShot.getHeight()==520,"Minimum-size tape view failed");if(argc>1){auto file=juce::File::getCurrentWorkingDirectory().getChildFile(argv[1]).getChildFile("tape-minimum.png");juce::FileOutputStream stream(file);stream.setPosition(0);stream.truncate();juce::PNGImageFormat format;require(format.writeImageToStream(minimumShot,stream),"Minimum-size screenshot failed");}editor->setSize(1320,640);
     // Exercise the real Shift button callback to render envelope play settings.
     ui->showPageForTesting(0,1);for(int i=0;i<ui->getNumChildComponents();++i)if(auto* button=dynamic_cast<juce::TextButton*>(ui->getChildComponent(i)))if(button->getButtonText()=="shift"&&button->onClick){button->onClick();break;}

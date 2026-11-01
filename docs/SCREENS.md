@@ -13,9 +13,9 @@ The interface remains an original, hardware-inspired rendering. Hardware-exact a
 
 ## Checks performed
 
-Six local CTest suites pass. The UI integration suite checks availability after five repeated refreshes, all15 engines on all four module pages, every patch/master FX, all six LFO sources with all six shape settings, and minimum1000×520 rendering. Native images were inspected at1320×640 and1000×520, including stereo sampler markers, tape controls, Delay, master Mother, the MIDI matrix and square-wave Tremolo. The suite generates optional PNG artifacts; it is not a hardware pixel-comparison oracle. Physical mouse/controller sessions and exhaustive visual/interaction regression remain open.
+Eight local CTest suites cover the application. The UI integration suite checks availability after five repeated refreshes, all15 engines on all four module pages, every patch/master FX, all six LFO sources with all six shape settings, and minimum1000×520 rendering. Native images were inspected at1320×640 and1000×520, including stereo sampler markers, tape controls, Delay, master Mother, the MIDI matrix and square-wave Tremolo. The suite generates optional PNG artifacts; it is not a hardware pixel-comparison oracle. Physical mouse/controller sessions and exhaustive visual/interaction regression remain open.
 
-![Stereo sampler](screenshots/field-studio.png)
+![Tape reel LCD](screenshots/tape-reference.png)
 
 ![Delay control preview](screenshots/delay.png)
 
