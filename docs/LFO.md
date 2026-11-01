@@ -6,6 +6,8 @@ Version 0.4.0 adds six dedicated routing screens and reference-style controls fo
 
 Press **T4** to open modulation. Press T4 again to bypass/enable it without losing settings. **Shift+T4** opens the six-type LCD browser: turn blue or use Up/Down to select, then T4/Enter to load. Escape exits without changing the sound. COM also provides type, bypass, compatibility, sync, key retrigger, waveform and source settings.
 
+With the LFO enabled, the Random and Value waveform above SPEED animates even when tape is stopped and no notes are held. Turning blue changes its speed (or clock division when synced). The animation follows the audio engine, so the audio device must be running; a host that suspends plugin processing can freeze it. Slow rates make movement less obvious, and Random's retained history fills over eight cycles after startup. These animations require version 0.4.0 or later.
+
 | Type | Blue | Ochre | Grey | Orange | Additional controls |
 |---|---|---|---|---|---|
 | Random | Speed | Amount | Destination | Attack/decay envelope | Shift-orange selects a parameter; click its LCD knob to edit a supported base value. |

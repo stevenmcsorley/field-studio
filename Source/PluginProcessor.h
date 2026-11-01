@@ -177,7 +177,7 @@ private:
     std::array<juce::RangedAudioParameter*,P_count> rawTargets{};
     std::array<juce::String,P_count> parameterIds;
     field::RealtimeValues<P_count> realtimeValues;
-    static constexpr size_t extraMidiTargets=42;
+    static constexpr size_t extraMidiTargets=72;
     field::MidiLearn<P_count+extraMidiTargets> midiLearn;
     bool parseMidiMappings(const juce::ValueTree&,std::array<field::MidiBinding,P_count+extraMidiTargets>&,juce::String&) const;
     int midiMappingIndex(const juce::String&) const;
@@ -197,6 +197,11 @@ private:
     void timerCallback() override;
     void resetSampleParameters();
     void clearModelNotes(){engine.allNotesOff();if(offlineFixture){midiNotes.resetAll();guiMidiNotes.resetAll();}else controlSignals|=1u;}
+    struct MidiTapeAction {int key=0;uint64_t epoch=0;};
+    field::RtQueue<MidiTapeAction,16> midiTapeActions;
+    std::atomic<uint64_t> midiActionEpoch{0};
+    std::atomic<bool> midiStopRequested{false},midiActionOverflow{false};
+    std::array<bool,28> midiActionDown{}; // audio consumer only
     std::atomic<int> pendingProgram{-1},pendingPatchAction{0};
     void applyPatchAction(int);
     void initializeFactoryPresets();

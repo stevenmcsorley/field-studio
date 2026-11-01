@@ -61,6 +61,29 @@ void writePresetFixture(const juce::File& file,const juce::var& metadata){
 struct TestPlayhead final:juce::AudioPlayHead {double seconds=1,bpm=130;bool running=true;juce::Optional<PositionInfo> getPosition() const override {PositionInfo p;p.setTimeInSeconds(seconds);p.setBpm(bpm);p.setIsPlaying(running);return p;}};
 int main(int argc,char** argv){
  try{
+    if(argc==2&&juce::String(argv[1])=="--test-midi-tape"){
+        juce::ScopedJuceInitialiser_GUI gui;auto owner=std::make_unique<FieldProcessor>();auto& p=*owner;p.prepareToPlay(8000,128);p.inputMonitor=true;
+        juce::AudioBuffer<float> audio(2,128);juce::MidiBuffer events;events.ensureSize(65536);
+        auto block=[&]{for(int c=0;c<2;++c)for(int i=0;i<128;++i)audio.setSample(c,i,.1f);p.processBlock(audio,events);events.clear();};
+        auto cc=[&](int number,int amount){events.clear();events.addEvent(juce::MidiMessage::controllerEvent(1,number,amount),0);block();};
+        auto learn=[&](const char* id,int number,field::EncoderMode mode=field::EncoderMode::absolute){require(p.beginMidiLearn(id,mode,true),"Cannot learn tape destination");cc(number,0);};
+        auto settle=[&]{for(int i=0;i<2000;++i){block();p.serviceForTesting();if(i>3&&!p.mediaJobBusy())return;juce::Thread::sleep(1);}require(false,"MIDI media action timed out");};
+        learn("tapeRecord",20);cc(20,127);settle();require(p.uiStateForTesting().recording,"Learned record did not start recording");
+        cc(20,127);settle();require(p.uiStateForTesting().recording,"Repeated held CC toggled recording");
+        cc(20,0);cc(20,127);settle();require(!p.uiStateForTesting().recording,"Second press did not finish recording");
+        p.requestTransport("stop");settle();
+        learn("tapeTrack",21);cc(21,0);cc(21,127);settle();require(p.uiStateForTesting().track==3,"MIDI track selection failed");
+        learn("tapeForward",22);cc(22,127);settle();double position=p.uiStateForTesting().position;cc(22,127);settle();require(std::abs(p.uiStateForTesting().position-position)<.001,"Held navigation repeated");
+        learn("tapeJog",23,field::EncoderMode::twosComplement);cc(23,1);settle();require(std::abs(p.uiStateForTesting().position-position-2./127)<.001,"Relative jog did not move precisely");
+        cc(23,1);settle();require(std::abs(p.uiStateForTesting().position-position-4./127)<.001,"Relative jog accelerated unexpectedly");
+        cc(23,127);settle();require(std::abs(p.uiStateForTesting().position-position-2./127)<.001,"Relative jog reverse failed");
+        learn("metronomeOn",24);cc(24,127);require(p.metronome,"MIDI click enable failed");cc(24,0);require(!p.metronome,"MIDI click disable failed");
+        // Stop fences a record press queued in the same block, before any job starts.
+        learn("tapeStop",25);cc(20,0);events.addEvent(juce::MidiMessage::controllerEvent(1,20,127),0);events.addEvent(juce::MidiMessage::controllerEvent(1,25,127),1);block();settle();require(!p.uiStateForTesting().recording&&!p.uiStateForTesting().playing,"Stop allowed stale record to start");
+        learn("tapePlay",26);cc(25,0);events.addEvent(juce::MidiMessage::controllerEvent(1,25,127),0);events.addEvent(juce::MidiMessage::controllerEvent(1,26,127),1);block();settle();require(p.uiStateForTesting().playing,"Deferred Stop overrode a newer Play");p.requestTransport("stop");settle();
+        auto state=p.midiMappingState();juce::String error;require(p.restoreMidiMappingState(state,error),"Tape controller profile did not round trip");
+        std::cout<<"MIDI tape control tests passed\n";return 0;
+    }
     if(argc==3&&juce::String(argv[1])=="--audit-presets"){
         juce::ScopedJuceInitialiser_GUI gui;
 auto processor=std::make_unique<FieldProcessor>(juce::File{},true);processor->prepareToPlay(44100,256);juce::File directory(argv[2]);juce::Array<juce::File> files;directory.findChildFiles(files,juce::File::findFiles,true,"*.wav;*.aif;*.aiff;*.aifc");juce::Array<juce::var> results;int accepted=0;for(auto& file:files){juce::String error;bool ok=processor->loadSampleFile(file,error);auto* row=new juce::DynamicObject;row->setProperty("file",file.getFileName());row->setProperty("accepted",ok);row->setProperty("summary",ok?processor->lastImportSummary:error);row->setProperty("details",ok?processor->lastImportDetails:juce::String{});results.add(juce::var(row));if(ok)++accepted;}auto report=directory.getSiblingFile("official-snaps-import-audit.json");require(report.replaceWithText(juce::JSON::toString(results)),"Audit report save failed");std::cout<<"Preset audit: "<<accepted<<"/"<<files.size()<<" accepted; report "<<report.getFullPathName()<<"\n";return files.isEmpty()?1:0;

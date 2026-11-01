@@ -2,7 +2,7 @@
 
 A native synthesizer, sampler and four-track stereo tape instrument inspired by the OP–1 field workflow. Builds a standalone application and VST3 from the same C++ audio engine; macOS also builds AU.
 
-**[Download Field Studio 0.4.0](https://github.com/stevenmcsorley/field-studio/releases/tag/v0.4.0)** · [VST3 setup](#vst3-and-daw-workflow) · [Recent features and screenshots](#recent-improvements) · [Controller mapping](#controller-mapping)
+**[Download Field Studio 0.4.1](https://github.com/stevenmcsorley/field-studio/releases/tag/v0.4.1)** · [VST3 setup](#vst3-and-daw-workflow) · [Recent features and screenshots](#recent-improvements) · [Controller mapping](#controller-mapping)
 
 ![Field Studio running on Linux, showing the CWO cow effect, four coloured encoders and two-octave keyboard](docs/screenshots/field-studio.png)
 
@@ -19,6 +19,8 @@ Play synths and drums, import samples, build a sequence, record it onto four ste
 - **Presets and controllers:** eight synth and eight drum sound slots, dated snapshots, preset browsing, nested user folders, MIDI learn and reusable controller profiles.
 
 ## Recent improvements
+
+**Recording controller update (0.4.1):** MIDI-learn Record, tape edits, track selection, loop markers, sample capture, momentary tape tricks and precise relative-encoder jog. Right-click transport buttons or use COM → MIDI learn / controller mappings. Assign your Faderfox/BeatStep buttons to CC 127 on press and 0 on release. [Setup and full action list](docs/CONTROLLERS.md#recording-and-timeline-control-041).
 
 **LFO reference update (0.4.0):** six dedicated routing LCDs, corrected encoder roles, T4 bypass and Shift+T4 selection. Value now oscillates; Random modulates a selected parameter or the whole module; Tremolo has signed pitch and volume paths; Velocity has independent volume sensitivity. MIDI has four parameter/destination selectors and route amounts. Element follows input, envelope, main output or a clearly marked manual G substitute. Old projects retain their previous LFO behaviour until you choose **COM → Reference LFO behaviour**. [Controls, screenshots and compatibility](docs/LFO.md).
 
@@ -152,7 +154,7 @@ Right-click a knob and choose **MIDI learn**, then move a control on your Faderf
 
 ## Downloads
 
-[Field Studio 0.4.0 downloads](https://github.com/stevenmcsorley/field-studio/releases/tag/v0.4.0) are available for Windows, macOS and Linux. Publication is gated on automated build, test and package checks. The pipeline packages Windows x64 standalone/VST3, macOS universal standalone/VST3/AU and Linux x86_64 standalone/VST3, with checksums and complete corresponding source. See [release notes](docs/RELEASE_NOTES.md) and [build/release status](docs/BUILD_STATUS.md). Binaries are unsigned portable builds.
+[Field Studio 0.4.0 downloads](https://github.com/stevenmcsorley/field-studio/releases/tag/v0.4.1) are available for Windows, macOS and Linux. Publication is gated on automated build, test and package checks. The pipeline packages Windows x64 standalone/VST3, macOS universal standalone/VST3/AU and Linux x86_64 standalone/VST3, with checksums and complete corresponding source. See [release notes](docs/RELEASE_NOTES.md) and [build/release status](docs/BUILD_STATUS.md). Binaries are unsigned portable builds.
 
 ## Run the Linux build
 

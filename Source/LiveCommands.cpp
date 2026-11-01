@@ -36,6 +36,7 @@ void applyEditingCommand(field::Engine& engine,const field::LiveCommand& command
 
 void FieldProcessor::invalidateLiveControls(){
     const std::lock_guard<std::mutex> lock(liveProducerMutex);
+    midiActionEpoch.fetch_add(1,std::memory_order_release);
     liveEpoch.fetch_add(1,std::memory_order_release);livePerformance=8;
 }
 
@@ -55,6 +56,7 @@ void FieldProcessor::requestLiveStop(bool panic){
     {const std::lock_guard<std::mutex> lock(liveProducerMutex);
     // Epoch fences prevent old Play or held-performance commands from undoing
     // Stop/Panic even when the ordinary queue is full.
+    midiActionEpoch.fetch_add(1,std::memory_order_release);
     liveEpoch.fetch_add(1,std::memory_order_release);
     livePerformance=8;
     urgentLiveActions.fetch_or(panic?2u:1u,std::memory_order_release);

@@ -1,3 +1,13 @@
+# Field Studio 0.4.1 — MIDI recording and timeline controls
+
+Adds MIDI learn for tape recording/finish, track selection, sample capture, tape edits and undo/redo, one-second/bar navigation, playhead loop markers, momentary brake/reverse/roll and metronome enable. Fine jog supports relative encoders at approximately 15.75 ms per tick. Existing parameter IDs and controller assignments remain compatible.
+
+Right-click panel transport/loop buttons to learn; all destinations are listed under COM → MIDI learn / controller mappings. Configure action buttons for absolute CC 127 on press and 0 on release. New action commands trigger once per press and bypass pickup. Recording/edit preparation stays off the audio callback, uses a bounded command queue and respects Stop/Panic/project-change fences. Busy actions report a retry message. Capture finish remains separate from tape Stop. See docs/CONTROLLERS.md for detailed setup and limits.
+
+Includes the 0.4.0 LFO work below plus a production callback-to-LCD animation regression test and clearer idle-animation documentation. Portable unsigned Linux x86_64, Windows x64 and macOS universal standalone/VST3 packages, with AU on macOS, are published only after the release workflow passes.
+
+---
+
 # Field Studio 0.4.0 — LFO reference update
 
 Six dedicated routing LCDs and corrected LFO controls for synth and drum modes. Includes standalone/VST3 for Linux x86_64, Windows x64 and macOS universal, plus macOS AU, complete corresponding source and checksums. Downloads remain unsigned.

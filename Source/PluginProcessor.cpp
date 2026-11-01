@@ -221,7 +221,7 @@ void FieldProcessor::processBlock(juce::AudioBuffer<float>& buffer,juce::MidiBuf
         else if(msg.isMidiClock()){if(!hostSync&&(int)cached(P_midiClockMode)==1){midiClockFollower.observe(msg,midiSampleClock+sample);updateEngine();}}
         else if(msg.isMidiStart()&&!hostSync){midiClockFollower.observe(msg,midiSampleClock+sample);engine.rewind();engine.setSongPosition(0);engine.setPlaying(true);}
         else if(msg.isMidiContinue()&&!hostSync){midiClockFollower.observe(msg,midiSampleClock+sample);engine.setPlaying(true);}
-        else if(msg.isMidiStop()&&!hostSync){midiClockFollower.observe(msg,midiSampleClock+sample);++controlRevision;engine.setPlaying(false);}
+        else if(msg.isMidiStop()&&!hostSync){midiClockFollower.observe(msg,midiSampleClock+sample);++controlRevision;midiActionEpoch.fetch_add(1,std::memory_order_release);midiStopRequested=true;engine.setRecording(false);engine.setPlaying(false);}
         else if(msg.isSongPositionPointer()&&!hostSync){midiClockFollower.observe(msg,midiSampleClock+sample);engine.setSongPosition(msg.getSongPositionPointerMidiBeat());midiTransportPpq=msg.getSongPositionPointerMidiBeat()/4.;midiExpectedTapeSeconds=engine.positionSeconds();midiPositionValid=true;}
     };
     for(const auto item:midiInput){if(item.samplePosition>0)break;handleHostEvent(item.getMessage(),0);}
@@ -260,7 +260,20 @@ juce::String FieldProcessor::performanceReport() const {
 }
 void FieldProcessor::publishMaintenanceState(){for(int i=0;i<4;++i)livePoolIdentities[(size_t)i].store((uintptr_t)engine.tracks()[(size_t)i].audio.poolHandle().get(),std::memory_order_release);for(int i=0;i<2;++i)livePoolIdentities[(size_t)i+4].store((uintptr_t)albums[(size_t)i].audio.poolHandle().get(),std::memory_order_release);livePoolIdentities[6].store((uintptr_t)captureAudio.poolHandle().get(),std::memory_order_release);retiredTapePending.store(engine.hasRetiredTape(),std::memory_order_release);}
 void FieldProcessor::timerCallback(){
+    if(midiStopRequested.exchange(false))cancelMediaJob();
     mediaJobs.serviceCommit();
+    if(midiActionOverflow.exchange(false))reportOperationError("MIDI tape action queue full; retry after pending operations finish.");
+    MidiTapeAction midiAction;
+    // Bounded queue; heavy commands are admitted on the control thread only.
+    for(int i=0;i<16&&midiTapeActions.pop(midiAction);++i){
+        if(midiAction.epoch!=midiActionEpoch.load(std::memory_order_acquire))continue;
+        static const char* actions[]{"record","copy","lift","drop","split","join","merge","bounce","clear","undo","redo","slideBack","slideForward"};
+        bool accepted=false;
+        if(midiAction.key<=54)accepted=requestTransport(actions[midiAction.key-42]);
+        else if(midiAction.key==55||midiAction.key==56)accepted=requestSampleCapture(midiAction.key==56);
+        else accepted=requestStopSampleCapture();
+        if(!accepted)reportOperationError("MIDI tape action could not start: another operation is busy. Retry after it finishes.");
+    }
     if(controlBridge)controlBridge->poll();
     flushParameterMirrors();std::deque<std::array<field::Track,4>> retired;
     {DocumentGuard document(*this,false);if(!offlineFixture)collectOwnedDocuments();engine.collectTapeStorage(64);if(engine.hasRetiredTape())retired=engine.takeRetiredTape();const juce::ScopedLock worker(sampleWorkerLock);engine.collectRetiredSamples();}
@@ -301,7 +314,7 @@ void FieldProcessor::midiController(int channel,int cc,int amount){
         else if(cc==86){selectionStart=engine.positionSeconds();selectionEnd=std::max(selectionEnd,selectionStart+.1);engine.setLoop(selectionStart,selectionEnd);}
         else if(cc==87){selectionEnd=std::max(selectionStart+.1,engine.positionSeconds());engine.setLoop(selectionStart,selectionEnd);}
         else if(cc==88)setPhysical(P_loop,cached(P_loop)>.5f?0.f:1.f);
-        else if(cc==104){++controlRevision;engine.setPlaying(false);}else if(cc==105)engine.setPlaying(true);
+        else if(cc==104){++controlRevision;midiActionEpoch.fetch_add(1,std::memory_order_release);midiStopRequested=true;engine.setRecording(false);engine.setPlaying(false);}else if(cc==105)engine.setPlaying(true);
     }
     updateEngine();
 }

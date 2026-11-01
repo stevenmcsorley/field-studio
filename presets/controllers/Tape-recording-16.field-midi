@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<MIDI_MAPPINGS version="1">
+  <BINDING target="tapeRecord" channel="16" cc="20" mode="0" pickup="0" invert="0" />
+  <BINDING target="tapePlay" channel="16" cc="21" mode="0" pickup="0" invert="0" />
+  <BINDING target="tapeStop" channel="16" cc="22" mode="0" pickup="0" invert="0" />
+  <BINDING target="tapeRewind" channel="16" cc="23" mode="0" pickup="0" invert="0" />
+  <BINDING target="tapeSetLoopIn" channel="16" cc="24" mode="0" pickup="0" invert="0" />
+  <BINDING target="tapeSetLoopOut" channel="16" cc="25" mode="0" pickup="0" invert="0" />
+  <BINDING target="tapeLoopToggle" channel="16" cc="26" mode="0" pickup="0" invert="0" />
+  <BINDING target="tapeBack" channel="16" cc="27" mode="0" pickup="0" invert="0" />
+  <BINDING target="tapeForward" channel="16" cc="28" mode="0" pickup="0" invert="0" />
+  <BINDING target="tapeLift" channel="16" cc="29" mode="0" pickup="0" invert="0" />
+  <BINDING target="tapeDrop" channel="16" cc="30" mode="0" pickup="0" invert="0" />
+  <BINDING target="tapeSplit" channel="16" cc="31" mode="0" pickup="0" invert="0" />
+  <BINDING target="tapeUndo" channel="16" cc="32" mode="0" pickup="0" invert="0" />
+  <BINDING target="tapeRedo" channel="16" cc="33" mode="0" pickup="0" invert="0" />
+  <BINDING target="tapeTrack" channel="16" cc="34" mode="0" pickup="0" invert="0" />
+  <BINDING target="tapeJog" channel="16" cc="35" mode="1" pickup="0" invert="0" />
+</MIDI_MAPPINGS>

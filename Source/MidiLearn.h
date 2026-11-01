@@ -29,6 +29,8 @@ public:
     }
     void cancel() noexcept {pending.store(0,std::memory_order_release);}
     int learningTarget() const noexcept {return (int)(pending.load(std::memory_order_acquire)&0x1ff)-1;}
+    // Audio consumer only: a delta-only destination consumes and recentres.
+    void rebaseRelative(size_t target,float value) noexcept {if(target<Count)state[target].accumulator=value;}
     template<class Get,class Set> bool process(int channel,int cc,int value,Get&& get,Set&& set) noexcept {
         if(channel<1||channel>16||cc<0||cc>=120||cc==64||value<0||value>127)return false;
         uint64_t request=pending.load(std::memory_order_acquire);

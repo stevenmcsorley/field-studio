@@ -46,4 +46,6 @@ The public [OP-1 field MIDI reference](https://teenage.engineering/guides/op-1) 
 
 A patch reset restores modeled source/envelope/FX/LFO/play-setting defaults, preserving the engine, loaded audio and sample regions. Randomization affects those same controls. Slot recall and patch actions run on the message thread; they are not sample-accurate. The four compressor destinations follow the guide's master-out control order; the DSP remains original.
 
-Not established: exact hardware controller curves, relative encoding, filter defaults, PLL/timeout policy, SPP-origin semantics or complete per-device menus. Audio-pulse PO/1/16 sync, BLE advertising/USB-device identity, aftertouch/MPE, NRPN and manufacturer SysEx are not implemented. These features and the shared-lock dropout problem prevent a full hardware-MIDI or live-performance parity claim.
+Not established: exact hardware controller curves, relative encoding, filter defaults, PLL/timeout policy, SPP-origin semantics or complete per-device menus. Audio-pulse PO/1/16 sync, BLE advertising/USB-device identity, aftertouch/MPE, NRPN and manufacturer SysEx are not implemented. These limitations prevent a full hardware-MIDI parity claim.
+
+Recording, sample capture, precise jog and tape edit MIDI-learn extensions are documented in [recording and timeline control](CONTROLLERS.md#recording-and-timeline-control-041). No new fixed CC numbers are reserved.

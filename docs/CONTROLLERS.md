@@ -39,10 +39,33 @@ The project owner reports successful plugin operation and DAW automation, succes
 - Mappings identify **channel + CC**, not the physical USB device. The plugin sees MIDI routed/merged by its host; the standalone wrapper also merges enabled inputs. Give controllers different MIDI channels if they reuse CC numbers, or route only the required device. Ports are selected in the standalone/DAW, not in a mapping file.
 - Input channel/message filters apply before learning. CC64 and channel-mode CC120–127 are reserved for sustain/reset safety and are not learnable.
 - CC feedback/automatic LED rings, device handshakes, NRPN, 14-bit CC, pitch-bend learn, aftertouch/MPE learn and manufacturer SysEx are not implemented. Existing note input and the fixed pitch-bend route still work.
-- Destructive tape editing, record arming, project loading and file operations are not controller-learn destinations. They still require the remaining prepared-job ownership work. Live continuity limitations are documented in AUDIO_REWRITE_PROGRESS.md.
+- Recording and tape edits use the prepared background job path. They are not sample-accurate; busy/rejected jobs appear in the status bar. Project loading and file operations remain outside MIDI learn.
 
 ![Native MIDI learn status while assigning the blue source macro](screenshots/midi-learn.png)
 
 ## Tempo and MIDI clock
 
 The metronome-shaped button opens the tempo/sync page. Use Beat Match to send standard clock to compatible gear, Receive to follow it, or Shift-ochre to relay a received stream to the selected MIDI output. Tap BPM / T sets tempo; arrows nudge (Shift: 0.01 BPM). The tape link, relay and click-sound parameters are automatable and available in the MIDI mapping target list. See [setup, routing and limits](TEMPO_SYNC.md). Clock support depends on the device and host; this does not claim new hands-on BeatStep clock validation.
+
+## Recording and timeline control (0.4.1)
+
+Right-click the panel Record, Play, Stop, Lift, Drop, Split, Back, Forward, IN, OUT or Loop button to assign a CC. Other actions are under **COM → MIDI learn / controller mappings**. These are software controller extensions, not additional manufacturer CC assignments.
+
+| Destination | Behaviour |
+|---|---|
+| Tape record / finish recording | Press once to prepare/start recording; release and press again to finish. Count-in, record level/pan and tape speed are separately learnable parameters. |
+| Tape play / stop / rewind | Play starts playback; Stop finishes recording, stops playback and releases tape tricks. Rewind returns to zero. |
+| Tape selected track | Absolute 0–127 selects tracks 1–4. Selecting another track finishes recording. |
+| Tape seek / fine jog | Seek spans six minutes. Assign **fine jog** to a relative encoder: one relative tick moves approximately 15.75 ms. |
+| Back / forward; previous / next bar; recorded end | Move one second, one bar at the effective tape tempo, or to the end of recorded audio. |
+| Loop start / end; set loop in / out; toggle loop | Absolute boundary controls or button actions at the playhead. |
+| Copy, lift, drop, split, join, merge, bounce, clear selection, undo, redo, slide backward/forward | Use the existing tape selection and edit-track mask. Clear and lift alter audio; assign dedicated buttons. Slides move one beat. |
+| Sample capture input / output / finish | Prepare capture from the selected input or resample the main output, then finalize the sample. Source selection remains under the sampling page. |
+| Tape brake / reverse / roll | Momentary: send 127 while pressed and 0 when released. |
+| Metronome enabled | 127 enables, 0 disables; click level and sound are separate parameters. |
+
+The included `Tape-recording-16.field-midi` profile provides a ready-to-configure 14-button, track-selector and jog layout on channel 16 / CC20–35; see `presets/controllers/README.md` for the order. Loading a profile replaces existing assignments.
+
+Configure action buttons to send **CC 127 on press and CC 0 on release**, using Absolute CC. New action destinations ignore pickup and trigger only on the rising edge, so repeated high values do not repeat edits. MIDI learn consumes its first message; release and press again to perform the action. Use relative modes for fine jog, not action buttons. Existing mappings remain compatible and all new assignments save in projects, host state and controller profiles.
+
+Heavy recording/capture/edit actions cross a bounded queue to the control thread and then use the existing background preparation path. They execute against the selection current when the command is serviced. Stop/Panic or project replacement invalidates queued old actions. Stop also cancels pending recording preparation; a full action queue cannot prevent stopping. When another media operation is busy, retry after it finishes; do not use rapid edit macros as a batch script. Sample-capture finish is separate from tape Stop. Host-follow transport can override manual transport changes.
