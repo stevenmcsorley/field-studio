@@ -289,6 +289,7 @@ private:
     std::array<DrumPad,24> pads;
     std::array<DBoxPad,24> dboxPads;
     int padSelected=0;
+    double motherGateRemaining=0;
     double sr = 44100, position = 0, loopBegin = 0, loopFinish = 88200;
     int selected = 0;
     bool isPlaying = false, isRecording = false;

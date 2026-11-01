@@ -100,6 +100,7 @@ public:
     juce::String sampleName = "No sample loaded";
     juce::String projectName = "Untitled";
     std::atomic<float> outputPeak{0},effectiveTempo{110};
+    std::array<std::atomic<float>,2> outputChannelPeaks{},masterPrePeaks{};
     std::atomic<int> skippedBlocks{0};
     std::atomic<double> playhead{0};
     std::atomic<bool> hostSync{false};

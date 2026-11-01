@@ -95,7 +95,7 @@ void Engine::prepare(double rate, int /* maxBlock */) {
     delayR.assign(delayL.size(),0);
     delayWrite=0; fxLowL=fxLowR=fxBandL=fxBandR=wetLowL=wetLowR=0;
     phaserL.fill(0); phaserR.fill(0);
-    cwoShifter.prepare(sr);plainDelayColor.reset();cwoDelay=plainDelay=-1;cwoDelaySmoothing=1-std::exp(-1/(.005*sr));
+    motherGateRemaining=0;cwoShifter.prepare(sr);plainDelayColor.reset();cwoDelay=plainDelay=-1;cwoDelaySmoothing=1-std::exp(-1/(.005*sr));
     for (auto& v : voices) {v.active=false;releaseVoiceSample(v);}keyCount=0;
     isRecording=false; isPlaying=false;countInRemaining=0;countInElapsed=0;reverseHeld=false;brakeHeld=false;rollHeld=false;
     seqPhase=0; seqStep=-1;seqPositionPending=-1; seqLastNote=-1;
@@ -582,6 +582,9 @@ std::pair<float,float> Engine::effect(float l,float r) {
     auto read=[&](const std::vector<float>& d,double samples) {
         double index=static_cast<double>(delayWrite)-std::clamp(samples,1.0,static_cast<double>(d.size()-2));
         if(index<0)index+=d.size();
+        // A tiny negative offset can round to exactly size after wrapping.
+        // Treat that boundary as zero before converting to an array index.
+        if(index>=static_cast<double>(d.size()))index=0;
         const size_t i=static_cast<size_t>(index), n=(i+1)%d.size();
         const float fraction=static_cast<float>(index-i);
         return d[i]+fraction*(d[n]-d[i]);
@@ -603,7 +606,11 @@ std::pair<float,float> Engine::effect(float l,float r) {
             wetR=read(delayR,sr*.0371)+read(delayL,sr*.0537)*.7f+read(delayR,sr*.0793)*.5f;
             wetL*=.5f;wetR*=.5f;feedbackL=wetR*(.45f+y*.4f);feedbackR=wetL*(.45f+y*.4f);break;
         }
-        case 3: wetL=(tapL+read(delayR,sr*(.1+x*.4)))*.5f; wetR=(tapR+read(delayL,sr*(.17+x*.4)))*.5f;feedbackL=wetR*.6f;feedbackR=wetL*.6f;break;
+        case 3: { // Original two-axis cross-feedback delay grid.
+            const double a=(.025+x*.45)*sr,b=(.035+y*.55)*sr;
+            wetL=(read(delayL,a)+read(delayR,b*1.17))*.5f;wetR=(read(delayR,b)+read(delayL,a*1.31))*.5f;
+            feedbackL=wetR*z*.94f;feedbackR=wetL*z*.94f;break;
+        }
         case 4: { // State-variable-like filter.
             const float coeff=1-std::exp(-static_cast<float>(tau)*(100+std::pow(x,2)*12000)/static_cast<float>(sr));
             fxLowL+=coeff*(l-fxLowL);fxLowR+=coeff*(r-fxLowR);
@@ -631,7 +638,15 @@ std::pair<float,float> Engine::effect(float l,float r) {
             wetL=shifted[0]+l*z*.5f;wetR=shifted[1]+r*z*.5f;break;
         }
         case 8: { const float levels=4+std::pow(2.0f,(1-x)*10); wetL=std::round((l+tapL*y*.4f)*levels)/levels;wetR=std::round((r+tapR*y*.4f)*levels)/levels;feedbackL=wetL*.35f;feedbackR=wetR*.35f;break; }
-        case 9: { const double movement=(.03+.45*(1-fxPhase))*sr;wetL=read(delayL,movement);wetR=read(delayR,movement+sr*.013);feedbackL=wetR*.5f;feedbackR=wetL*.5f;break; }
+        case 9: { // Original distance/gated-room model; not recovered TE DSP.
+            if(std::max(std::abs(l),std::abs(r))>1e-5f)motherGateRemaining=sr*(.03+y*y*2);else motherGateRemaining=std::max(0.,motherGateRemaining-1);
+            const double distance=(.02+x*.25)*sr;
+            const float roomL=(read(delayL,distance)+read(delayR,distance*1.37)+read(delayL,distance*1.71))*.333333f;
+            const float roomR=(read(delayR,distance*1.09)+read(delayL,distance*1.49)+read(delayR,distance*1.93))*.333333f;
+            const float colour=1-std::exp(-static_cast<float>(tau)*std::min((float)sr*.42f,200+z*z*18000)/(float)sr);
+            wetLowL+=colour*(roomL-wetLowL);wetLowR+=colour*(roomR-wetLowR);
+            const float gate=(float)std::min(1.,motherGateRemaining/(sr*.005));wetL=wetLowL*gate;wetR=wetLowR*gate;feedbackL=wetR*.65f;feedbackR=wetL*.65f;break;
+        }
         case 10: { // Four-stage all-pass phaser.
             const float a=.1f+.8f*(.5f+.5f*sine(fxPhase));float dl=l,dr=r;
             for(size_t j=0;j<4;++j){float nl=-a*dl+phaserL[j];phaserL[j]=dl+a*nl;dl=nl;float nr=-a*dr+phaserR[j];phaserR[j]=dr+a*nr;dr=nr;}
@@ -644,13 +659,13 @@ std::pair<float,float> Engine::effect(float l,float r) {
     delayWrite=(delayWrite+1)%delayL.size();
     // Delay and CWO have dedicated four-control paths. Other software
     // effects retain their wet-tone and stereo-width processing.
-    if(params.effect!=7&&params.effect!=1){
+    if(params.effect!=7&&params.effect!=1&&params.effect!=3&&params.effect!=9){
         const float tone=1-std::exp(-static_cast<float>(tau)*std::min(static_cast<float>(sr*.42),200+z*z*18000)/static_cast<float>(sr));
         wetLowL+=tone*(wetL-wetLowL);wetLowR+=tone*(wetR-wetLowR);
         const float mid=(wetLowL+wetLowR)*.5f,side=(wetLowL-wetLowR)*w;
         wetL=mid+side;wetR=mid-side;
     }
-    const float mix=params.effect==0?0:clamp(params.effectMix+modulationRoutes[16]*.5f);
+    const float mix=params.effect==0?0:clamp(params.effectMix+modulationRoutes[16]*.5f)*((params.effect==3||params.effect==9)?w:1);
     return {l*(1-mix)+wetL*mix,r*(1-mix)+wetR*mix};
 }
 void Engine::process(float* left,float* right,const float* inputLeft,const float* inputRight,int frames,float* const* stems) {

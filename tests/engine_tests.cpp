@@ -32,6 +32,12 @@ void render(Engine& e,std::vector<float>& l,std::vector<float>& r,int frames){l.
 int main(){
     std::vector<float> l,r;
     {
+        auto spatial=[](int effect,std::array<float,4> controls){auto owner=std::make_unique<Engine>();auto& fx=*owner;fx.prepare(8000,128);Parameters p;p.monitorInput=true;p.volume=1;p.effect=effect;p.effectMix=1;for(int i=0;i<4;++i)p.effectMacro[i]=controls[(size_t)i];fx.setParameters(p);fx.setOutputGainImmediately(1);std::vector<float> input(24000,0),left(24000),right(24000);input[0]=.1f;const auto allocations=watchedAllocations.load(),frees=watchedDeallocations.load();watchAllocations=true;fx.process(left.data(),right.data(),input.data(),input.data(),24000);watchAllocations=false;check(watchedAllocations.load()==allocations&&watchedDeallocations.load()==frees,"Spatial effects allocate/free during processing");for(float value:left)check(std::isfinite(value)&&std::abs(value)<=1,"Spatial effect output is not bounded");return left;};
+        auto difference=[](const std::vector<float>& a,const std::vector<float>& b){double result=0;for(size_t i=0;i<a.size();++i)result+=std::abs(a[i]-b[i]);return result;};
+        for(int effect:{3,9}){std::array<float,4> controls{{.25f,.9f,.4f,1}};auto wet=spatial(effect,controls);controls[3]=0;auto dry=spatial(effect,controls);check(dry[0]==.1f&&std::all_of(dry.begin()+1,dry.end(),[](float value){return value==0;}),"Native Mix zero does not restore immediate dry input");controls[3]=1;for(int i=0;i<3;++i){auto changed=controls;changed[(size_t)i]=i==1?.1f:.8f;check(difference(wet,spatial(effect,changed))>.001,"Spatial effect native control has no independent audio effect");}}
+    }
+
+    {
         constexpr int rate=8000,frames=16000;
         auto processCwo=[&](float delay,float feedback,float sideband,bool impulse){
             auto fx=std::make_unique<Engine>();fx->prepare(rate,128);Parameters p;p.monitorInput=true;p.volume=1;p.effect=7;p.effectMix=1;p.effectMacro[0]=impulse?0.f:std::cbrt((200.f-.02f)/1600.f);p.effectMacro[1]=delay;p.effectMacro[2]=feedback;p.effectMacro[3]=sideband;fx->setParameters(p);fx->setOutputGainImmediately(1);

@@ -78,3 +78,7 @@ Full-LCD reel rendering now follows the supplied tape reference, with transport-
 ## Mixer/EQ LCD — beta 2
 
 Reference-based full-LCD mixer meters/pan/levels and EQ faders/curve/Amount are implemented, along with Shift-track mute and persistent EQ band/overall bypass. Exact meter calibration, hardware EQ response, knob laws and MAX/CLEAN gestures remain unverified. See [controls and limits](MIXER_EQ.md).
+
+## Master Out and spatial FX — beta 3
+
+Master Out, Grid and Mother now use reference-inspired full LCDs. Master Out has separate stereo meters, Drive/Release, and a UI Shift-link gesture. Grid/Mother have dedicated four-control audio paths and native Mix semantics; Master Drive includes makeup/saturation. Algorithms and exact hardware link/meter/parameter laws remain original approximations. Existing sounds can change; see [controls, compatibility and test scope](MASTER_SPATIAL.md).

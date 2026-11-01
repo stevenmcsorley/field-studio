@@ -5,6 +5,7 @@
 #include "DelayScreen.h"
 #include "TapeScreen.h"
 #include "MixerScreen.h"
+#include "SpatialScreens.h"
 #include <cmath>
 #include <algorithm>
 
@@ -76,7 +77,7 @@ FieldEditor::FieldEditor(FieldProcessor& p):AudioProcessorEditor(p),processor(p)
     for(auto* c:{&engineBox,&effectBox,&sequenceBox}){addAndMakeVisible(c);c->setWantsKeyboardFocus(false);}
     engineBox.setTooltip(juce::String::fromUTF8("Synthesis engine · import your own audio for Sampler"));effectBox.setTooltip(juce::String::fromUTF8("Insert effect · coloured knobs edit effect on T3"));sequenceBox.setTooltip(juce::String::fromUTF8("Sequencer · select a mode, then play a note or edit the grid"));
     engineBox.onChange=[this]{int e=engineBox.getSelectedId()-1;processor.setValue("engine",(float)e);if(e==14)processor.drumMode=true;else if(e!=11)processor.drumMode=false;if(e!=14&&!processor.drumMode)lastSynthEngine=e;setMode(processor.drumMode?1:0);configureMacros();grabKeyboardFocus();};
-    effectBox.onChange=[this]{const int next=effectBox.getSelectedId()-1;if(next==1||next==7)processor.setValue(mode==3?"masterMix":"effectMix",1);if(mode==3){processor.setValue("masterEffect",(float)(effectBox.getSelectedId()-1));page=2;configureMacros();}else{processor.setValue("effect",(float)(effectBox.getSelectedId()-1));setPage(2);}grabKeyboardFocus();};
+    effectBox.onChange=[this]{const int next=effectBox.getSelectedId()-1;if(next==1||next==7||next==3||next==9)processor.setValue(mode==3?"masterMix":"effectMix",1);if(mode==3){processor.setValue("masterEffect",(float)(effectBox.getSelectedId()-1));page=2;configureMacros();}else{processor.setValue("effect",(float)(effectBox.getSelectedId()-1));setPage(2);}grabKeyboardFocus();};
     sequenceBox.onChange=[this]{int i=sequenceBox.getSelectedId()-1;processor.setValue("sequencer",(float)i);processor.setValue("sequenceOn",i>0?1.f:0.f);setMode(4);grabKeyboardFocus();};
     juce::TextButton* files[]{&newButton,&openButton,&saveButton,&importButton,&exportButton,&helpButton};
     for(int i=0;i<6;++i){auto* b=files[i];addAndMakeVisible(b);b->setWantsKeyboardFocus(false);b->onClick=[this,i]{if(i==5)showHelp();else fileAction(i);};}
@@ -167,6 +168,7 @@ void FieldEditor::configureMacros(){
         else{ids={"macro1","macro2","macro3","macro4"};int e=juce::jlimit(0,14,(int)processor.value("engine"));for(auto n:names[(size_t)e])macroLabels.add(n);if(mode==1)macroLabels={"TONE","DECAY","NOISE / BODY","DRIVE"};else if(e==11&&processor.parameters.getParameter("sampleStart"))ids={"sampleStart","sampleLoopIn","sampleLoopOut","sampleEnd"};}
         for(size_t i=0;i<4;++i){macros[i].getProperties().set("midiTarget",ids[(int)i]);attachments[i]=std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(processor.parameters,ids[(int)i],macros[i]);auto* p=processor.parameters.getParameter(ids[(int)i]);macros[i].setDoubleClickReturnValue(true,p?p->convertFrom0to1(p->getDefaultValue()):.5f);}
     }
+    if(mode==3&&page==3&&shifted){for(int i=0;i<2;++i){attachments[(size_t)i].reset();macros[(size_t)i].setRange(0,1,.001);macros[(size_t)i].setValue(processor.value(i?"masterRight":"masterLeft"),juce::dontSendNotification);macroLabels.set(i,"STEREO LINK");macros[(size_t)i].onValueChange=[this,i]{float level=(float)macros[(size_t)i].getValue();processor.setValue("masterLeft",level);processor.setValue("masterRight",level);macros[(size_t)(1-i)].setValue(level,juce::dontSendNotification);};}}
     if(page==2&&(mode==0||mode==1||mode==3)&&((int)processor.value(mode==3?"masterEffect":"effect")==7||(int)processor.value(mode==3?"masterEffect":"effect")==1)&&shifted){for(auto& slider:macros)slider.setMouseDragSensitivity(2400);}
     updateControlAvailability();
     lastVoiceMode=(int)processor.value("voiceMode");lastEngine=(int)processor.value("engine");lastEffect=(int)processor.value("effect");lastMasterEffect=(int)processor.value("masterEffect");lastLfo=(int)processor.value("lfo");lastElementSource=(int)processor.value("elementSource");lastLfoSync=(int)processor.value("lfoSync");
@@ -257,7 +259,8 @@ void FieldEditor::drawScreen(juce::Graphics& g){
     const bool masterCwo=mode==3&&page==2;const bool patchCwo=(mode==0||mode==1)&&page==2;
     if((masterCwo||patchCwo)&&(int)processor.value(masterCwo?"masterEffect":"effect")==1){std::array<float,4> values{};for(int i=0;i<4;++i)values[(size_t)i]=processor.value((masterCwo?"masterFx":"fx")+juce::String(i+1));field::drawDelayScreen(g,r,values,tick/30.f);g.restoreState();return;}
     if((masterCwo||patchCwo)&&(int)processor.value(masterCwo?"masterEffect":"effect")==7){std::array<float,4> values{};for(int i=0;i<4;++i)values[(size_t)i]=processor.value((masterCwo?"masterFx":"fx")+juce::String(i+1));field::drawCwoScreen(g,r,values,masterCwo?masterCwoMotion:insertCwoMotion);g.restoreState();return;}
-    if(mode==2){drawTape(g,r);g.restoreState();return;}if(mode==3){drawMixer(g,page<2?r:content);g.restoreState();return;}if(mode==4){drawSequence(g,content);g.restoreState();return;}
+    if((masterCwo||patchCwo)&&((int)processor.value(masterCwo?"masterEffect":"effect")==3||(int)processor.value(masterCwo?"masterEffect":"effect")==9)){drawEffect(g,r,masterCwo);g.restoreState();return;}
+    if(mode==2){drawTape(g,r);g.restoreState();return;}if(mode==3){drawMixer(g,(page<2||page==3)?r:content);g.restoreState();return;}if(mode==4){drawSequence(g,content);g.restoreState();return;}
     const int engine=(int)processor.value("engine");
     if(mode==0&&page==0&&engine==5){field::drawDimensionScreen(g,r,processor.value("macro1"),processor.value("macro2"),processor.value("macro3"),processor.value("macro4"),processor.getSampleRate()>0?processor.getSampleRate():44100.,tick/30.f);g.restoreState();return;}
     if(mode==0&&page==0&&engine==10){field::drawDSynthScreen(g,r,{{processor.value("macro1"),processor.value("macro2"),processor.value("macro3"),processor.value("macro4")}},shifted,tick/30.f);g.restoreState();return;}
@@ -350,6 +353,8 @@ void FieldEditor::drawEffect(juce::Graphics& g,juce::Rectangle<float> area,bool 
     const int effect=juce::jlimit(0,10,(int)processor.value(master?"masterEffect":"effect"));
     std::array<float,4> v{};for(int i=0;i<4;++i)v[(size_t)i]=juce::jlimit(0.f,1.f,processor.value((master?"masterFx":"fx")+juce::String(i+1)));
     const float mix=processor.value(master?"masterMix":"effectMix");
+    if(effect==3){field::drawGridScreen(g,area,v);return;}
+    if(effect==9){field::drawMotherScreen(g,area,v);return;}
     if(effect==1){field::drawDelayScreen(g,area,v,tick/30.f);return;}
     if(effect==7){field::drawCwoScreen(g,area,v,master?masterCwoMotion:insertCwoMotion);return;}
     const auto body=area.withTrimmedBottom(16).reduced(3,3);const float x=v[0],y=v[1],z=v[2],w=v[3];
@@ -439,9 +444,7 @@ void FieldEditor::drawMixer(juce::Graphics& g,juce::Rectangle<float> a){
     if(page==0){field::drawMixerScreen(g,a,levels,pans,trackPeaks,mutes,solos);return;}
     if(page==1){field::drawEqScreen(g,a,{{processor.value("masterLow"),processor.value("masterMid"),processor.value("masterHigh")}},{{processor.value("eqLowOn")>.5f,processor.value("eqMidOn")>.5f,processor.value("eqHighOn")>.5f}},processor.value("eqAmount"),processor.value("eqOn")>.5f);return;}
     if(page==2){text(g,"MASTER / "+FieldProcessor::effectNames[(int)processor.value("masterEffect")].toUpperCase(),a.withHeight(13),9,colours[3],juce::Justification::centredLeft);drawEffect(g,a.withTrimmedTop(18),true);return;}
-    if(page==3){text(g,"MASTER DYNAMICS",a.withHeight(13),9,colours[0],juce::Justification::centredLeft);float peak=juce::jlimit(0.f,1.f,processor.outputPeak.load());g.setColour(colours[0].withAlpha(.15f));g.fillRect(a.getX(),a.getCentreY()-9,a.getWidth(),18.f);g.setColour(colours[0]);g.fillRect(a.getX(),a.getCentreY()-9,a.getWidth()*peak,18.f);text(g,"COMPRESSOR "+juce::String(processor.value("compressor")*100,0)+"%     "+(processor.hostSync?"HOST "+juce::String(processor.effectiveTempo.load(),0):processor.value("midiClockMode")==1?"MIDI "+juce::String(processor.effectiveTempo.load(),0):juce::String(processor.value("tempo"),0))+" BPM",a.withY(a.getBottom()-16).withHeight(16),8,colours[2]);return;}
-    text(g,shifted?juce::String::fromUTF8("MIXER · PAN"):juce::String::fromUTF8("MIXER · LEVEL"),a.withHeight(13),9,colours[2],juce::Justification::centredLeft);text(g,"SHIFT: PAN",a.withHeight(13),7,juce::Colour(0xff72888c),juce::Justification::centredRight);
-    for(int i=0;i<4;++i){float x=a.getX()+i*62.f;auto c=colours[(size_t)i];text(g,juce::String(i+1),{x,a.getY()+18,52,12},9,c);auto r=juce::Rectangle<float>(x+16,a.getY()+34,20,51);g.setColour(c.withAlpha(.09f));g.fillRect(r);g.setColour(c.withAlpha(mutes[(size_t)i]?.12f:.8f));float h=juce::jlimit(0.f,51.f,levels[(size_t)i]*31);g.fillRect(r.withY(r.getBottom()-h).withHeight(h));text(g,mutes[(size_t)i]?"MUTE":solos[(size_t)i]?"SOLO":juce::String((int)std::round(pans[(size_t)i]*100)),{x,a.getBottom()-22,52,12},8,c);text(g,"M     S",{x,a.getBottom()-10,52,10},7.5f,c);}
+    if(page==3){std::array<float,2> peaks{},pre{};for(int ch=0;ch<2;++ch){peaks[(size_t)ch]=processor.outputChannelPeaks[(size_t)ch].load();pre[(size_t)ch]=processor.masterPrePeaks[(size_t)ch].load();}field::drawMasterScreen(g,a,processor.value("masterLeft"),processor.value("masterRight"),processor.value("compressor"),processor.value("compressorRelease"),peaks,pre,shifted);return;}
 }
 void FieldEditor::drawSequence(juce::Graphics& g,juce::Rectangle<float> a){
     int seq=(int)processor.value("sequencer");

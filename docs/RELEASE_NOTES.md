@@ -1,4 +1,4 @@
-# Field Studio 0.2.2 beta 2
+# Field Studio 0.2.2 beta 3
 
 Reliability update to the portable multi-platform beta of the independent synthesizer, sampler and four-track stereo tape instrument. Exact OP-1 field sound, feature and visual parity is not established.
 
@@ -13,15 +13,27 @@ Original Field Studio code/graphics: **MIT**. Combined app/plugin binaries with 
 - **Linux x86_64:** standalone + VST3, built on Ubuntu 22.04 (glibc 2.35+).
 - **Source:** project and pinned JUCE dependency together, including build scripts and dependency licence files.
 
-Each download has a SHA-256 sidecar. Binary bundles include installation instructions, dependency notices and a per-file hash manifest. These are portable archives, not signed installers. Windows binaries are unsigned; macOS binaries are not Developer ID signed/notarized. Commercial DAWs, physical audio devices and MIDI controllers still need hands-on validation.
+Each download has a SHA-256 sidecar. Binary bundles include installation instructions, dependency notices and a per-file hash manifest. These are portable archives, not signed installers. Windows binaries are unsigned; macOS binaries are not Developer ID signed/notarized. The project owner reports working plugin operation, automation, Faderfox assignment and BeatStep use; DAW/OS/model details were not recorded. Broader device/host coverage remains open.
 
-## Added in beta 2
+## Added in beta 3
+
+- Full-LCD Master Out with separate audio-driven left/right meters, peak indicators, level faders and Drive/Release readouts. Shift-blue/ochre sets both output levels together. Existing host parameter IDs are preserved.
+- Full-LCD Grid with parameter-driven 3D grid, dimensions, feedback and Mix meter, for insert and master FX.
+- Full-LCD Mother with perspective room, original body outlines, distance/gate/colour cues and Mix meter, for insert and master FX.
+- Grid now has independent X/Y delay dimensions, Z feedback and orange dry/wet Mix. Mother has a dedicated distance/gated-room/colour path and orange dry/wet Mix. Native imports apply Mix once; UI selection uses full overall blend. Existing saved overall blend values are retained.
+- Fixed a shared fractional-delay wrap boundary that could read past the buffer; caught by ASan before release.
+- Master Drive now adds makeup gain and saturation with release-dependent compression. Grid host tail reporting now accounts for high-feedback decay.
+- README feature gallery, VST3 installation/automation guide and user-confirmed Faderfox/BeatStep results are included.
+
+**Sound compatibility:** Grid, Mother and nonzero Master Drive can sound different from beta 2. Back up projects. Existing saved Grid/Mother overall blends are retained as a software override; choose COM → Effect wet/dry override → 100% for full native Mix travel. DSP equations, parameter laws, meter calibration and precise hardware parity remain unverified. See docs/MASTER_SPATIAL.md.
+
+## Retained from beta 2
 
 - Recreated the full-LCD mixer: four audio-driven track meters, pan indicators, coloured level readouts and mute/solo indication. Shift + T1–T4 toggles track mutes on the mixer page. Click a channel to mute; Shift-click to solo.
 - Recreated the EQ LCD with three band faders, a control-response illustration and red Amount fader. Orange now controls EQ Amount; per-band/overall toggles affect audio and persist in projects/DAW state. Shift + orange retains the existing drive extension. Click band columns to toggle, Amount column to bypass, MAX EQ for full amount and CLEAN for zero amount.
 - Includes the new tape reel LCD, position-driven motion, loop/time/speed controls and panel keys 4–6 for momentary brake/reverse/chop.
 
-The EQ response illustration and meter scales are original approximations, not measured hardware responses or calibrated VU meters. Existing filter crossovers, drive and dynamics algorithms remain unchanged. See docs/MIXER_EQ.md for controls and limits.
+The EQ response illustration and meter scales are original approximations, not measured hardware responses or calibrated VU meters. Beta 2 retained the existing filter crossovers, drive and dynamics algorithms; beta 3 changes Master Drive as described above. See docs/MIXER_EQ.md for controls and limits.
 
 ## Retained from beta 1
 
@@ -40,7 +52,7 @@ The short commit/UI lock still exists: a contended callback can still produce si
 
 The pool cap covers paged tape storage, not all process RAM; separate formats/processes may have separate caps. Retained history/saves count against their pool reservations. Clear unused media and discard history to release them. Back up projects before testing. See docs/KNOWN_ISSUES.md for the precise scope.
 
-Downloads remain unsigned/not notarized: no signing certificates are available. Physical Faderfox/BeatStep, audio-device/commercial-DAW compatibility and exact hardware equivalence remain unverified. MIDI learn, reusable profiles and guide-based screen improvements from 0.2.0 are retained.
+Downloads remain unsigned/not notarized: no signing certificates are available. Broader audio-device/DAW/controller coverage and exact hardware equivalence remain unverified beyond the user report above. MIDI learn, reusable profiles and guide-based screen improvements from 0.2.0 are retained.
 
 ## Verification
 

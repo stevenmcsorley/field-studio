@@ -68,7 +68,10 @@ FieldProcessor::~FieldProcessor(){stopTimer();fileJobs.shutdown();for(auto* para
 double FieldProcessor::getTailLengthSeconds() const {
     const double rate=getSampleRate()>0?getSampleRate():44100.;
     auto feedbackTail=[&](int effect,int mix,int range,int time,int feedback){
-        const int kind=(int)cached(effect);if((kind!=7&&kind!=1)||cached(mix)<=0)return 0.;
+        const int kind=(int)cached(effect);if(cached(mix)<=0)return 0.;
+        if(kind==3){if(cached(feedback+1)<=0)return 0.;const double gain=cached(feedback)*.94,repeats=gain>0?std::ceil(std::log(1.e-5)/std::log(gain))+1:1;return std::min(420.,repeats*std::max((.025+cached(range)*.45)*1.31,(.035+cached(time)*.55)*1.17));}
+        if(kind==9)return cached(feedback+1)>0?.035+cached(time)*cached(time)*2+(.02+cached(range)*.25)*1.93:0.;
+        if(kind!=7&&kind!=1)return 0.;
         const double amount=juce::jlimit(0.,.94,cached(feedback)*.94),delay=cached(time);
         const double repeats=amount>0?std::ceil(std::log(1.e-5)/std::log(amount))+1:1;
         const double interval=kind==7?33./rate+.8*delay*delay:field::delaySeconds(cached(range),cached(time));
@@ -110,7 +113,7 @@ void FieldProcessor::processBlock(juce::AudioBuffer<float>& buffer,juce::MidiBuf
     juce::ScopedNoDenormals noDenormals;
     if(buffer.getNumSamples()<=0){retainSkippedReleases(midi);midi.clear();return;}
     const juce::ScopedTryLock lock(engineLock);
-    if(!lock.isLocked()){retainSkippedReleases(midi);buffer.clear();midi.clear();midiSampleClock+=buffer.getNumSamples();++skippedBlocks;return;}
+    if(!lock.isLocked()){for(int ch=0;ch<2;++ch){outputChannelPeaks[(size_t)ch].store(0);masterPrePeaks[(size_t)ch].store(0);}retainSkippedReleases(midi);buffer.clear();midi.clear();midiSampleClock+=buffer.getNumSamples();++skippedBlocks;return;}
     midiOutput.clear();engine.beginMidiBlock();midiClockFollower.advance(midiSampleClock);updateEngine();
     const int inputChannel=(int)cached(P_midiInputChannel),outputChannel=(int)cached(P_midiOutputChannel);
     if((int)cached(P_midiClockMode)!=lastClockMode){if(lastClockMode==2)midiOutput.addEvent(juce::MidiMessage::midiStop(),0);lastClockMode=(int)cached(P_midiClockMode);midiClockFollower.reset();midiClockGenerator.reset();updateEngine();}
@@ -189,6 +192,7 @@ void FieldProcessor::processBlock(juce::AudioBuffer<float>& buffer,juce::MidiBuf
     int listening=albumPlaying.load();if(listening>=0){auto& side=albums[(size_t)listening];for(int i=0;i<n;++i){if(albumHead>=side.audio.size()){albumPlaying=-1;buffer.clear(0,i,n-i);buffer.clear(1,i,n-i);break;}buffer.setSample(0,i,side.audio.interpolate(0,albumHead));buffer.setSample(1,i,side.audio.interpolate(1,albumHead));albumHead+=side.rate/engine.sampleRate();}}
     int album=albumRecording.load();if(album>=0){auto& side=albums[(size_t)album];const size_t at=side.audio.size(),count=std::min((size_t)n,albumLimit>at?albumLimit-at:0);for(size_t f=0;f<count;++f)if(!side.audio.tryWrite(at+f,buffer.getSample(0,(int)f),buffer.getSample(1,(int)f))){albumRecording=-1;captureExhausted=true;break;}if(side.audio.size()>=albumLimit)albumRecording=-1;}
     if(sampling&&captureFromOutput){const size_t at=captureAudio.size(),count=std::min((size_t)n,captureLimit>at?captureLimit-at:0);for(size_t f=0;f<count;++f)if(!captureAudio.tryWrite(at+f,buffer.getSample(0,(int)f),buffer.getSample(1,(int)f))){captureExhausted=true;break;}}
+    for(int ch=0;ch<2;++ch)outputChannelPeaks[(size_t)ch].store(buffer.getMagnitude(ch,0,n));
     midi.clear();midi.addEvents(midiOutput,0,n,0);outputPeak.store(std::max(buffer.getMagnitude(0,0,n),buffer.getMagnitude(1,0,n)));playhead.store(engine.positionSeconds());
 }
 void FieldProcessor::timerCallback(){
@@ -331,11 +335,17 @@ void FieldProcessor::processMaster(float* l,float* r,int n,double sr,MasterState
     const float lowCoeff=1-std::exp(-2*3.14159265358979323846f*200.f/(float)sr),upperCoeff=1-std::exp(-2*3.14159265358979323846f*3500.f/(float)sr);
     const float leftGain=cached(P_masterLeft),rightGain=cached(P_masterRight);
     const float drive=cached(P_masterDrive),comp=cached(P_compressor),release=std::exp(-1.f/((float)sr*cached(P_compressorRelease)));
+    std::array<float,2> peaks{};
     for(int i=0;i<n;++i){float samples[2]{l[i],r[i]};for(int c=0;c<2;++c){state.low[c]+=lowCoeff*(samples[c]-state.low[c]);state.upper[c]+=upperCoeff*(samples[c]-state.upper[c]);samples[c]=state.low[c]*lowGain+(state.upper[c]-state.low[c])*midGain+(samples[c]-state.upper[c])*highGain;if(drive>0)samples[c]=std::tanh(samples[c]*(1+drive*8))/std::tanh(1+drive*8);}
         float level=std::max(std::abs(samples[0]),std::abs(samples[1]));state.envelope=std::max(level,release*state.envelope);
         float threshold=.8f-comp*.65f;float gain=comp>0&&state.envelope>threshold?std::pow(threshold/state.envelope,comp*.75f):1;
-        l[i]=juce::jlimit(-1.f,1.f,samples[0]*gain*leftGain);r[i]=juce::jlimit(-1.f,1.f,samples[1]*gain*rightGain);
+        // Original compressor/makeup model: higher drive reduces dynamic
+        // range, raises quiet material and saturates at high settings.
+        const float makeup=1+comp*3;float out[2]{samples[0]*gain*makeup*leftGain,samples[1]*gain*makeup*rightGain};
+        for(int ch=0;ch<2;++ch){peaks[(size_t)ch]=std::max(peaks[(size_t)ch],std::abs(out[ch]));if(comp>0)out[ch]=out[ch]*(1-comp)+comp*std::tanh(out[ch]*(1+comp*2));}
+        l[i]=juce::jlimit(-1.f,1.f,out[0]);r[i]=juce::jlimit(-1.f,1.f,out[1]);
     }
+    if(&state==&masterState)for(int ch=0;ch<2;++ch)masterPrePeaks[(size_t)ch].store(peaks[(size_t)ch]);
 }
 void FieldProcessor::startAlbumRecording(int side){
     side=juce::jlimit(0,1,side);double rate;uint64_t epoch,revision;{const juce::ScopedLock lock(engineLock);rate=engine.sampleRate();epoch=documentEpoch;revision=++controlRevision;}

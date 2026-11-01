@@ -2,7 +2,7 @@
 
 A native synthesizer, sampler and four-track stereo tape instrument inspired by the OP–1 field workflow. Builds a standalone application and VST3 from the same C++ audio engine; macOS also builds AU.
 
-**[Download the latest beta](https://github.com/stevenmcsorley/field-studio/releases/tag/v0.2.2-beta.2)** · [VST3 setup](#vst3-and-daw-workflow) · [Recent features and screenshots](#recent-improvements) · [Controller mapping](#controller-mapping)
+**[Download the latest beta](https://github.com/stevenmcsorley/field-studio/releases/tag/v0.2.2-beta.3)** · [VST3 setup](#vst3-and-daw-workflow) · [Recent features and screenshots](#recent-improvements) · [Controller mapping](#controller-mapping)
 
 ![Field Studio running on Linux, showing the CWO cow effect, four coloured encoders and two-octave keyboard](docs/screenshots/field-studio.png)
 
@@ -20,6 +20,8 @@ Play synths and drums, import samples, build a sequence, record it onto four ste
 
 ## Recent improvements
 
+**Master Out, Grid and Mother:** Master Out now has independent left/right meters, output faders, peak indicators and Drive/Release readouts; hold Shift while adjusting blue/ochre to set both output levels together. Grid has a three-dimensional size/feedback illustration. Mother has a perspective room and distance/gate/colour controls. Both spatial effects now give their four native controls dedicated sound paths, including a true orange dry/wet mix. Master Drive adds makeup gain and saturation with release-dependent compression. [Controls, compatibility and parity limits](docs/MASTER_SPATIAL.md).
+
 **Mixer and EQ:** the mixer has four audio-driven tape-track meters, pan pointers and coloured level readouts. Shift + T1–T4 mutes tracks on the mixer page. EQ has separate band faders, a response illustration, Amount and saved band/overall bypass settings. [Controls and limits](docs/MIXER_EQ.md).
 
 **Tape:** the new reel LCD follows playback, reverse and scrubbing, with timecode, speed, loop markers and compact track lanes. Hold tape keys 4/5/6 for brake/reverse/chop. [Tape guide](docs/TAPE_EDITING.md).
@@ -35,6 +37,10 @@ These are native screenshots of Field Studio. Screen artwork and DSP remain inde
 | [![Four-track mixer](docs/screenshots/mixer-reference.png)](docs/screenshots/mixer-reference.png) | [![EQ bands and Amount](docs/screenshots/eq-reference.png)](docs/screenshots/eq-reference.png) |
 | **Tape reels and transport** | **Preset browser** |
 | [![Tape mode](docs/screenshots/tape-reference.png)](docs/screenshots/tape-reference.png) | [![Preset browser](docs/screenshots/preset-browser.png)](docs/screenshots/preset-browser.png) |
+| **Master Out** | **Grid** |
+| [![Master Out](docs/screenshots/master-out-reference.png)](docs/screenshots/master-out-reference.png) | [![Grid](docs/screenshots/grid-reference.png)](docs/screenshots/grid-reference.png) |
+| **Mother** | **CWO** |
+| [![Mother](docs/screenshots/mother-reference.png)](docs/screenshots/mother-reference.png) | [![CWO](docs/screenshots/cwo-reference.png)](docs/screenshots/cwo-reference.png) |
 | **Dimension synth** | **DSynth** |
 | [![Dimension](docs/screenshots/dimension-reference.png)](docs/screenshots/dimension-reference.png) | [![DSynth](docs/screenshots/dsynth-reference.png)](docs/screenshots/dsynth-reference.png) |
 
@@ -95,7 +101,7 @@ Right-click a knob and choose **MIDI learn**, then move a control on your Faderf
 
 ## Downloads
 
-[Field Studio 0.2.2 beta 2 downloads](https://github.com/stevenmcsorley/field-studio/releases/tag/v0.2.2-beta.2) are available for Windows, macOS and Linux. All automated release gates passed. The pipeline packages Windows x64 standalone/VST3, macOS universal standalone/VST3/AU and Linux x86_64 standalone/VST3, with checksums and complete corresponding source. See [beta notes](docs/RELEASE_NOTES.md) and [build/release status](docs/BUILD_STATUS.md). Binaries are unsigned development builds.
+[Field Studio 0.2.2 beta 3 downloads](https://github.com/stevenmcsorley/field-studio/releases/tag/v0.2.2-beta.3) are available for Windows, macOS and Linux. All automated release gates passed. The pipeline packages Windows x64 standalone/VST3, macOS universal standalone/VST3/AU and Linux x86_64 standalone/VST3, with checksums and complete corresponding source. See [beta notes](docs/RELEASE_NOTES.md) and [build/release status](docs/BUILD_STATUS.md). Binaries are unsigned development builds.
 
 ## Run the Linux build
 
