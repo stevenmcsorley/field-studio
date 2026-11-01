@@ -2,7 +2,7 @@
 
 A native synthesizer, sampler and four-track stereo tape instrument inspired by the OP–1 field workflow. Builds a standalone application and VST3 from the same C++ audio engine; macOS also builds AU.
 
-**[Download the latest beta](https://github.com/stevenmcsorley/field-studio/releases/tag/v0.2.2-beta.7)** · [VST3 setup](#vst3-and-daw-workflow) · [Recent features and screenshots](#recent-improvements) · [Controller mapping](#controller-mapping)
+**[Download the latest beta](https://github.com/stevenmcsorley/field-studio/releases/tag/v0.2.2-beta.8)** · [VST3 setup](#vst3-and-daw-workflow) · [Recent features and screenshots](#recent-improvements) · [Controller mapping](#controller-mapping)
 
 ![Field Studio running on Linux, showing the CWO cow effect, four coloured encoders and two-octave keyboard](docs/screenshots/field-studio.png)
 
@@ -19,6 +19,8 @@ Play synths and drums, import samples, build a sequence, record it onto four ste
 - **Presets and controllers:** eight synth and eight drum sound slots, dated snapshots, preset browsing, nested user folders, MIDI learn and reusable controller profiles.
 
 ## Recent improvements
+
+**Grid, Mother, Dimension and DNA LCDs:** rebuilt Grid's floor/wall projection, wire boxes, arrows and thin numeric readouts; Mother now uses the reference's tunnel grid, foreground/rear figures and gate bracket. Dimension uses the paired 2:3 Lissajous knot, corrected plot placement and rounded resonance peak. DNA has a dedicated linked hexadecimal-tile screen, terminal dots and noise strip. All four retain parameter-driven rendering. These are closer reference-based redraws; pixel-perfect fonts, hardware readout laws and animation parity remain unverified. [LCD comparison notes and native details](docs/LCD_FIDELITY.md).
 
 **Vocoder and sampling:** the vocoder now has a dedicated head/voice LCD and independent Waveform, Formant, 4–16 Bands and dry/wet Mix controls. The orange microphone button opens a source picker and Standby/Recording page with live meter, threshold, input gain and 6/20/60/120-second limits. Click ARM or press Record; Shift-click ARM enables held-key capture. Empty captures preserve your previous sample. Choose microphone/interface/DAW input, Windows system loopback, Linux monitor sources, routed macOS virtual inputs, imported files or Field Studio's internal output resampling. macOS computer audio needs routing through a virtual device; automatic app/process capture is not included. [Step-by-step setup, controls and limits](docs/VOCODER_SAMPLING.md).
 
@@ -59,6 +61,8 @@ These are native screenshots of Field Studio. Screen artwork and DSP remain inde
 | [![String](docs/screenshots/string-reference.png)](docs/screenshots/string-reference.png) | [![Voltage](docs/screenshots/voltage-reference.png)](docs/screenshots/voltage-reference.png) |
 | **Pulse** | **Stereo Sampler** |
 | [![Pulse](docs/screenshots/pulse-reference.png)](docs/screenshots/pulse-reference.png) | [![Stereo Sampler](docs/screenshots/sampler-reference.png)](docs/screenshots/sampler-reference.png) |
+| **DNA synth** | **Dimension LCD detail** |
+| [![DNA synth](docs/screenshots/dna-reference.png)](docs/screenshots/dna-reference.png) | [![Dimension LCD](docs/screenshots/lcd-dimension.png)](docs/screenshots/lcd-dimension.png) |
 | **Dimension synth** | **DSynth** |
 | [![Dimension](docs/screenshots/dimension-reference.png)](docs/screenshots/dimension-reference.png) | [![DSynth](docs/screenshots/dsynth-reference.png)](docs/screenshots/dsynth-reference.png) |
 
@@ -136,7 +140,7 @@ Right-click a knob and choose **MIDI learn**, then move a control on your Faderf
 
 ## Downloads
 
-[Field Studio 0.2.2 beta 4 downloads](https://github.com/stevenmcsorley/field-studio/releases/tag/v0.2.2-beta.7) are available for Windows, macOS and Linux. All automated release gates passed. The pipeline packages Windows x64 standalone/VST3, macOS universal standalone/VST3/AU and Linux x86_64 standalone/VST3, with checksums and complete corresponding source. See [beta notes](docs/RELEASE_NOTES.md) and [build/release status](docs/BUILD_STATUS.md). Binaries are unsigned development builds.
+[Field Studio 0.2.2 beta 4 downloads](https://github.com/stevenmcsorley/field-studio/releases/tag/v0.2.2-beta.8) are available for Windows, macOS and Linux. All automated release gates passed. The pipeline packages Windows x64 standalone/VST3, macOS universal standalone/VST3/AU and Linux x86_64 standalone/VST3, with checksums and complete corresponding source. See [beta notes](docs/RELEASE_NOTES.md) and [build/release status](docs/BUILD_STATUS.md). Binaries are unsigned development builds.
 
 ## Run the Linux build
 

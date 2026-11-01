@@ -1,3 +1,4 @@
+#include "DnaScreen.h"
 #include "InputScreens.h"
 #include "TempoScreen.h"
 #include "PluginEditor.h"
@@ -286,6 +287,7 @@ void FieldEditor::drawScreen(juce::Graphics& g){
     if((masterCwo||patchCwo)&&((int)processor.value(masterCwo?"masterEffect":"effect")==3||(int)processor.value(masterCwo?"masterEffect":"effect")==9)){drawEffect(g,r,masterCwo);g.restoreState();return;}
     if(mode==2){drawTape(g,r);g.restoreState();return;}if(mode==3){drawMixer(g,(page<2||page==3)?r:content);g.restoreState();return;}if(mode==4){int seq=(int)processor.value("sequencer");drawSequence(g,seq>=1&&seq<=5?r:content);g.restoreState();return;}
     const int engine=(int)processor.value("engine");
+    if(mode==0&&page==0&&engine==9){field::drawDnaScreen(g,r,{{processor.value("macro1"),processor.value("macro2"),processor.value("macro3"),processor.value("macro4")}});g.restoreState();return;}
     if(mode==0&&page==0&&(engine==0||engine==6||engine==7)){std::array<float,4> values{};for(int i=0;i<4;++i)values[(size_t)i]=processor.value("macro"+juce::String(i+1));if(engine==0)field::drawVoltageScreen(g,r,values,processor.outputPeak.load());else if(engine==6)field::drawStringScreen(g,r,values);else field::drawPulseScreen(g,r,values);g.restoreState();return;}
     if(mode==0&&page==0&&engine==11){drawSampler(g,r);g.restoreState();return;}
     if(mode==0&&page==0&&engine==5){field::drawDimensionScreen(g,r,processor.value("macro1"),processor.value("macro2"),processor.value("macro3"),processor.value("macro4"),processor.getSampleRate()>0?processor.getSampleRate():44100.,tick/30.f);g.restoreState();return;}

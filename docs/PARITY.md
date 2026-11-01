@@ -98,3 +98,7 @@ The dedicated tempo LCD follows the supplied layout with live values and origina
 ## Vocoder and sampling — beta 7
 
 The Vocoder LCD, waveform/formant/bands/mix roles and sampling Standby/Recording controls follow the supplied guide references with original graphics/DSP. Device/DAW input, Windows loopback, Linux monitor routing and macOS routed virtual inputs are available; macOS automatic system/process capture is absent. Carrier shapes, band curves, formant scaling, key timing and source latency are not measured hardware matches. See [vocoder and sampling](VOCODER_SAMPLING.md) for workflow, sound-compatibility changes and remaining limits.
+
+## Four LCD redraws — beta 8
+
+Grid, Mother, Dimension and DNA now have reference-based geometry and dedicated LCD-only screenshots. This improves static visual fidelity; platform/manufacturer typography, readout laws, all parameter states and animation timing remain unverified. Dimension retains its true engine cutoff readout; DNA is a deterministic parameter illustration rather than a machine identifier. See [LCD fidelity notes](LCD_FIDELITY.md). No DSP or parameter IDs changed in this pass.

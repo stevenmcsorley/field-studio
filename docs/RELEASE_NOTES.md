@@ -1,4 +1,4 @@
-# Field Studio 0.2.2 beta 7
+# Field Studio 0.2.2 beta 8
 
 Reliability update to the portable multi-platform beta of the independent synthesizer, sampler and four-track stereo tape instrument. Exact OP-1 field sound, feature and visual parity is not established.
 
@@ -15,7 +15,17 @@ Original Field Studio code/graphics: **MIT**. Combined app/plugin binaries with 
 
 Each download has a SHA-256 sidecar. Binary bundles include installation instructions, dependency notices and a per-file hash manifest. These are portable archives, not signed installers. Windows binaries are unsigned; macOS binaries are not Developer ID signed/notarized. The project owner reports working plugin operation, automation, Faderfox assignment and BeatStep use; DAW/OS/model details were not recorded. Broader device/host coverage remains open.
 
-## Added in beta 7
+## Added in beta 8
+
+- Grid LCD rebuilt around the supplied isometric floor/wall projection, fixed blue wire frame, ochre size box, white origin cube, directional arrows, Z marker and 12-segment mix strip. Thin stroke numerals replace filled-font readouts.
+- Mother LCD rebuilt with finite rear-wall perspective grid, foreground/rear figures, gate bracket, colour rays and matching readout placement. Insert and master effects use the same renderer with independent values.
+- Dimension's four-ellipse preview replaced by a paired 2:3 Lissajous knot. Corrected plot position, palette, waveform selection, axes and rounded resonance silhouette.
+- Dedicated DNA LCD with linked hexadecimal tiles, CPU ID caption, filter label, terminal nodes and noise strip. Tile variations follow control settings; the caption is not a CPU serial readout.
+- Updated native screenshots, LCD-only comparison views and rendering notes. Audio processing and existing parameter IDs are unchanged.
+
+This improves fidelity to the supplied still references; exact font rasterization, hardware frequency laws, geometry at every control value and animation timing are not established. Dimension shows this engine's actual cutoff rather than copying the guide's 440–1440 example as a live measurement. See docs/LCD_FIDELITY.md.
+
+## Retained from beta 7
 
 - Original full-LCD Vocoder head/voice illustration with real input activity, analysis envelopes and source label. Waveform now selects eight carriers, Formant remaps envelopes, Bands selects 4–16 bands and Mix blends dry/wet independently. Existing Vocoder patches can sound different after these corrections.
 - Sampling input page with source header, Standby/Recording states, real meter, threshold, input gain and 6/20/60/120-second maximums (20-second default). Record/Stop and held-key capture are supported; empty armed captures retain the previous sample.

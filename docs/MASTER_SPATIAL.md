@@ -31,3 +31,7 @@ Eight local suites cover screenshots, linked UI level changes, separate stereo m
 ![Grid](screenshots/grid-reference.png)
 
 ![Mother](screenshots/mother-reference.png)
+
+## LCD geometry update — beta 8
+
+Grid and Mother were redrawn against the supplied still references: projection, figure/tunnel contours, readout placement, arrows and meters have changed. DSP and parameter mappings are unchanged. See [LCD comparison notes](LCD_FIDELITY.md); exact typeface and animation parity remain unverified.

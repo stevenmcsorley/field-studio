@@ -2,7 +2,7 @@
 
 The CWO/Delay fixes passed Linux, Windows x64, macOS universal build/tests and core ASan/UBSan in [run 41246239489](https://github.com/stevenmcsorley/field-studio/actions/runs/41246239489). All eight local suites and three sanitizer suites also passed.
 
-Version 0.2.2 beta 7 includes those fixes, preset management, screen improvements and background save/export. Its tag pipeline rebuilds and tests all three platforms, verifies packages/checksums and publishes only after every gate succeeds. [Release downloads](https://github.com/stevenmcsorley/field-studio/releases/tag/v0.2.2-beta.7) contain Windows x64, Linux x86_64, macOS universal and complete corresponding source. Downloads remain unsigned. The project owner reports working plugin operation, DAW automation, Faderfox assignment and BeatStep use on 1 November 2026; exact DAW/OS/controller details were not supplied. Broader device/host coverage remains open.
+Version 0.2.2 beta 8 includes those fixes, preset management, screen improvements and background save/export. Its tag pipeline rebuilds and tests all three platforms, verifies packages/checksums and publishes only after every gate succeeds. [Release downloads](https://github.com/stevenmcsorley/field-studio/releases/tag/v0.2.2-beta.8) contain Windows x64, Linux x86_64, macOS universal and complete corresponding source. Downloads remain unsigned. The project owner reports working plugin operation, DAW automation, Faderfox assignment and BeatStep use on 1 November 2026; exact DAW/OS/controller details were not supplied. Broader device/host coverage remains open.
 
 The live-engine commit/UI lock can still cause a contended callback to produce silence. Exact hardware equivalence is not established. See [known issues](KNOWN_ISSUES.md) and [release notes](RELEASE_NOTES.md).
 
@@ -11,6 +11,8 @@ Beta 5 passed all platform and release gates in [run 41304086380](https://github
 Beta 5 local validation passes all eight application suites, three core ASan/UBSan suites and nine MCP tests. Cross-platform results are recorded by the beta 5 tag workflow; backend factory checks do not establish real-device ASIO playback.
 
 Beta 6 passed all platform/release gates in [run 41305449396](https://github.com/stevenmcsorley/field-studio/actions/runs/41305449396). Beta 7 adds vocoder/sampling controls and an external capture backend; release builds validate compilation and regression tests, not physical audio-device operation.
+
+Beta 7 passed all platform/release gates in [run 41321672820](https://github.com/stevenmcsorley/field-studio/actions/runs/41321672820). Beta 8 changes four LCD renderers and adds reference-size image output; its release uses the same platform and package gates.
 
 ## Earlier build history
 
