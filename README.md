@@ -2,9 +2,92 @@
 
 A native synthesizer, sampler and four-track stereo tape instrument inspired by the OP–1 field workflow. Builds a standalone application and VST3 from the same C++ audio engine; macOS also builds AU.
 
+**[Download the latest beta](https://github.com/stevenmcsorley/field-studio/releases/tag/v0.2.2-beta.2)** · [VST3 setup](#vst3-and-daw-workflow) · [Recent features and screenshots](#recent-improvements) · [Controller mapping](#controller-mapping)
+
 ![Field Studio running on Linux, showing the CWO cow effect, four coloured encoders and two-octave keyboard](docs/screenshots/field-studio.png)
 
 This is an independently written recreation. **Exact feature, visual and sonic parity has not been established.** No manufacturer DSP, firmware, factory samples, fonts, logos or extracted artwork are bundled. See [the parity ledger](docs/PARITY.md) for concrete differences and [research findings](docs/research/FIRMWARE_FINDINGS.md) for what the firmware inspection actually established.
+
+## What you can make
+
+Play synths and drums, import samples, build a sequence, record it onto four stereo tape tracks, then mix and export the result. The standalone app and plugin share the same instrument and `.field` projects.
+
+- **Sound design:** synth engines, DBox drums, stereo sampling, ADSR, modulation, insert effects and a separate master effect. Includes 45 original starter presets.
+- **Sequencing:** editable Endless/Pattern grids, sixteen Finger pattern banks with up to 32 steps each, plus Arpeggio, Hold, Sketch and Tombola. Endless supports up to 999 steps.
+- **Tape and arrangement:** eight tape banks, four stereo tracks per bank, six minutes per track at normal speed, overdubbing, loops, lift/drop/split, grouped edits, bounce and momentary tape tricks.
+- **Mixing:** track levels/pans/mutes/solos, three-band master EQ with Amount and band bypass, master effects, dynamics and stereo WAV export. Record the live output to Album sides A/B too.
+- **Presets and controllers:** eight synth and eight drum sound slots, dated snapshots, preset browsing, nested user folders, MIDI learn and reusable controller profiles.
+
+## Recent improvements
+
+**Mixer and EQ:** the mixer has four audio-driven tape-track meters, pan pointers and coloured level readouts. Shift + T1–T4 mutes tracks on the mixer page. EQ has separate band faders, a response illustration, Amount and saved band/overall bypass settings. [Controls and limits](docs/MIXER_EQ.md).
+
+**Tape:** the new reel LCD follows playback, reverse and scrubbing, with timecode, speed, loop markers and compact track lanes. Hold tape keys 4/5/6 for brake/reverse/chop. [Tape guide](docs/TAPE_EDITING.md).
+
+**Synths, effects and presets:** Dimension and DSynth have dedicated LCD layouts. CWO now blends lower/upper sidebands, with control-driven internal motion and feedback-dependent dry sound. Delay has Range-linked circles, input-level control that preserves circulating echoes, and slower-clock colour. Preset browsing adds dated snapshots, nested folders, rename, copy/move and delete. [Effects research](docs/research/EFFECT_VISUAL_MOTION.md) · [Presets](docs/PRESETS.md).
+
+**Saving and exporting:** project saves and WAV exports run on a bounded background worker. Prepared-media and tape-reservation changes reduce heavy work inside the live lock; the remaining live-performance limits are described below.
+
+These are native screenshots of Field Studio. Screen artwork and DSP remain independent approximations; the EQ curve illustrates settings rather than a measured response.
+
+| Mixer | Equalizer |
+|---|---|
+| [![Four-track mixer](docs/screenshots/mixer-reference.png)](docs/screenshots/mixer-reference.png) | [![EQ bands and Amount](docs/screenshots/eq-reference.png)](docs/screenshots/eq-reference.png) |
+| **Tape reels and transport** | **Preset browser** |
+| [![Tape mode](docs/screenshots/tape-reference.png)](docs/screenshots/tape-reference.png) | [![Preset browser](docs/screenshots/preset-browser.png)](docs/screenshots/preset-browser.png) |
+| **Dimension synth** | **DSynth** |
+| [![Dimension](docs/screenshots/dimension-reference.png)](docs/screenshots/dimension-reference.png) | [![DSynth](docs/screenshots/dsynth-reference.png)](docs/screenshots/dsynth-reference.png) |
+
+<details>
+<summary>CWO and Delay animated previews</summary>
+
+CWO mechanisms respond to control changes; Delay circles follow Range. Animation timing is approximate.
+
+![CWO control motion](docs/screenshots/cwo-controls.gif)
+
+![Delay Range sweep](docs/screenshots/delay-controls.gif)
+
+</details>
+
+## VST3 and DAW workflow
+
+Field Studio is an **instrument plugin**: load it on a MIDI/instrument track, route notes to it and hear the main stereo output. The same interface supports synthesis, sampling, sequencing, tape recording and mixing inside the DAW. macOS downloads also include AU.
+
+### Tested by the user
+
+The project owner reports successful hands-on use of the plugin, DAW automation, Faderfox control assignment and an Arturia BeatStep (1 November 2026).
+
+| Workflow | Reported result |
+|---|---|
+| Plugin operation | Works well in the tested setup |
+| DAW automation | Working well |
+| Faderfox | Connected; controls assigned and working |
+| Arturia BeatStep | Working with Field Studio |
+
+The DAW, OS, Faderfox model and exact controller modes were not recorded with this report. These are user-confirmed results for that setup; broader host/platform and controller-mode coverage remains open. Automated release builds/tests also pass on Windows, macOS and Linux.
+
+### Install the plugin
+
+Download and extract the archive for your OS. Copy the **entire bundle**, then rescan plugins in your DAW.
+
+| Platform | Plugin location |
+|---|---|
+| Windows x64 | Copy `VST3/Field Studio.vst3` into `C:\Program Files\Common Files\VST3\` or a VST3 folder supported by your DAW. The system folder requires administrator access. |
+| macOS, Apple Silicon or Intel | Copy `VST3/Field Studio.vst3` into `~/Library/Audio/Plug-Ins/VST3/`. For AU, copy `AU/Field Studio.component` into `~/Library/Audio/Plug-Ins/Components/`. |
+| Linux x86_64 | Copy `VST3/Field Studio.vst3` into `~/.vst3/`, or add its location to your DAW's VST3 scan paths. Builds require glibc 2.35+. |
+
+The format is **VST3**; VST2 is not included. Portable downloads include `INSTALL.md` and remain unsigned/not notarized. macOS requires 11 or newer. The standalone executable/app is included separately in each archive.
+
+### Automate and connect hardware
+
+1. Add Field Studio to an instrument track and enable MIDI input/monitoring as required by your DAW.
+2. Use the DAW's automation parameter list or automation learn to control exposed synth macros, envelopes, effects, master EQ/Amount and output parameters. Enable the DAW's automation read/write mode for the workflow you want.
+3. Route your controller's MIDI to the same track. Right-click a Field Studio knob, select **MIDI learn**, then move the hardware control. Choose pickup for absolute knobs/faders, or the matching relative mode for endless encoders.
+4. Save the DAW project to retain plugin state and assignments. Export a controller profile under COM to reuse mappings in another project. `.field` files also preserve the instrument project independently of the DAW.
+
+Host automation and hardware mappings are separate routes to controls. MIDI pickup re-arms when host automation changes the software value. The COM mapping list also exposes track levels/pans/mutes/solos, pad controls and tape actions; these are MIDI destinations, not all separate host automation parameters.
+
+Enable **COM → Follow DAW transport and tempo** to follow the host's tempo, play/stop and seeks. Tape retains its own varispeed between host timeline jumps. Four optional stereo tape-stem output buses are available alongside the main stereo mix when the DAW supports multiple outputs; enable and route those buses in the host. [MIDI and sync](docs/MIDI.md) · [Controller setup](docs/CONTROLLERS.md) · [Automated VST3 test scope](docs/VST3_SMOKE.md).
 
 ## Controller mapping
 
@@ -12,7 +95,7 @@ Right-click a knob and choose **MIDI learn**, then move a control on your Faderf
 
 ## Downloads
 
-[Field Studio 0.2.2 beta 2 downloads](https://github.com/stevenmcsorley/field-studio/releases/tag/v0.2.2-beta.2) are published after all automated release gates pass. The pipeline packages Windows x64 standalone/VST3, macOS universal standalone/VST3/AU and Linux x86_64 standalone/VST3, with checksums and complete corresponding source. See [beta notes](docs/RELEASE_NOTES.md) and [build/release status](docs/BUILD_STATUS.md). Binaries are unsigned development builds.
+[Field Studio 0.2.2 beta 2 downloads](https://github.com/stevenmcsorley/field-studio/releases/tag/v0.2.2-beta.2) are available for Windows, macOS and Linux. All automated release gates passed. The pipeline packages Windows x64 standalone/VST3, macOS universal standalone/VST3/AU and Linux x86_64 standalone/VST3, with checksums and complete corresponding source. See [beta notes](docs/RELEASE_NOTES.md) and [build/release status](docs/BUILD_STATUS.md). Binaries are unsigned development builds.
 
 ## Run the Linux build
 
@@ -60,7 +143,7 @@ cmake --build build-core
 ctest --test-dir build-core --output-on-failure
 ```
 
-Windows: configure with Visual Studio2022 and build `--config Release`. macOS: configure with Xcode or Makefiles; universal builds use `-DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"`. The workflow in `.github/workflows/build.yml` builds Windows, macOS and Linux artifacts when the project is placed in a repository. Local Linux builds pass the automated suite; Windows and macOS have also passed build/tests in GitHub Actions. The Ubuntu CI dependency fix passed the full three-platform workflow; see [build status](docs/BUILD_STATUS.md). Real audio-device and commercial DAW testing, code signing and installers remain outstanding.
+Windows: configure with Visual Studio2022 and build `--config Release`. macOS: configure with Xcode or Makefiles; universal builds use `-DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"`. The workflow in `.github/workflows/build.yml` builds Windows, macOS and Linux artifacts when the project is placed in a repository. Local Linux builds pass the automated suite; Windows and macOS have also passed build/tests in GitHub Actions. The Ubuntu CI dependency fix passed the full three-platform workflow; see [build status](docs/BUILD_STATUS.md). User testing confirms plugin operation, automation, Faderfox assignment and BeatStep use in one setup. Broader device/DAW coverage, code signing and installers remain outstanding.
 
 ## Verification
 

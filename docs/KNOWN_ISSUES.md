@@ -26,7 +26,7 @@ Save project, export tape mix and export album now run on one processor-owned wo
 | GUI responsiveness | Save and export use a bounded background worker. Import, project opening, record preparation and tape edits still use synchronous control calls and can stall the message thread. Extending cancellation to their state commits remains open. |
 | Whole-processor realtime guarantees | No complete callback lock/allocation/free audit, hardware deadline certification or long-session device stress pass. Host state APIs remain non-realtime calls. |
 | Trusted signing/installers | Downloads are portable unsigned betas. The maintainer has confirmed no Apple Developer ID or Windows signing certificates are available. macOS notarization and publisher-trusted Windows signatures cannot be supplied without those external credentials. |
-| Device/DAW validation | Physical Faderfox/BeatStep, real audio interfaces and commercial DAWs need hands-on validation. CI tests software messages, native UI/state and Linux VST3 loading. |
+| Device/DAW validation | The project owner reports working plugin operation/automation, Faderfox assignment and BeatStep use (1 November 2026); DAW/OS/model details were not recorded. Broader device/host testing remains open. CI tests software messages, native UI/state and Linux VST3 loading. |
 | Hardware equivalence | Exact synth/effect sound, hardware parameter curves, all screens and every hardware gesture remain unverified. See PARITY.md. |
 
 ## Evidence

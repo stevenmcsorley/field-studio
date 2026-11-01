@@ -25,9 +25,13 @@ Example 16-control layouts are included under `presets/controllers` in source an
 
 Each relative unit moves 1/127 of the destination's normalized range. Steps accumulate for stepped/choice parameters. Hardware acceleration sends larger deltas. **Reversed direction** supports controllers whose increment/decrement polarity is opposite. Confirm direction at low volume before performing.
 
-The [Faderfox EC4 manual](https://www.faderfox.de/PDF/EC4%20Manual%20V03.pdf) documents absolute and relative CC modes as well as NRPN and other commands. Choose a **7-bit CC** mode for this beta. If clockwise decreases the value, use the reversed learn option. We have not physically tested an EC4 or other Faderfox model; do not assume its factory setup matches a particular encoder mode.
+The [Faderfox EC4 manual](https://www.faderfox.de/PDF/EC4%20Manual%20V03.pdf) documents absolute and relative CC modes as well as NRPN and other commands. Choose a **7-bit CC** mode for this beta. If clockwise decreases the value, use the reversed learn option. The project owner reports a connected Faderfox with successfully assigned controls (1 November 2026); the model and encoder mode were not specified. This does not specifically validate the EC4 or its factory setup.
 
 The [Arturia BeatStep documentation](https://www.arturia.com/products/hybrid-synths/beatstep/resources) includes its MIDI Control Center configuration. Configure encoders for absolute CC for an initial test, learn them individually, and configure pads as notes to play sounds. Field Studio also accepts MIDI clock/Start/Stop; select **Receive MIDI clock** to follow incoming clock, or let the DAW supply tempo/transport when using the plugin. Avoid running both its sequencer and Field Studio's sequencer unintentionally.
+
+## User testing — 1 November 2026
+
+The project owner reports successful plugin operation and DAW automation, successful Faderfox connection/control assignment, and working Arturia BeatStep use. DAW, OS, Faderfox model and exact modes were not supplied. This records hands-on success for that setup without claiming every host, controller mode, clock feature or pad/encoder configuration was tested.
 
 ## Scope and limits
 

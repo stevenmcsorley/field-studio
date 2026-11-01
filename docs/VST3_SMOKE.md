@@ -9,3 +9,7 @@ Usage: `field_vst3_host "/absolute/path/to/Field Studio.vst3/Contents/x86_64-lin
 Passing this test establishes a basic real VST3 module lifecycle/audio path in this smoke host. It does **not** establish editor embedding, automation/state interoperability, all bus/sample-rate arrangements, compatibility with commercial DAWs, Windows/macOS plug-in loading, or feature/visual/sonic parity with hardware. Those remain separate test gates.
 
 Validation on 2026-10-30: compiled the host directly with the pinned bundled SDK and tested the built Linux `Field Studio.so`. Both main+four-disabled-stem and main+four-enabled-stem layouts passed. The note-on block peaked at 0.0137478, its first 128 samples were silent, note-off settled to 0, and module teardown succeeded. This verifies empty-stem isolation; recording and populated tape-stem correctness require separate integration tests.
+
+## Separate hands-on report — 1 November 2026
+
+The project owner reports that the plugin works well with DAW automation, Faderfox control assignment and Arturia BeatStep. DAW, OS and Faderfox model were not recorded. This is a separate user report, not an expansion of the automated smoke host's coverage above. See the README for installation and workflow guidance.
