@@ -196,6 +196,10 @@ public:
     bool canRedo() const { return !redos.empty(); }
     bool playing() const { return isPlaying; }
     bool recording() const { return isRecording; }
+    double tapeTravelSeconds() const noexcept { return tapeTravel; }
+    float tapeTransportSpeed() const noexcept { return !isPlaying||brakeHeld||countInRemaining>0?0.f:lastTapeRate; }
+    double tapeWriteBegin() const noexcept { return recordStrokeBegin; }
+    double tapeWriteEnd() const noexcept { return recordStrokeEnd; }
     double positionSeconds() const { return position / sr; }
     double recordedSeconds() const;
     double sampleRate() const { return sr; }
@@ -340,6 +344,7 @@ private:
     std::array<DBoxPad,24> dboxPads;
     int padSelected=0;
     double motherGateRemaining=0;
+    double tapeTravel=0,recordStrokeBegin=0,recordStrokeEnd=0,lastRecordPosition=-1;float lastTapeRate=1;
     double sr = 44100, position = 0, loopBegin = 0, loopFinish = 88200;
     int selected = 0;
     bool isPlaying = false, isRecording = false;

@@ -764,6 +764,7 @@ void Engine::process(float* left,float* right,const float* inputLeft,const float
         float mixL=synthL,mixR=synthR;
         const bool counting=countInRemaining>0&&isPlaying&&isRecording;
         if(counting){metronomeBeat=0;const double phase=countInElapsed-std::floor(countInElapsed);if(phase<.08){const double seconds=phase*60./params.tempo;const float click=static_cast<float>(std::sin(seconds*(params.metronomeSound==1?850:params.metronomeSound==2?1400:1900)*tau)*std::exp(-seconds*(params.metronomeSound==2?55:80)))*.13f*params.metronomeLevel;mixL+=click;mixR+=click;}const double step=params.tempo/(60.*sr);countInElapsed+=step;countInRemaining=std::max(0.,countInRemaining-step);if(countInRemaining<1e-9)countInRemaining=0;}
+        if(!isRecording)lastRecordPosition=-1;
         if(isPlaying&&!counting){
             if(rollHeld){const double length=std::min(rollLength,static_cast<double>(maxFrames())-rollBegin);if(length>0&&(position<rollBegin||position>=rollBegin+length))position=rollBegin+std::fmod(std::fmod(position-rollBegin,length)+length,length);}
             if(!rollHeld && params.loop && loopFinish>loopBegin+1){
@@ -785,6 +786,10 @@ void Engine::process(float* left,float* right,const float* inputLeft,const float
                     auto& t=tape[static_cast<size_t>(selected)];const auto at=static_cast<size_t>(position);
                     // Capacity was reserved in setRecording(). Never allocate in
                     // the audio callback, even after malformed restored state.
+                    // Retain the current continuous write stroke for the LCD;
+                    // a seek/loop/chop starts a new stroke, without allocating.
+                    if(lastRecordPosition<0||std::abs(position-lastRecordPosition)>std::max(8.,std::abs((double)lastTapeRate)*2))recordStrokeBegin=recordStrokeEnd=position/sr;
+                    recordStrokeBegin=std::min(recordStrokeBegin,position/sr);recordStrokeEnd=std::max(recordStrokeEnd,(position+1)/sr);lastRecordPosition=position;
                     const auto previous=t.audio.readStereo(at);
                     const float recordL=std::clamp(previous[0]+synthL*params.tapeRecordLevel*(params.tapeRecordPan>0?1-params.tapeRecordPan:1),-4.0f,4.0f);
                     const float recordR=std::clamp(previous[1]+synthR*params.tapeRecordLevel*(params.tapeRecordPan<0?1+params.tapeRecordPan:1),-4.0f,4.0f);
@@ -792,7 +797,7 @@ void Engine::process(float* left,float* right,const float* inputLeft,const float
                 }
                 if(params.metronome&&!brakeHeld){const double phase=metronomeBeat-std::floor(metronomeBeat);if(phase<.045){const double seconds=phase*60./params.tempo;const double frequency=params.metronomeSound==1?850:params.metronomeSound==2?1400:1900;float click=static_cast<float>(std::sin(seconds*frequency*tau)*std::exp(-seconds*(params.metronomeSound==2?55:110)))*.08f*params.metronomeLevel;mixL+=click;mixR+=click;}}
                 metronomeBeat+=params.tempo/(60.*sr);if(metronomeBeat>=4)metronomeBeat-=4;
-                if(!brakeHeld)position+=params.tapeSpeed*std::pow(2.f,modulationRoutes[18])*(reverseHeld?-1.:1.);
+                if(!brakeHeld){lastTapeRate=params.tapeSpeed*std::pow(2.f,modulationRoutes[18])*(reverseHeld?-1.f:1.f);position+=lastTapeRate;tapeTravel+=lastTapeRate/sr;}
             }
         }
         switch(params.tapeStyle){
@@ -860,16 +865,18 @@ void Engine::trimHistory(){
 }
 void Engine::snapshot(unsigned mask){undos.push_back(capture(mask));retireHistory(redos);trimHistory();}
 void Engine::setRecording(bool v){
+    if(v&&!isRecording){lastRecordPosition=-1;recordStrokeBegin=recordStrokeEnd=position/sr;}
     if(v&&!isRecording){snapshot();tape[selected].audio.prepareWrite(maxFrames());isPlaying=true;countInRemaining=countInSetting;countInElapsed=0;}
     isRecording=v;if(!v)countInRemaining=0;
 }
 void Engine::startPreparedRecording(TapeAudio&& prepared){
+    lastRecordPosition=-1;recordStrokeBegin=recordStrokeEnd=position/sr;
     const auto required=(maxFrames()+tape::pageFrames-1)/tape::pageFrames;
     const auto space=prepared.stats();if(space.freePages<required+1||space.freeNodes<required*3+3)throw std::runtime_error("Recording reserve is not ready");
     snapshot();tape[selected].audio=std::move(prepared);isPlaying=true;isRecording=true;countInRemaining=countInSetting;countInElapsed=0;
 }
-void Engine::rewind(){metronomeBeat=0;sequenceFinished=false;seqTicks=0;seqBounce=1;position=params.loop?loopBegin:0;seqPhase=0;seqStep=-1;seqPositionPending=-1;}
-void Engine::seek(double seconds){position=std::clamp(std::isfinite(seconds)?seconds:0.0,0.0,359.999)*sr;metronomeBeat=std::fmod(position/sr*params.tempo/60.,4.);}
+void Engine::rewind(){metronomeBeat=0;sequenceFinished=false;seqTicks=0;seqBounce=1;const double old=position;position=params.loop?loopBegin:0;tapeTravel+=(position-old)/sr;seqPhase=0;seqStep=-1;seqPositionPending=-1;}
+void Engine::seek(double seconds){const double old=position;position=std::clamp(std::isfinite(seconds)?seconds:0.0,0.0,359.999)*sr;tapeTravel+=(position-old)/sr;metronomeBeat=std::fmod(position/sr*params.tempo/60.,4.);}
 void Engine::setLoop(double start,double end){start=std::isfinite(start)?start:0;end=std::isfinite(end)?end:2;loopBegin=std::clamp(start,0.0,359.999)*sr;loopFinish=std::clamp(end,loopBegin/sr+1.0/sr,360.0)*sr;}
 double Engine::recordedSeconds()const{size_t n=0;for(const auto&t:tape)n=std::max(n,t.audio.size());return n/sr;}
 void Engine::clearTrack(){snapshot();auto& t=tape[selected];t.audio=TapeAudio{};t.cuts.clear();}

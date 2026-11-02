@@ -475,10 +475,10 @@ void FieldEditor::drawEngine(juce::Graphics& g,juce::Rectangle<float> a){
 }
 void FieldEditor::drawTape(juce::Graphics& g,juce::Rectangle<float> a){
     field::TapeScreenState state;
-    state.position=processor.playhead.load();state.visible=visibleSeconds;state.loopIn=processor.selectionStart;state.loopOut=processor.selectionEnd;
+    state.position=tapePosition;state.travel=tapeTravel;state.transportSpeed=tapeTransportSpeed;state.writeBegin=tapeWriteBegin;state.writeEnd=tapeWriteEnd;state.style=(int)processor.value("tapeStyle");state.tempo=processor.effectiveTempo.load();state.visible=visibleSeconds;state.viewStart=tapeViewStart;state.loopEnabled=processor.value("loop")>.5f;state.loopIn=processor.selectionStart;state.loopOut=processor.selectionEnd;
     state.countIn=countInRemaining;state.speed=processor.value("tapeSpeed");state.recordLevel=processor.value("tapeRecordLevel");state.recordPan=processor.value("tapeRecordPan");
-    if(functionButtons[12]->isDown()||tapePerformance[1].isDown())state.speed=-state.speed;
-    state.track=selectedTrack;state.playing=playing&&!functionButtons[11]->isDown()&&!tapePerformance[0].isDown();state.recording=recording;state.shifted=shifted;state.durations=trackDurations;state.cuts=trackCuts;
+    if(playing&&countInRemaining<=0)state.speed=tapeTransportSpeed;
+    state.track=selectedTrack;state.playing=playing;state.recording=recording;state.shifted=shifted;state.durations=trackDurations;state.cuts=trackCuts;
     field::drawTapeScreen(g,a,state);
 }
 void FieldEditor::drawMixer(juce::Graphics& g,juce::Rectangle<float> a){
@@ -749,7 +749,7 @@ void FieldEditor::mouseDown(const juce::MouseEvent& e){
         else if(seq==3){FieldProcessor::DocumentGuard lock(processor);if(y>=232&&x<200)processor.engine.setFingerPattern(fingerBank/2*2);else if(y>=232&&x>399)processor.engine.setFingerPattern(fingerBank/2*2+1);else if(x>=230&&x<376&&y>=50&&y<122){int step=juce::jlimit(0,31,(int)((y-50)/18)*8+(int)((x-230)/18));int note=processor.engine.fingerStep(fingerBank,step);processor.engine.setFingerStep(fingerBank,step,note<0&&processor.value("seqErase")<.5f?60:-1);}else if(x>=260&&x<=332&&y>=120&&y<=192){processor.setValue("seqHold",1);processor.setValue("sequenceOn",1);processor.requestLiveControl(Live::joinFinger,fingerBank);}}
         timerCallback();return;}
     juce::Rectangle<float> screen(316,47,247,116);if(!((mode==2||(mode==3&&page<2)||(mode==0&&page==0&&(int)processor.value("engine")==11))?juce::Rectangle<float>(304,38,271,134):screen).contains(p))return;
-    if(mode==2){FieldProcessor::DocumentGuard lock(processor);double pos=processor.snapTapeTime(juce::jlimit(0.,visibleSeconds,field::tapeScreenTime(p.x,304,271,visibleSeconds)));if(e.mods.isShiftDown()||shifted){draggingSelection=true;processor.selectionStart=juce::jmin(359.9,pos);processor.selectionEnd=processor.selectionStart+.1;}else processor.requestLiveControl(Live::seek,0,0,pos);}
+    if(mode==2){FieldProcessor::DocumentGuard lock(processor);double pos=processor.snapTapeTime(juce::jlimit(0.,360.,field::tapeScreenTime(p.x,304,271,visibleSeconds,tapeViewStart)));if(e.mods.isShiftDown()||shifted){draggingSelection=true;processor.selectionStart=juce::jmin(359.9,pos);processor.selectionEnd=processor.selectionStart+.1;}else processor.requestLiveControl(Live::seek,0,0,pos);}
     else if(mode==1&&page==0&&(int)processor.value("engine")==14&&p.y>screen.getBottom()-32){int pad=juce::jlimit(0,23,(int)((p.x-screen.getX())/10.25f));FieldProcessor::DocumentGuard lock(processor);processor.engine.setSelectedPad(pad);selectedPad=pad;configureMacros();}
     else if((mode==0||mode==1)&&page==0&&(int)processor.value("engine")==11){
         if(mode==0&&samplePreviewReady&&p.y<samplePlotBounds().getY()){zoomSampleBoundary(juce::jlimit(0,3,(int)((p.x-304)/271*4)));return;}
@@ -766,11 +766,16 @@ void FieldEditor::mouseDown(const juce::MouseEvent& e){
 
     timerCallback();repaint();
 }
-void FieldEditor::mouseDrag(const juce::MouseEvent& e){if(e.originalComponent!=this)return;auto p=localPoint(e.position);if(draggingSampleMarker>=0){moveSampleMarker(p.x);return;}if(drawingSketch){appendSketchPoint(p);return;}if(draggingSelection){FieldProcessor::DocumentGuard document(processor);processor.selectionEnd=juce::jlimit(processor.selectionStart+.1,360.,processor.snapTapeTime(field::tapeScreenTime(p.x,304,271,visibleSeconds)));repaint();return;}int n=noteAt(p);if(n!=mouseNote){if(mouseNote>=0)keyboardNote(mouseNote,0,false);mouseNote=n;if(n>=0)keyboardNote(n,.8f,true);}}
+void FieldEditor::mouseDrag(const juce::MouseEvent& e){if(e.originalComponent!=this)return;auto p=localPoint(e.position);if(draggingSampleMarker>=0){moveSampleMarker(p.x);return;}if(drawingSketch){appendSketchPoint(p);return;}if(draggingSelection){FieldProcessor::DocumentGuard document(processor);processor.selectionEnd=juce::jlimit(processor.selectionStart+.1,360.,processor.snapTapeTime(field::tapeScreenTime(p.x,304,271,visibleSeconds,tapeViewStart)));repaint();return;}int n=noteAt(p);if(n!=mouseNote){if(mouseNote>=0)keyboardNote(mouseNote,0,false);mouseNote=n;if(n>=0)keyboardNote(n,.8f,true);}}
 void FieldEditor::mouseUp(const juce::MouseEvent& event){if(event.originalComponent!=this)return;if(draggingSampleMarker>=0){draggingSampleMarker=-1;configureMacros();}if(drawingSketch){drawingSketch=false;status="Sketch saved: "+juce::String(sketchCount)+" points";}if(mouseNote>=0)keyboardNote(mouseNote,0,false);mouseNote=-1;if(draggingSelection){FieldProcessor::DocumentGuard lock(processor);processor.engine.setLoop(processor.selectionStart,processor.selectionEnd);draggingSelection=false;}}
+void FieldEditor::mouseWheelMove(const juce::MouseEvent& event,const juce::MouseWheelDetails& wheel){
+    if(mode!=2||event.originalComponent!=this||!juce::Rectangle<float>(304,38,271,134).contains(localPoint(event.position)))return;
+    if(wheel.deltaY==0)return;visibleSeconds=juce::jlimit(2.,360.,visibleSeconds*std::pow(2.,-wheel.deltaY*3));status="Tape view / "+juce::String(visibleSeconds,1)+" seconds / double-click for overview";timerCallback();repaint();
+}
 void FieldEditor::mouseDoubleClick(const juce::MouseEvent& event){
     if(event.originalComponent!=this)return;
     const auto point=localPoint(event.position);
+    if(mode==2&&juce::Rectangle<float>(304,38,271,134).contains(point)){visibleSeconds=visibleSeconds>=360?16:360;timerCallback();repaint();return;}
     if((mode==0||mode==1)&&page==0&&(int)processor.value("engine")==11&&samplePreviewReady&&samplePlotBounds().contains(point)){
         draggingSampleMarker=-1;
         if(sampleViewEnd-sampleViewStart<.5){sampleViewStart=0;sampleViewEnd=1;status="Sample overview";}
@@ -811,7 +816,8 @@ void FieldEditor::timerCallback(){
     const bool exhausted=processor.captureStorageExhausted();if(exhausted&&!observedCaptureExhaustion)status="Capture stopped: audio storage reserve exhausted.";observedCaptureExhaustion=exhausted;
     countInRemaining=ui.countIn;selectedTrack=ui.track;recorded=ui.recorded;sequenceStep=ui.sequenceStep;sequencerHeld=ui.held;
     if(fingerBank!=ui.fingerBank)sequenceOffset=0;fingerBank=ui.fingerBank;sequenceLength=ui.sequenceLength;sequenceOffset=juce::jmin(sequenceOffset,(sequenceLength-1)/16*16);
-    visibleSeconds=juce::jmax(16.,std::ceil(juce::jmax(recorded,processor.playhead.load()+2)/8)*8);
+    tapePosition=ui.position;tapeTravel=ui.tapeTravel;tapeTransportSpeed=ui.tapeTransportSpeed;tapeWriteBegin=ui.tapeWriteBegin;tapeWriteEnd=ui.tapeWriteEnd;
+    tapeViewStart=visibleSeconds>=360?0:tapePosition-visibleSeconds*.5;
     for(int i=0;i<4;++i){trackDurations[(size_t)i]=ui.durations[(size_t)i];levels[(size_t)i]=ui.levels[(size_t)i];pans[(size_t)i]=ui.pans[(size_t)i];trackPeaks[(size_t)i]=juce::jmax(ui.peaks[(size_t)i],trackPeaks[(size_t)i]*.8f);mutes[(size_t)i]=ui.mutes[(size_t)i];solos[(size_t)i]=ui.solos[(size_t)i];if(mode==3&&page==0&&!macros[(size_t)i].isMouseButtonDown())macros[(size_t)i].setValue(shifted?pans[(size_t)i]:levels[(size_t)i],juce::dontSendNotification);}
     if(mode==4){int cursor=juce::jlimit(0,sequenceLength-1,(int)processor.value("seqCursor"));sequenceOffset=cursor/16*16;sequenceChordSnapshot=ui.sequenceChords;fingerSnapshot=ui.finger;steps=ui.steps;sketchCount=ui.sketchCount;sketchPoints=ui.sketch;balls=ui.balls;tombolaRotation=(float)ui.tombolaRotation;tombolaSides=ui.tombolaSides;tombolaTriggers=ui.tombolaTriggers;}
     // Pin immutable media only while visible, at a bounded preview rate.

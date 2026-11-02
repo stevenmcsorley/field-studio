@@ -24,6 +24,7 @@ public:
     void mouseDrag(const juce::MouseEvent&) override;
     void mouseUp(const juce::MouseEvent&) override;
     void mouseDoubleClick(const juce::MouseEvent&) override;
+    void mouseWheelMove(const juce::MouseEvent&,const juce::MouseWheelDetails&) override;
     void showPageForTesting(int mode,int page);
     void showCaptureSources();
     bool observedSampling=false,forceUiReadForTesting=false;
@@ -123,6 +124,7 @@ private:
     uint64_t observedTapeFailures=0;
     bool observedCaptureExhaustion=false;
     double countInRemaining=0;
+    double tapeTravel=0,tapePosition=0,tapeWriteBegin=0,tapeWriteEnd=0,tapeViewStart=-8;float tapeTransportSpeed=0;
     double recorded=0,visibleSeconds=16;
     float scale=1;
     field::CwoAnimation insertCwoMotion,masterCwoMotion;

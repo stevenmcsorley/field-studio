@@ -102,3 +102,7 @@ The Vocoder LCD, waveform/formant/bands/mix roles and sampling Standby/Recording
 ## Four LCD redraws — beta 8
 
 Grid, Mother, Dimension and DNA now have reference-based geometry and dedicated LCD-only screenshots. This improves static visual fidelity; platform/manufacturer typography, readout laws, all parameter states and animation timing remain unverified. Dimension retains its true engine cutoff readout; DNA is a deterministic parameter illustration rather than a machine identifier. See [LCD fidelity notes](LCD_FIDELITY.md). No DSP or parameter IDs changed in this pass.
+
+### Recording LCD motion — 0.4.2
+
+Studio/Vintage reels, Porta cassette and Disc Mini displays now differ by tape style. Signed audio-engine travel drives winding through loop/chop wraps and remote reverse; detail uses a fixed head/scrolled strip, shared pointer geometry, wheel zoom/overview and current-write-only red feedback. Studio/Porta have direct public visual references; Vintage/Disc Mini remain approximate. Complete takes/silent gaps, hardware arming gestures and exact animation rates remain open. See [recording motion evidence](research/TAPE_VISUAL_MOTION.md).

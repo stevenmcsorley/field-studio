@@ -7,6 +7,7 @@ struct UiTelemetry {
  std::array<float,8> lfoRandomHistory{};
  std::array<float,4> lfoMidiValues{};
  float lfoPhase=0,modulation=0;bool playing=false,recording=false,externalInput=false;int pad=0,track=0,sequenceLength=16,sequenceStep=-1,fingerBank=0,sketchCount=2,tombolaSides=4;
+ double tapeTravel=0,tapeWriteBegin=0,tapeWriteEnd=0;float tapeTransportSpeed=0;
  double recorded=0,countIn=0,rate=44100,tombolaRotation=0;uint64_t tapeFailures=0,tombolaTriggers=0;uintptr_t sampleIdentity=0;
  DrumPad drumPad{};DBoxPad dboxPad{};
  std::array<float,4> levels{{1,1,1,1}},pans{},peaks{};std::array<double,4> durations{};std::array<double,2> albumDurations{};std::array<bool,4> mutes{},solos{};

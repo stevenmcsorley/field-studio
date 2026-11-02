@@ -1,0 +1,53 @@
+{
+  "date": "2026-11-02",
+  "sources": [
+    {
+      "url": "https://www.youtube.com/watch?v=mB586MEe1ww",
+      "ranges_seconds": [
+        [
+          390,
+          460
+        ],
+        [
+          600,
+          685
+        ]
+      ],
+      "resolution": "640x360"
+    },
+    {
+      "url": "https://www.youtube.com/watch?v=lF_oH4fB_3I",
+      "ranges_seconds": [
+        [
+          1184,
+          1264
+        ]
+      ],
+      "resolution": "640x360"
+    },
+    {
+      "url": "https://teenage.engineering/guides/op-1",
+      "asset": "694075983e7f1c62f9b140cb_opt.svg"
+    }
+  ],
+  "local_reference_hashes": [
+    {
+      "file": "field-tape-reference-clip.mp4",
+      "sha256": "131db487546c010da1079b85662cb9fd94a4148e68e18e787d02955eb6ed514f"
+    },
+    {
+      "file": "field-tape-recording-clip.mp4",
+      "sha256": "d0767733f010f0aa1b85120eb1b5b4b8af433eb4df93f5fcc5e3a1b877794f59"
+    },
+    {
+      "file": "field-tape-styles-clip.mp4",
+      "sha256": "23f566e8b4e1f705d924d5c35830e775296f42cedd06056cb33cca17d3308892"
+    },
+    {
+      "file": "field-tape-right.svg",
+      "sha256": "2710b2351669f61e8698d0b4270913814e86b8af9f3c4fce715c6f4c5c71d173"
+    }
+  ],
+  "manufacturer_assets_bundled": false,
+  "previews": "Native deterministic renderer examples; not hardware recordings"
+}

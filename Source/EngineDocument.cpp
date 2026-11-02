@@ -26,7 +26,7 @@ unsigned Engine::documentChanges(const Document& a,const Document& b) noexcept {
 }
 void Engine::applyDocument(const Document& d,unsigned parts) noexcept {
  if(parts&trackPart){isRecording=false;selected=std::clamp(d.selected,0,3);}if(parts&seekPart)seek(d.position);if(parts&loopPart)setLoop(d.loopStart,d.loopEnd);if(parts&playPart)setPlaying(d.playing);
- if(parts&recordPart){isRecording=d.recording;if(d.recording){isPlaying=true;countInRemaining=countInSetting;countInElapsed=0;}else countInRemaining=0;}
+ if(parts&recordPart){lastRecordPosition=-1;recordStrokeBegin=recordStrokeEnd=position/sr;isRecording=d.recording;if(d.recording){isPlaying=true;countInRemaining=countInSetting;countInElapsed=0;}else countInRemaining=0;}
  if(parts&padsPart){pads=d.pads;dboxPads=d.dbox;padSelected=std::clamp(d.pad,0,23);}
  if(parts&sequencePart){steps=d.steps;stepVelocity=d.velocities;stepChords=d.chords;sketch=d.sketch;seqLength=d.length;fingerSelected=d.bank;sketchCount=d.sketchLength;for(size_t i=0;i<16;++i){fingerBanks[i].chords=d.finger[i].chords;fingerBanks[i].note=d.finger[i].notes;fingerBanks[i].velocity=d.finger[i].velocities;fingerBanks[i].length=d.finger[i].length;}if(seqStep>=seqLength){seqStep=-1;seqPositionPending=-1;seqPhase=0;}}
 }

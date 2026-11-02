@@ -1,6 +1,6 @@
 # Tape editing and performance controls
 
-This pass implements documented tape operations using original software storage and control laws. It does not establish exact hardware parity or uninterrupted audio during heavy edits.
+This pass implements documented tape operations using original software storage and control laws. It does not establish exact hardware parity. Heavy edits use the prepared ownership/job path; physical-device deadline validation remains open.
 
 ## Use
 
@@ -24,18 +24,28 @@ Hold tape keys **4 / 5 / 6** for **brake / reverse / chop**, or use the matching
 
 The official OP-1 field firmware1.7 guide describes slide/loop/speed/record level/pan (text extraction lines582–588), lift/drop/split (610–617), break/reverse/chop (610–624), and count-in/lift-all/merge-drop/join/grid (632–649). See [official guide](https://teenage.engineering/guides/op-1) and the local research specification.
 
-The guide's hardware gesture arms recording then starts count-in with Play. This app keeps its existing Record gesture and adds an optional automatic count-in. Count length, brake envelope, chop window/duty and press/release semantics were not specified by the inspected text. The explicit software behaviours above are design choices. Join operates on boundaries within a selected interval; it does not reconstruct a hardware take database. Bar and half-bar divisions currently assume four beats per bar. Tape editing still takes the shared engine lock and can interrupt audio; see LIVE_AUDIO_DESIGN.md.
+The guide's hardware gesture arms recording then starts count-in with Play. This app keeps its existing Record gesture and adds an optional automatic count-in. Count length, brake envelope, chop window/duty and press/release semantics were not specified by the inspected text. The explicit software behaviours above are design choices. Join operates on boundaries within a selected interval; it does not reconstruct a hardware take database. Bar and half-bar divisions currently assume four beats per bar. Tape edits are prepared on the control/worker side and installed at an audio block boundary; the audio callback does not acquire the editing-model lock. See AUDIO_REWRITE_PROGRESS.md.
 
-## Reel LCD (November 2026)
+## Recording LCD and motion (0.4.2)
 
-Tape mode now uses the full LCD for an original vector recreation of the supplied guide layout: selected-track number, two reels, tape path/rollers/head, transport direction, speed percentage, timecode, loop markers and four compact take lanes. Reels rotate from actual tape position, with no free-running timer. Stop freezes them; reverse moves them backwards; scrubbing updates them. The right red indicator follows recording Level, or Pan while Shift is held. It is a control-position indicator, not a measured input meter. Count-in and recording have separate centre indicators.
+Each tape style now has its own original vector recorder display: Studio and Vintage reels, a Porta cassette, and a Disc Mini cartridge. Studio follows the supplied guide, and Porta is informed by inspected hardware footage. Vintage/Disc Mini details remain approximations. Timecode uses the app's monoline vectors. Mechanisms use published **actual signed tape travel**, so loop/chop wraps keep winding smoothly, MIDI/remote reverse changes direction, and Stop/brake/count-in freeze the mechanism. Angular rates and tape-pack sizes are software approximations.
 
-Click the display to seek; Shift-drag selects an interval. Pointer seeking and painting use the same timeline endpoints. The view automatically expands from sixteen seconds to cover recorded material and the playhead. The footer retains the tape bank number outside the LCD; tape style remains available in COM. Use the sequencer dropdown and tempo/metronome utility button for the shortcuts replaced by tape tricks.
+The default sixteen-second strip scrolls beneath the centre head. **Mouse wheel over the LCD** zooms from two seconds to six minutes. **Double-click** switches six-minute overview/detail. The overview uses an absolute timeline; detail keeps the head centred. Click seeks and Shift-drag selects using the same scrolled coordinates as painting. The bar ruler follows effective tempo.
 
-The guide confirms the four normal and four shifted encoder roles and tape keys 1–8 ([firmware 1.7 guide, pages 38–40](https://assets.teenage.engineering/_img/69f248938d433104c4dd1846_original.pdf)). The supplied still establishes layout, not mechanical rotation rates, timecode units or detailed tape-pack physics. Reel speed/pack interpolation and centisecond timecode are original approximations. Compact lanes show track extents and splice boundaries; they do not recover a hardware take database, silent holes or its selected-take highlighting. Shift-blue still slides the chosen selection, rather than automatically discovering a take beneath the head. Record arming, take selection, exact tape colour and seamless live edits remain parity gaps.
+Existing selected-track material is ochre; the splice interval under the head is blue; other tracks are grey. Only the current continuous recording stroke is overlaid red, rather than the whole recorded track. This uses actual writes and resets at discontinuous seeks/loops. It does not recover silent holes or a complete hardware take database. The right red line shows recording Level (Shift: Pan), not input amplitude. Count-in, recording and playback have separate indicators.
+
+Right-click transport/loop buttons to learn MIDI. Fine jog, record/finish, sample capture and tape edits remain available through [controller mappings](CONTROLLERS.md#recording-and-timeline-control-041). Recording retains Field Studio's existing single-press start/finish convention; hardware arming/key combinations are not newly implemented.
+
+![Studio recording motion — deterministic native renderer preview](screenshots/tape-studio-motion.gif)
+
+![Porta recording motion — deterministic native renderer preview](screenshots/tape-porta-motion.gif)
+
+| Studio | Vintage |
+|---|---|
+| ![Studio](screenshots/tape-style-0.png) | ![Vintage approximation](screenshots/tape-style-1.png) |
+| Porta | Disc Mini |
+| ![Porta](screenshots/tape-style-2.png) | ![Disc Mini approximation](screenshots/tape-style-3.png) |
 
 ![Tape LCD reference render](screenshots/tape-lcd-reference.png)
 
-![Tape mode](screenshots/tape-reference.png)
-
-Validation: all eight local CTest suites pass. Native rendering was inspected at 1320×640 and 1000×520. New checks cover shared seek geometry, reel movement, direction and Level/Pan display changes, normal/Shift encoder MIDI targets, and actual panel-button brake/reverse/chop press/release effects on tape position. This does not establish real hardware or commercial-DAW parity.
+The focused `tape_motion` check covers loop-safe signed mechanism travel, brake/stop/scrub, shared scrolled seek geometry, a fixed head, recording-overlay bounds and style rendering. No broad local suite or CI watch was run for this pass. See [sources, observations and exact limits](research/TAPE_VISUAL_MOTION.md). This is progress toward visual parity, not a claim that every recording/tape feature now matches the hardware.
