@@ -19,20 +19,20 @@ Input device selection turns direct monitoring off. Headphones or separate outpu
 
 ## Capture audio from other apps
 
-A source must be exposed to the operating system or routed to Field Studio. The app cannot read arbitrary audio from a browser tab by URL. Protected streams, exclusive drivers, device permissions and host routing can limit capture.
+A source must be exposed to the operating system or routed to OPVYN. The app cannot read arbitrary audio from a browser tab by URL. Protected streams, exclusive drivers, device permissions and host routing can limit capture.
 
 | Platform | Computer-audio source |
 |---|---|
 | Windows | Select **System loopback: [output device]** in the source picker. This records the shared Windows output mix from that endpoint, independently of the JUCE standalone output driver. Apps must play through the selected endpoint. ASIO-exclusive output is not necessarily part of that mix; route it through an interface loopback or DAW/plugin input instead. |
-| Linux | Select an output **Monitor** from the PulseAudio / PipeWire-Pulse input list. The PipeWire PulseAudio compatibility server and libpulse runtime must be available for this picker. You can route an individual app or a monitor into the **Field Studio capture / Field Studio input** stream using your audio mixer. Standalone/DAW input remains available when the extra backend is unavailable. |
+| Linux | Select an output **Monitor** from the PulseAudio / PipeWire-Pulse input list. The PipeWire PulseAudio compatibility server and libpulse runtime must be available for this picker. You can route an individual app or a monitor into the **OPVYN capture / OPVYN input** stream using your audio mixer. Standalone/DAW input remains available when the extra backend is unavailable. |
 | macOS | Route the desired app/system audio through a virtual input such as **BlackHole**, then select that input. A Multi-Output Device can send audio to BlackHole and your listening device. This release uses CoreAudio inputs and does **not** implement automatic ScreenCaptureKit/process-tap capture. Virtual drivers are not bundled or installed automatically. |
 | VST3 / AU | Route another audio track/bus into the plugin's main audio input using the host, or explicitly choose an external capture input. Hosts differ in how they expose input buses and microphone permissions. |
 
 Windows loopback follows [Microsoft's shared-endpoint model](https://learn.microsoft.com/en-us/windows/win32/coreaudio/loopback-recording); the backend uses [miniaudio's loopback/capture API](https://github.com/mackron/miniaudio/blob/0.11.23/examples/simple_loopback.c). Linux routing uses [PipeWire/WirePlumber streams and monitor sources](https://pipewire.pages.freedesktop.org/wireplumber/policies/linking.html). For macOS, follow [BlackHole's official setup guide](https://existential.audio/blackhole/support/) and grant microphone/input access when requested; see [Apple's permission instructions](https://support.apple.com/en-ca/102071).
 
-Loopback can also capture Field Studio's own output. Leave direct monitoring off for straightforward sampling. When vocoding computer audio, route the instrument output to a different device/bus from the captured output, or isolate the source app through virtual/DAW routing, to avoid feeding processed output back into the input.
+Loopback can also capture OPVYN's own output. Leave direct monitoring off for straightforward sampling. When vocoding computer audio, route the instrument output to a different device/bus from the captured output, or isolate the source app through virtual/DAW routing, to avoid feeding processed output back into the input.
 
-To sample **Field Studio itself**, choose **Main output**, arm, and play synth notes or tape. This captures the processed stereo output including master effects. It is an internal resample, requiring no external loopback device. To sample an **audio file**, use Import audio or the source picker's Import audio file action. Supported imports remain WAV/AIFF/FLAC/Ogg, up to 120 seconds; MP3/video extraction is not included.
+To sample **OPVYN itself**, choose **Main output**, arm, and play synth notes or tape. This captures the processed stereo output including master effects. It is an internal resample, requiring no external loopback device. To sample an **audio file**, use Import audio or the source picker's Import audio file action. Supported imports remain WAV/AIFF/FLAC/Ogg, up to 120 seconds; MP3/video extraction is not included.
 
 ## Vocoder controls
 

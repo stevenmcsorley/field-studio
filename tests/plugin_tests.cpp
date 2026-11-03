@@ -61,6 +61,10 @@ void writePresetFixture(const juce::File& file,const juce::var& metadata){
 struct TestPlayhead final:juce::AudioPlayHead {double seconds=1,bpm=130;bool running=true;juce::Optional<PositionInfo> getPosition() const override {PositionInfo p;p.setTimeInSeconds(seconds);p.setBpm(bpm);p.setIsPlaying(running);return p;}};
 int main(int argc,char** argv){
  try{
+    if(argc==3&&juce::String(argv[1])=="--branding-preview"){
+        juce::ScopedJuceInitialiser_GUI gui;auto owner=std::make_unique<FieldProcessor>(juce::File{},true);auto& p=*owner;p.prepareToPlay(8000,128);p.setValue("engine",5);p.setValue("effect",7);p.setValue("fx1",.7f);p.setValue("fx2",.12f);p.setValue("fx3",.48f);p.setValue("fx4",.3f);
+        std::unique_ptr<juce::AudioProcessorEditor> editor(p.createEditor());auto* view=dynamic_cast<FieldEditor*>(editor.get());if(!view)return 1;editor->setSize(1320,640);view->showPageForTesting(0,2);auto snapshot=editor->createComponentSnapshot(editor->getLocalBounds());juce::FileOutputStream stream{juce::File(argv[2])};juce::PNGImageFormat png;return stream.openedOk()&&png.writeImageToStream(snapshot,stream)?0:1;
+    }
     if(argc>=2&&(juce::String(argv[1])=="--test-tape-motion"||juce::String(argv[1])=="--tape-motion-previews")){
         juce::ScopedJuceInitialiser_GUI gui;
         auto owner=std::make_unique<field::Engine>();auto& engine=*owner;engine.prepare(8000,128);auto params=engine.parameters();params.loop=true;params.tapeSpeed=1;engine.setParameters(params);engine.setLoop(.1,.2);engine.seek(.19);engine.setPlaying(true);

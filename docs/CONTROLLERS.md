@@ -1,6 +1,6 @@
 # MIDI learn: Faderfox, Arturia BeatStep and other controllers
 
-Connect the controller by USB, or connect its MIDI output through a MIDI interface. In the standalone, enable its input in **Options → Audio/MIDI Settings**. In a DAW, route the controller to the Field Studio instrument track and enable monitoring/record arm as required by that DAW. Under **COM → MIDI routing & clock**, leave input channel at Omni to start, and enable **Receive other channel messages**. Notes/sustain must be enabled to play pads or keys.
+Connect the controller by USB, or connect its MIDI output through a MIDI interface. In the standalone, enable its input in **Options → Audio/MIDI Settings**. In a DAW, route the controller to the OPVYN instrument track and enable monitoring/record arm as required by that DAW. Under **COM → MIDI routing & clock**, leave input channel at Omni to start, and enable **Receive other channel messages**. Notes/sustain must be enabled to play pads or keys.
 
 ## Map a knob or fader
 
@@ -27,7 +27,7 @@ Each relative unit moves 1/127 of the destination's normalized range. Steps accu
 
 The [Faderfox EC4 manual](https://www.faderfox.de/PDF/EC4%20Manual%20V03.pdf) documents absolute and relative CC modes as well as NRPN and other commands. Choose a **7-bit CC** mode for this beta. If clockwise decreases the value, use the reversed learn option. The project owner reports a connected Faderfox with successfully assigned controls (1 November 2026); the model and encoder mode were not specified. This does not specifically validate the EC4 or its factory setup.
 
-The [Arturia BeatStep documentation](https://www.arturia.com/products/hybrid-synths/beatstep/resources) includes its MIDI Control Center configuration. Configure encoders for absolute CC for an initial test, learn them individually, and configure pads as notes to play sounds. Field Studio also accepts MIDI clock/Start/Stop; select **Receive MIDI clock** to follow incoming clock, or let the DAW supply tempo/transport when using the plugin. Avoid running both its sequencer and Field Studio's sequencer unintentionally.
+The [Arturia BeatStep documentation](https://www.arturia.com/products/hybrid-synths/beatstep/resources) includes its MIDI Control Center configuration. Configure encoders for absolute CC for an initial test, learn them individually, and configure pads as notes to play sounds. OPVYN also accepts MIDI clock/Start/Stop; select **Receive MIDI clock** to follow incoming clock, or let the DAW supply tempo/transport when using the plugin. Avoid running both its sequencer and OPVYN's sequencer unintentionally.
 
 ## User testing — 1 November 2026
 

@@ -43,11 +43,11 @@ if(FIELD_BUILD_PLUGIN)
     list(APPEND FIELD_FORMATS AU)
   endif()
   juce_add_plugin(FieldStudio
-    COMPANY_NAME "Field Studio Project"
+    COMPANY_NAME "OPVYN Project"
     BUNDLE_ID "studio.field.instrument"
     PLUGIN_MANUFACTURER_CODE Fstd
     PLUGIN_CODE Fld1
-    PRODUCT_NAME "Field Studio"
+    PRODUCT_NAME "OPVYN"
     FORMATS ${FIELD_FORMATS}
     IS_SYNTH TRUE
     NEEDS_MIDI_INPUT TRUE
@@ -57,7 +57,7 @@ if(FIELD_BUILD_PLUGIN)
     VST3_CATEGORIES Instrument Synth Sampler
     NEEDS_WEB_BROWSER FALSE NEEDS_CURL FALSE
     MICROPHONE_PERMISSION_ENABLED TRUE
-    MICROPHONE_PERMISSION_TEXT "Field Studio records your selected microphone or audio input for sampling and vocoding.")
+    MICROPHONE_PERMISSION_TEXT "OPVYN records your selected microphone or audio input for sampling and vocoding.")
   target_sources(FieldStudio PRIVATE Source/PluginProcessor.cpp Source/LiveCommands.cpp Source/AudioOwnership.cpp Source/ControlBridge.cpp Source/ControlApi.cpp Source/CaptureInput.cpp Source/LfoScreen.cpp Source/DimensionScreen.cpp Source/DSynthScreen.cpp Source/CwoScreen.cpp Source/DelayScreen.cpp Source/FactoryPresets.cpp Source/PresetLibrary.cpp Source/PresetBrowser.cpp Source/PluginEditor.cpp Source/PanelLegends.cpp Source/MidiMapping.cpp Source/MidiSupport.cpp Source/PresetFormat.cpp Source/PresetMapping.cpp Source/PresetParameters.cpp)
   target_include_directories(FieldStudio PUBLIC Source)
   target_compile_definitions(FieldStudio PUBLIC JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_VST3_CAN_REPLACE_VST2=0 JUCE_DISPLAY_SPLASH_SCREEN=0)
@@ -69,7 +69,7 @@ if(FIELD_BUILD_PLUGIN)
     target_link_libraries(FieldStudio PUBLIC juce::juce_recommended_config_flags)
   endif()
   if(BUILD_TESTING)
-    juce_add_console_app(field_plugin_tests PRODUCT_NAME "Field Studio integration tests")
+    juce_add_console_app(field_plugin_tests PRODUCT_NAME "OPVYN integration tests")
     target_sources(field_plugin_tests PRIVATE tests/plugin_tests.cpp)
     target_link_libraries(field_plugin_tests PRIVATE FieldStudio)
     target_include_directories(field_plugin_tests PRIVATE $<TARGET_PROPERTY:juce::juce_core,INTERFACE_INCLUDE_DIRECTORIES>)
@@ -77,7 +77,7 @@ if(FIELD_BUILD_PLUGIN)
     add_test(NAME plugin COMMAND field_plugin_tests)
     add_test(NAME midi_tape_control COMMAND field_plugin_tests --test-midi-tape)
     add_test(NAME tape_motion COMMAND field_plugin_tests --test-tape-motion)
-    juce_add_console_app(field_ownership_tests PRODUCT_NAME "Field Studio audio ownership tests")
+    juce_add_console_app(field_ownership_tests PRODUCT_NAME "OPVYN audio ownership tests")
     target_sources(field_ownership_tests PRIVATE tests/audio_ownership_tests.cpp)
     target_link_libraries(field_ownership_tests PRIVATE FieldStudio)
     target_include_directories(field_ownership_tests PRIVATE $<TARGET_PROPERTY:juce::juce_core,INTERFACE_INCLUDE_DIRECTORIES>)
@@ -87,7 +87,7 @@ if(FIELD_BUILD_PLUGIN)
     endif()
     add_test(NAME audio_ownership COMMAND field_ownership_tests)
 
-    juce_add_console_app(field_performance_bench PRODUCT_NAME "Field Studio performance benchmark")
+    juce_add_console_app(field_performance_bench PRODUCT_NAME "OPVYN performance benchmark")
     target_sources(field_performance_bench PRIVATE tests/performance_bench.cpp)
     target_link_libraries(field_performance_bench PRIVATE FieldStudio)
     target_include_directories(field_performance_bench PRIVATE $<TARGET_PROPERTY:juce::juce_core,INTERFACE_INCLUDE_DIRECTORIES>)

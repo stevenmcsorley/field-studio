@@ -34,7 +34,7 @@ The default sixteen-second strip scrolls beneath the centre head. **Mouse wheel 
 
 Existing selected-track material is ochre; the splice interval under the head is blue; other tracks are grey. Only the current continuous recording stroke is overlaid red, rather than the whole recorded track. This uses actual writes and resets at discontinuous seeks/loops. It does not recover silent holes or a complete hardware take database. The right red line shows recording Level (Shift: Pan), not input amplitude. Count-in, recording and playback have separate indicators.
 
-Right-click transport/loop buttons to learn MIDI. Fine jog, record/finish, sample capture and tape edits remain available through [controller mappings](CONTROLLERS.md#recording-and-timeline-control-041). Recording retains Field Studio's existing single-press start/finish convention; hardware arming/key combinations are not newly implemented.
+Right-click transport/loop buttons to learn MIDI. Fine jog, record/finish, sample capture and tape edits remain available through [controller mappings](CONTROLLERS.md#recording-and-timeline-control-041). Recording retains OPVYN's existing single-press start/finish convention; hardware arming/key combinations are not newly implemented.
 
 ![Studio recording motion — deterministic native renderer preview](screenshots/tape-studio-motion.gif)
 

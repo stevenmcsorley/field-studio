@@ -2,7 +2,7 @@
 
 The screen follows the supplied guide image: an original vector cow silhouette with an internal signal diagram, blue frequency gauge, ochre delay readout, grey feedback readout, red sideband meter and teal bottom ticks. Insert CWO and mixer/master CWO use the full LCD. Readouts from 0–99 indicate normalized control positions, not hardware-calibrated milliseconds, Hz or feedback gain. The diagram is a control illustration, not an audio analyzer. See [the motion/behaviour research](research/EFFECT_VISUAL_MOTION.md) for firsthand observations and remaining parity gaps.
 
-Teenage Engineering's [original OP-1 reference](https://teenage.engineering/guides/op-1/original/reference) describes CWO as a pitch-shifting delay and lists frequency, delay, feedback and sideband; the [field guide](https://assets.teenage.engineering/_img/69f248938d433104c4dd1846_original.pdf) shows those same four labels and the cow screen. These sources do not establish the internal algorithm or a phase-vocoder implementation. Field Studio uses its own analytic frequency shifter and feedback delay, not recovered firmware DSP.
+Teenage Engineering's [original OP-1 reference](https://teenage.engineering/guides/op-1/original/reference) describes CWO as a pitch-shifting delay and lists frequency, delay, feedback and sideband; the [field guide](https://assets.teenage.engineering/_img/69f248938d433104c4dd1846_original.pdf) shows those same four labels and the cow screen. These sources do not establish the internal algorithm or a phase-vocoder implementation. OPVYN uses its own analytic frequency shifter and feedback delay, not recovered firmware DSP.
 
 ![Native CWO screen](screenshots/cwo-reference.png)
 

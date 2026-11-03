@@ -24,7 +24,7 @@ Tests isolate ring/readout/meter regions, compare held controls at different tim
 
 Unclosed gaps: exact raw travel and range table, timing/gain/frequency curves, buffer/filter laws, every animation binding/rate, hardware-device comparisons, and exhaustive present-firmware/pixel parity.
 
-## Field Studio previews
+## OPVYN previews
 
 These are native application renders, not hardware recordings. CWO timing remains approximate.
 

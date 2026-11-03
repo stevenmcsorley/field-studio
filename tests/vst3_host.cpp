@@ -60,7 +60,7 @@ public:
     tresult PLUGIN_API getName(String128 name) override {
         if(!name) return kInvalidArgument;
         std::fill(name,name+128,char16{});
-        const char* value="Field Studio native smoke host";
+        const char* value="OPVYN native smoke host";
         for(size_t i=0;value[i]&&i<127;++i) name[i]=static_cast<char16>(value[i]);
         return kResultOk;
     }
@@ -275,7 +275,7 @@ void exercise(IPluginFactory* factory, const TUID classId, bool enableStems) {
 
 int main(int argc,char** argv) {
     try {
-        require(argc==2,"Usage: field_vst3_host /absolute/path/to/Field Studio.so");
+        require(argc==2,"Usage: field_vst3_host /absolute/path/to/OPVYN.so");
         Module module(argv[1]);module.start();
         {
             Owned<IPluginFactory> factory(module.symbol<Module::Factory>("GetPluginFactory")());

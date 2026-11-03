@@ -1,6 +1,6 @@
 # Sound presets
 
-The preset workflow follows the two supplied OP-1 field guide screenshots. Sound data and rendering are original Field Studio implementations; the manufacturer's factory sound bank is not included.
+The preset workflow follows the two supplied OP-1 field guide screenshots. Sound data and rendering are original OPVYN implementations; the manufacturer's factory sound bank is not included.
 
 ![Native engine and preset browser](screenshots/preset-browser.png)
 
@@ -49,10 +49,10 @@ Manage also provides preset **Copy to folder** / **Move to folder**, and **Copy 
 
 Factory entries are read-only. Copy one to USER, SNAPSHOT or a custom folder before renaming it. The built-in SNAPSHOT and USER folders cannot themselves be renamed/deleted. Custom folders must be empty before deletion. Nested folders support up to eight levels, and scans admit at most 1024 custom folders. Folder transfers reject links, invalid presets and unrecognized files; transfers are limited to 512 MB.
 
-**Manage → Show preset files** reveals the library, under JUCE's per-user application-data directory at `Field Studio/Presets/Synth` or `…/Drum`. Each `.fieldpreset` file is self-contained, including its sample data. Files can be backed up or copied into another machine's corresponding library folder. Refresh the browser by reopening it. Writes use a temporary file followed by destination replacement; IDs are UUIDs and name/path validation is shared across platforms.
+**Manage → Show preset files** reveals the library, under JUCE's per-user application-data directory at `OPVYN/Presets/Synth` or `…/Drum`. Each `.fieldpreset` file is self-contained, including its sample data. Files can be backed up or copied into another machine's corresponding library folder. Refresh the browser by reopening it. Writes use a temporary file followed by destination replacement; IDs are UUIDs and name/path validation is shared across platforms.
 
 ## Boundaries and validation
 
-This is a native Field Studio preset format, not hardware preset export. Existing OP-1 audio/preset imports still go through **Import audio**; see [PRESET_PARAMETERS.md](PRESET_PARAMETERS.md) for translation limits. Hardware sound equivalence, exact fonts/animations and the on-device text-entry gesture are not established. Rename/create use desktop text dialogs. Library scans, sample decoding and snapshot writes remain synchronous control operations, so very large sampled presets can briefly stall the interface.
+This is a native OPVYN preset format, not hardware preset export. Existing OP-1 audio/preset imports still go through **Import audio**; see [PRESET_PARAMETERS.md](PRESET_PARAMETERS.md) for translation limits. Hardware sound equivalence, exact fonts/animations and the on-device text-entry gesture are not established. Rename/create use desktop text dialogs. Library scans, sample decoding and snapshot writes remain synchronous control operations, so very large sampled presets can briefly stall the interface.
 
 Plugin integration tests exercise all 45 factory sounds for successful loading and finite output, independent synth/drum modes, all four sound modules, preserved global settings, snapshot reopen/new-project persistence, project/host slot round trips, folder create/rename/empty-only delete, independent copies, preset rename/delete, nested folder copy/move/rename, cycle/depth/collision/foreign-file rejection, factory protection, unsafe names and invalid-value rejection. Native editor tests exercise Shift-slot browsing, selection into a chosen slot, closing, two-second button holds and subsequent short-click recall. These are implementation checks, not hardware comparisons.

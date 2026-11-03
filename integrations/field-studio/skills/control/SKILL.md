@@ -1,6 +1,6 @@
 ---
 name: control
-description: Control an enabled local Field Studio instance: inspect parameters, compose step sequences, audition MIDI notes and manage playback using compact MCP Code Mode.
+description: Control an enabled local OPVYN instance: inspect parameters, compose step sequences, audition MIDI notes and manage playback using compact MCP Code Mode.
 ---
 Use search to discover exact operations and schemas. Use execute to call list_instances first, then pin instance_id for all app operations. Never guess parameter IDs or enum indices: query list_parameters with a narrow query. Enable COM > local AI / MCP control in the desired instance.
 

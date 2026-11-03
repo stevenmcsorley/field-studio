@@ -44,14 +44,16 @@ for archive in archives:
             for name,digest in manifest.items():
                 if hashlib.sha256(bundle.read(root+name)).hexdigest()!=digest:
                     raise SystemExit(f'Invalid bundled file checksum: {name}')
-            required=['README.md','INSTALL.md','docs/CONTROLLERS.md','THIRD-PARTY-NOTICES/JUCE/LICENSE.md','integrations/field-studio/server.py','integrations/field-studio/mcp.json','docs/MCP.md','docs/AUDIO_BACKENDS.md','docs/TEMPO_SYNC.md','docs/VOCODER_SAMPLING.md','docs/LCD_FIDELITY.md','docs/screenshots/dna-reference.png','docs/screenshots/lcd-grid.png','docs/screenshots/vocoder-reference.png','docs/screenshots/sampling-recording.png','docs/screenshots/tempo-beat-match.png','docs/screenshots/tempo-midi-relay.png']
+            required=['README.md','INSTALL.md','docs/RENAMING.md','docs/screenshots/opvyn.png','docs/CONTROLLERS.md','THIRD-PARTY-NOTICES/JUCE/LICENSE.md','integrations/field-studio/server.py','integrations/field-studio/mcp.json','docs/MCP.md','docs/AUDIO_BACKENDS.md','docs/TEMPO_SYNC.md','docs/VOCODER_SAMPLING.md','docs/LCD_FIDELITY.md','docs/screenshots/dna-reference.png','docs/screenshots/lcd-grid.png','docs/screenshots/vocoder-reference.png','docs/screenshots/sampling-recording.png','docs/screenshots/tempo-beat-match.png','docs/screenshots/tempo-midi-relay.png']
+            if any(name.startswith(root+folder+'/Field Studio') for name in names for folder in ('Standalone','VST3','AU')):
+                raise SystemExit(f'Legacy duplicate product in OPVYN package: {archive.name}')
             if '-windows-' in archive.name:
-                found.add('windows');required+=['Standalone/Field Studio.exe','VST3/Field Studio.vst3/Contents/x86_64-win/Field Studio.vst3']
+                found.add('windows');required+=['Standalone/OPVYN.exe','VST3/OPVYN.vst3/Contents/x86_64-win/OPVYN.vst3']
             elif '-macos-universal' in archive.name:
-                found.add('macos');required+=['Standalone/Field Studio.app/Contents/MacOS/Field Studio','VST3/Field Studio.vst3/Contents/MacOS/Field Studio','AU/Field Studio.component/Contents/MacOS/Field Studio']
+                found.add('macos');required+=['Standalone/OPVYN.app/Contents/MacOS/OPVYN','VST3/OPVYN.vst3/Contents/MacOS/OPVYN','AU/OPVYN.component/Contents/MacOS/OPVYN']
             elif '-linux-' in archive.name:
-                found.add('linux');required+=['run.sh','Standalone/Field Studio','VST3/Field Studio.vst3/Contents/x86_64-linux/Field Studio.so']
-                for name in ('run.sh','Standalone/Field Studio'):
+                found.add('linux');required+=['run.sh','Standalone/OPVYN','VST3/OPVYN.vst3/Contents/x86_64-linux/OPVYN.so']
+                for name in ('run.sh','Standalone/OPVYN'):
                     mode=bundle.getinfo(root+name).external_attr>>16
                     if not mode&stat.S_IXUSR:
                         raise SystemExit(f'Executable permission missing: {name}')

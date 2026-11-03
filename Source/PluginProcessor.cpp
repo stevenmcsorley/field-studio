@@ -584,7 +584,7 @@ juce::ValueTree FieldProcessor::makeState(){
     return root;
 }
 void FieldProcessor::restoreState(const juce::ValueTree& root){
-    if(!root.hasType("FIELD_STUDIO")||(int)root["version"]!=1)throw std::runtime_error("Not a supported Field Studio project");
+    if(!root.hasType("FIELD_STUDIO")||(int)root["version"]!=1)throw std::runtime_error("Not a supported OPVYN project");
     double targetSr;int targetBlock;uint64_t epoch,request,queuedRevision;{DocumentGuard lock(*this);queuedRevision=liveCommands.producerPosition();flushLiveControls();targetSr=engine.sampleRate();targetBlock=juce::jmax(512,getBlockSize());epoch=documentEpoch;request=++controlRevision;}
     double sr=(double)root["sampleRate"];if(!std::isfinite(sr)||sr<8000||sr>192000)throw std::runtime_error("Invalid sample rate");
     int active=juce::jlimit(0,7,(int)root["tape"]);std::array<TapeState,8> restored;

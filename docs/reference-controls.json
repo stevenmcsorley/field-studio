@@ -1,7 +1,7 @@
 {
   "source": "https://assets.teenage.engineering/_img/69f248938d433104c4dd1846_original.pdf",
   "basis": "Guide pp12\u201322; labels paraphrased where useful. Parameter ranges and DSP remain unverified.",
-  "order": "Matches proposed Field Studio engine enumeration, not an asserted hardware browser ordering.",
+  "order": "Matches proposed OPVYN engine enumeration, not an asserted hardware browser ordering.",
   "engines": [
     {
       "index": 0,

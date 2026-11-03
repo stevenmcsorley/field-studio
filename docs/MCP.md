@@ -1,6 +1,6 @@
 # Local AI control and Code Mode
 
-Field Studio exposes two MCP tools: **search** and **execute**. The [Cloudflare Code Mode approach](https://blog.cloudflare.com/code-mode-mcp/) inspired the compact discovery/execution design. This implementation runs locally; it does not call Cloudflare or require a Workers account.
+OPVYN exposes two MCP tools: **search** and **execute**. The [Cloudflare Code Mode approach](https://blog.cloudflare.com/code-mode-mcp/) inspired the compact discovery/execution design. This implementation runs locally; it does not call Cloudflare or require a Workers account.
 
 `search` returns only relevant operation schemas. `execute` can chain app calls in bounded JavaScript and return a small projection, avoiding repeated tool descriptions and full intermediate results in the model context. The initial API has nine discoverable operations. Its compact JSON tool declarations measured 1,384 bytes versus 3,007 bytes for nine flat declarations during development; this is a schema-byte comparison, not a billed-token or cost guarantee. Actual savings depend on the model, scripts, searches and returned data.
 
@@ -16,7 +16,7 @@ A generic stdio client configuration (replace the paths):
 ```json
 {
   "mcpServers": {
-    "field-studio": {
+    "opvyn": {
       "command": "/absolute/path/to/python",
       "args": ["/absolute/path/to/integrations/field-studio/server.py"]
     }
@@ -95,3 +95,5 @@ Search `tempo`, `sync`, `clock` or `metronome` to discover parameter operations.
 ## Beta 10 timing semantics
 
 `get_state` reads the latest published telemetry (approximately 30 Hz while audio runs), without acquiring the live engine guard. Project/source labels in that snapshot are bounded UTF-8 strings. Parameter values may be newer than the effective render telemetry. Transport and `manual_step` return `queued: true`; this acknowledges admission, not completion. `manual_step` no longer returns a synchronously applied step. Read a later state to observe the result; batching a state query immediately after a queued command is not a completion barrier. Stop/panic remain admissible with a full ordinary control queue. The tool set stays `search` / `execute`; sequence bulk operations still use the engine guard.
+
+OPVYN retains `integrations/field-studio`, the `fieldstudio` JavaScript object, existing endpoint schemas and the `FieldStudio/control` discovery directory for compatibility. Existing MCP client configurations continue to work; new manifests use the `opvyn` display/server name. See [rename notes](RENAMING.md).

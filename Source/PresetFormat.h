@@ -18,7 +18,7 @@ juce::var readMetadata(const juce::File&, juce::String& error,
 // rather than reported as a known software engine.
 bool isPreset(const juce::var&);
 
-// Field Studio's declared engine order:14 melodic choices plus DBox at14.
+// OPVYN's declared engine order:14 melodic choices plus DBox at14.
 // Returns -1 for unknown types or sample-kit drum metadata. The original
 // metadata remains available to callers.
 int engineIndex(const juce::var&);

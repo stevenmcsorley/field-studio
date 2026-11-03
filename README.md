@@ -1,12 +1,14 @@
-# Field Studio
+# OPVYN
 
-A native synthesizer, sampler and four-track stereo tape instrument inspired by the OP–1 field workflow. Builds a standalone application and VST3 from the same C++ audio engine; macOS also builds AU.
+An open-source synthesizer, sampler and four-track stereo tape instrument inspired by the Teenage Engineering OP–1 field workflow. Builds a standalone application and VST3 from the same C++ audio engine; macOS also builds AU.
 
-**[Download Field Studio 0.4.2](https://github.com/stevenmcsorley/field-studio/releases/tag/v0.4.2)** · [VST3 setup](#vst3-and-daw-workflow) · [Recent features and screenshots](#recent-improvements) · [Controller mapping](#controller-mapping)
+**[Downloads](https://github.com/stevenmcsorley/opvyn/releases)** · [VST3 setup](#vst3-and-daw-workflow) · [Recent features and screenshots](#recent-improvements) · [Controller mapping](#controller-mapping)
 
-![Field Studio running on Linux, showing the CWO cow effect, four coloured encoders and two-octave keyboard](docs/screenshots/field-studio.png)
+![OPVYN running on Linux, showing the CWO cow effect, four coloured encoders and two-octave keyboard](docs/screenshots/opvyn.png)
 
 This is an independently written recreation. **Exact feature, visual and sonic parity has not been established.** No manufacturer DSP, firmware, factory samples, fonts, logos or extracted artwork are bundled. See [the parity ledger](docs/PARITY.md) for concrete differences and [research findings](docs/research/FIRMWARE_FINDINGS.md) for what the firmware inspection actually established.
+
+**OPVYN was previously called Field Studio.** Existing `.field` projects, presets, MIDI profiles and plugin identifiers are retained. Earlier downloads and screenshots may carry the previous name; current source builds use OPVYN. See [rename and upgrade notes](docs/RENAMING.md).
 
 ## What you can make
 
@@ -40,7 +42,7 @@ Play synths and drums, import samples, build a sequence, record it onto four ste
 
 **Grid, Mother, Dimension and DNA LCDs:** rebuilt Grid's floor/wall projection, wire boxes, arrows and thin numeric readouts; Mother now uses the reference's tunnel grid, foreground/rear figures and gate bracket. Dimension uses the paired 2:3 Lissajous knot, corrected plot placement and rounded resonance peak. DNA has a dedicated linked hexadecimal-tile screen, terminal dots and noise strip. All four retain parameter-driven rendering. These are closer reference-based redraws; pixel-perfect fonts, hardware readout laws and animation parity remain unverified. [LCD comparison notes and native details](docs/LCD_FIDELITY.md).
 
-**Vocoder and sampling:** the vocoder now has a dedicated head/voice LCD and independent Waveform, Formant, 4–16 Bands and dry/wet Mix controls. The orange microphone button opens a source picker and Standby/Recording page with live meter, threshold, input gain and 6/20/60/120-second limits. Click ARM or press Record; Shift-click ARM enables held-key capture. Empty captures preserve your previous sample. Choose microphone/interface/DAW input, Windows system loopback, Linux monitor sources, routed macOS virtual inputs, imported files or Field Studio's internal output resampling. macOS computer audio needs routing through a virtual device; automatic app/process capture is not included. [Step-by-step setup, controls and limits](docs/VOCODER_SAMPLING.md).
+**Vocoder and sampling:** the vocoder now has a dedicated head/voice LCD and independent Waveform, Formant, 4–16 Bands and dry/wet Mix controls. The orange microphone button opens a source picker and Standby/Recording page with live meter, threshold, input gain and 6/20/60/120-second limits. Click ARM or press Record; Shift-click ARM enables held-key capture. Empty captures preserve your previous sample. Choose microphone/interface/DAW input, Windows system loopback, Linux monitor sources, routed macOS virtual inputs, imported files or OPVYN's internal output resampling. macOS computer audio needs routing through a virtual device; automatic app/process capture is not included. [Step-by-step setup, controls and limits](docs/VOCODER_SAMPLING.md).
 
 **Tempo and generic MIDI sync:** a dedicated tempo LCD shows Song/Play BPM, tape ratio, cm/s and IPS, link state, clock receipt and metronome level. Blue/Shift-blue provide coarse/fine adjustment; tap the BPM display or press T, and use arrows to nudge. Added three original click sounds, optional tape-tempo linking and received-clock relay. Free, Beat Match (MIDI send), MIDI receive and DAW follow work with compatible OS-visible MIDI devices. Relay uses standard 24-PPQN MIDI; PO/analogue pulse output is not implemented. [Controls, routing and parity limits](docs/TEMPO_SYNC.md).
 
@@ -64,7 +66,7 @@ Play synths and drums, import samples, build a sequence, record it onto four ste
 
 **Saving and exporting:** project saves and WAV exports run on a bounded background worker. Prepared media and retained snapshots keep file work and resource reclamation off the audio callback; physical-device performance still depends on your driver and buffer settings.
 
-These are native screenshots of Field Studio. Screen artwork and DSP remain independent approximations; the EQ curve illustrates settings rather than a measured response.
+These are native screenshots of OPVYN and its earlier Field Studio releases. Screen artwork and DSP remain independent approximations; the EQ curve illustrates settings rather than a measured response.
 
 | Mixer | Equalizer |
 |---|---|
@@ -114,7 +116,7 @@ CWO mechanisms respond to control changes; Delay circles follow Range. Animation
 
 ## VST3 and DAW workflow
 
-Field Studio is an **instrument plugin**: load it on a MIDI/instrument track, route notes to it and hear the main stereo output. The same interface supports synthesis, sampling, sequencing, tape recording and mixing inside the DAW. macOS downloads also include AU.
+OPVYN is an **instrument plugin**: load it on a MIDI/instrument track, route notes to it and hear the main stereo output. The same interface supports synthesis, sampling, sequencing, tape recording and mixing inside the DAW. macOS downloads also include AU.
 
 ### Tested by the user
 
@@ -125,7 +127,7 @@ The project owner reports successful hands-on use of the plugin, DAW automation,
 | Plugin operation | Works well in the tested setup |
 | DAW automation | Working well |
 | Faderfox | Connected; controls assigned and working |
-| Arturia BeatStep | Working with Field Studio |
+| Arturia BeatStep | Working with OPVYN |
 
 The DAW, OS, Faderfox model and exact controller modes were not recorded with this report. These are user-confirmed results for that setup; broader host/platform and controller-mode coverage remains open. Automated release builds/tests also pass on Windows, macOS and Linux.
 
@@ -135,17 +137,17 @@ Download and extract the archive for your OS. Copy the **entire bundle**, then r
 
 | Platform | Plugin location |
 |---|---|
-| Windows x64 | Copy `VST3/Field Studio.vst3` into `C:\Program Files\Common Files\VST3\` or a VST3 folder supported by your DAW. The system folder requires administrator access. |
-| macOS, Apple Silicon or Intel | Copy `VST3/Field Studio.vst3` into `~/Library/Audio/Plug-Ins/VST3/`. For AU, copy `AU/Field Studio.component` into `~/Library/Audio/Plug-Ins/Components/`. |
-| Linux x86_64 | Copy `VST3/Field Studio.vst3` into `~/.vst3/`, or add its location to your DAW's VST3 scan paths. Builds require glibc 2.35+. |
+| Windows x64 | Copy `VST3/OPVYN.vst3` into `C:\Program Files\Common Files\VST3\` or a VST3 folder supported by your DAW. The system folder requires administrator access. |
+| macOS, Apple Silicon or Intel | Copy `VST3/OPVYN.vst3` into `~/Library/Audio/Plug-Ins/VST3/`. For AU, copy `AU/OPVYN.component` into `~/Library/Audio/Plug-Ins/Components/`. |
+| Linux x86_64 | Copy `VST3/OPVYN.vst3` into `~/.vst3/`, or add its location to your DAW's VST3 scan paths. Builds require glibc 2.35+. |
 
 The format is **VST3**; VST2 is not included. Portable downloads include `INSTALL.md` and remain unsigned/not notarized. macOS requires 11 or newer. The standalone executable/app is included separately in each archive.
 
 ### Automate and connect hardware
 
-1. Add Field Studio to an instrument track and enable MIDI input/monitoring as required by your DAW.
+1. Add OPVYN to an instrument track and enable MIDI input/monitoring as required by your DAW.
 2. Use the DAW's automation parameter list or automation learn to control exposed synth macros, envelopes, effects, master EQ/Amount and output parameters. Enable the DAW's automation read/write mode for the workflow you want.
-3. Route your controller's MIDI to the same track. Right-click a Field Studio knob, select **MIDI learn**, then move the hardware control. Choose pickup for absolute knobs/faders, or the matching relative mode for endless encoders.
+3. Route your controller's MIDI to the same track. Right-click a OPVYN knob, select **MIDI learn**, then move the hardware control. Choose pickup for absolute knobs/faders, or the matching relative mode for endless encoders.
 4. Save the DAW project to retain plugin state and assignments. Export a controller profile under COM to reuse mappings in another project. `.field` files also preserve the instrument project independently of the DAW.
 
 Host automation and hardware mappings are separate routes to controls. MIDI pickup re-arms when host automation changes the software value. The COM mapping list also exposes track levels/pans/mutes/solos, pad controls and tape actions; these are MIDI destinations, not all separate host automation parameters.
@@ -158,18 +160,20 @@ Right-click a knob and choose **MIDI learn**, then move a control on your Faderf
 
 ## Downloads
 
-[Field Studio 0.4.0 downloads](https://github.com/stevenmcsorley/field-studio/releases/tag/v0.4.2) are available for Windows, macOS and Linux. Publication is gated on automated build, test and package checks. The pipeline packages Windows x64 standalone/VST3, macOS universal standalone/VST3/AU and Linux x86_64 standalone/VST3, with checksums and complete corresponding source. See [release notes](docs/RELEASE_NOTES.md) and [build/release status](docs/BUILD_STATUS.md). Binaries are unsigned portable builds.
+[Release downloads](https://github.com/stevenmcsorley/opvyn/releases) target Windows, macOS and Linux. Earlier tagged releases retain the Field Studio name and bundle filenames; the installation paths below describe OPVYN source builds and future downloads. Publication is gated on automated build, test and package checks. The pipeline packages Windows x64 standalone/VST3, macOS universal standalone/VST3/AU and Linux x86_64 standalone/VST3, with checksums and complete corresponding source. See [release notes](docs/RELEASE_NOTES.md) and [build/release status](docs/BUILD_STATUS.md). Binaries are unsigned portable builds.
 
 ## Run the Linux build
 
 ```sh
-cd field-studio
+git clone https://github.com/stevenmcsorley/opvyn.git
+cd opvyn
+./scripts/build.sh
 ./scripts/run.sh
 ```
 
-The standalone executable is `build/FieldStudio_artefacts/Release/Standalone/Field Studio`. Use its **Options** menu for your audio interface, buffer size and MIDI inputs. The native application needs a graphical desktop and an audio output device. If recording external audio, select your input device and unmute input in the standalone audio settings, then enable **INPUT** in the instrument.
+The standalone executable is `build/FieldStudio_artefacts/Release/Standalone/OPVYN`. Use its **Options** menu for your audio interface, buffer size and MIDI inputs. The native application needs a graphical desktop and an audio output device. If recording external audio, select your input device and unmute input in the standalone audio settings, then enable **INPUT** in the instrument.
 
-The VST3 bundle is `build/FieldStudio_artefacts/Release/VST3/Field Studio.vst3`. Point your DAW's VST3 scanner at that directory, or copy the entire bundle into your user VST3 directory (`~/.vst3` on Linux). Four optional stereo tape-stem buses are available in hosts that support multi-output instruments, alongside the main stereo mix.
+The VST3 bundle is `build/FieldStudio_artefacts/Release/VST3/OPVYN.vst3`. Point your DAW's VST3 scanner at that directory, or copy the entire bundle into your user VST3 directory (`~/.vst3` on Linux). Four optional stereo tape-stem buses are available in hosts that support multi-output instruments, alongside the main stereo mix.
 
 ## Play and record
 

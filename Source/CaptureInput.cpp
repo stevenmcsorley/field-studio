@@ -24,7 +24,7 @@ juce::StringArray CaptureInput::devices(){
 #else
  ma_backend backend=ma_backend_pulseaudio;
 #endif
- ma_context_config contextConfig=ma_context_config_init();contextConfig.pulse.pApplicationName="Field Studio capture";contextConfig.pulse.tryAutoSpawn=MA_FALSE;
+ ma_context_config contextConfig=ma_context_config_init();contextConfig.pulse.pApplicationName="OPVYN capture";contextConfig.pulse.tryAutoSpawn=MA_FALSE;
  if(ma_context_init(&backend,1,&contextConfig,&impl->context)!=MA_SUCCESS)return {};impl->contextReady=true;
  }
  ma_device_info *outputs=nullptr,*inputs=nullptr;ma_uint32 outputCount=0,inputCount=0;
@@ -38,7 +38,7 @@ juce::StringArray CaptureInput::devices(){
 bool CaptureInput::start(int index,double rate,juce::String& error){
  stop();if(index<0||index>=(int)impl->entries.size()){error="Refresh the audio source list and choose an available input";return false;}
  auto& selected=impl->entries[(size_t)index];auto config=ma_device_config_init(selected.loopback?ma_device_type_loopback:ma_device_type_capture);
- config.capture.pDeviceID=&selected.id;config.capture.format=ma_format_f32;config.capture.channels=2;config.sampleRate=(ma_uint32)rate;config.periodSizeInFrames=256;config.periods=2;config.performanceProfile=ma_performance_profile_low_latency;config.pUserData=this;config.pulse.pStreamNameCapture="Field Studio input";
+ config.capture.pDeviceID=&selected.id;config.capture.format=ma_format_f32;config.capture.channels=2;config.sampleRate=(ma_uint32)rate;config.periodSizeInFrames=256;config.periods=2;config.performanceProfile=ma_performance_profile_low_latency;config.pUserData=this;config.pulse.pStreamNameCapture="OPVYN input";
  config.dataCallback=[](ma_device* device,void*,const void* input,ma_uint32 count){static_cast<CaptureInput*>(device->pUserData)->ring.push(static_cast<const float*>(input),count);};
  auto result=ma_device_init(&impl->context,&config,&impl->device);if(result!=MA_SUCCESS){error="Cannot open audio source: "+juce::String(ma_result_description(result));return false;}impl->deviceReady=true;ring.clear();ring.dropped=0;bridge.reset(256);
  result=ma_device_start(&impl->device);if(result!=MA_SUCCESS){error="Cannot start audio source: "+juce::String(ma_result_description(result));stop();return false;}running=true;return true;

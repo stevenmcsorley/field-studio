@@ -1,3 +1,9 @@
+# Unreleased — OPVYN rename
+
+Field Studio is now **OPVYN**. Application/plugin display names, panel branding, help, capture-device labels, installation instructions, download packaging and repository links use the new name. Existing projects, presets, MIDI profiles, parameter IDs, plugin manufacturer/product codes, bundle ID and MCP endpoint/API paths are retained. Earlier releases below retain their historical names. See docs/RENAMING.md before replacing an installed plugin.
+
+---
+
 # Field Studio 0.4.2 — Recording LCD and tape motion
 
 - Recorder graphics now follow the selected style: Studio/Vintage reels, Porta cassette and Disc Mini cartridge. Studio/Porta have direct public layout references; Vintage/Disc Mini remain original approximations.

@@ -167,7 +167,7 @@ def javascript(args,invoke,deadline):
 
 def handle(message):
     method=message.get('method');params=message.get('params',{})
-    if method=='initialize':return {'protocolVersion':'2024-11-05','capabilities':{'tools':{}},'serverInfo':{'name':'field-studio','version':'0.1.0'}}
+    if method=='initialize':return {'protocolVersion':'2024-11-05','capabilities':{'tools':{}},'serverInfo':{'name':'opvyn','version':'0.1.0'}}
     if method=='ping':return {}
     if method=='tools/list':return {'tools':TOOLS}
     if method=='tools/call':

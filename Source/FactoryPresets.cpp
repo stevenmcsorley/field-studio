@@ -1,7 +1,7 @@
 #include "PluginProcessor.h"
 #include <cmath>
 
-// Original presets for Field Studio's DSP. These are not OP-1 factory files.
+// Original presets for OPVYN's DSP. These are not OP-1 factory files.
 void FieldProcessor::initializeFactoryPresets(){
     const std::array<int,8> initial{{0,1,5,6,9,4,7,10}};
     for(int kind=0;kind<15;++kind)for(int variation=0;variation<3;++variation){

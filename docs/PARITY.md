@@ -2,7 +2,7 @@
 
 Updated 2026-10-30. Reference: OP–1 field OS 1.7.3+1 and manual 1.7.0. Sources: [official guide](https://teenage.engineering/guides/op-1), [release history](https://teenage.engineering/downloads/op-1/field), [research inventory](../../op1-field-research/SPECIFICATION.md). Test scopes and platform boundaries are in [VALIDATION.md](VALIDATION.md).
 
-**Field Studio is a working independent reconstruction; exact feature, visual and sonic parity are not established.** It uses original DSP and graphics. Firmware inspection did not recover executable engine code or display assets. There is no reference device for controlled sound or interaction comparisons. Matching names and exposed controls do not prove matching algorithms, parameter ranges or results.
+**OPVYN is a working independent reconstruction; exact feature, visual and sonic parity are not established.** It uses original DSP and graphics. Firmware inspection did not recover executable engine code or display assets. There is no reference device for controlled sound or interaction comparisons. Matching names and exposed controls do not prove matching algorithms, parameter ranges or results.
 
 In this ledger, *implemented* means code provides a concrete function; *validated* means a named test exercises the stated behaviour. Neither word means equivalent to the manufacturer's implementation. The final Linux four-target CTest run and native editor/screenshot checks pass; exact hardware equivalence remains unverified.
 

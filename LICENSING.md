@@ -1,14 +1,14 @@
 # Free software and dependency licensing
 
-## Original Field Studio code: MIT
+## Original OPVYN code: MIT
 
-Field Studio's original code, original graphics and project documentation are licensed under the [MIT License](LICENSE). You may use, modify, redistribute and sell that original work, including in commercial projects, provided you retain its copyright and permission notice. There is no usage fee or warranty.
+OPVYN's original code, original graphics and project documentation are licensed under the [MIT License](LICENSE). You may use, modify, redistribute and sell that original work, including in commercial projects, provided you retain its copyright and permission notice. There is no usage fee or warranty.
 
 This grant does not relicense third-party code, manufacturer reference material or user-imported samples. Respect their separate terms.
 
 ## Packaged application: AGPLv3 with corresponding source
 
-The standalone and plugin downloads combine Field Studio with JUCE. JUCE is not MIT-licensed: the pinned framework offers AGPLv3 or a separate commercial licence. This project's free beta builds use the **AGPLv3 route**, not an assumed commercial JUCE licence. The combined application binaries are conveyed under **GNU AGPL version 3**; the original Field Studio files remain separately available under MIT. The full AGPLv3 text is in [LICENSES/AGPL-3.0.txt](LICENSES/AGPL-3.0.txt).
+The standalone and plugin downloads combine OPVYN with JUCE. JUCE is not MIT-licensed: the pinned framework offers AGPLv3 or a separate commercial licence. This project's free beta builds use the **AGPLv3 route**, not an assumed commercial JUCE licence. The combined application binaries are conveyed under **GNU AGPL version 3**; the original OPVYN files remain separately available under MIT. The full AGPLv3 text is in [LICENSES/AGPL-3.0.txt](LICENSES/AGPL-3.0.txt).
 
 Everyone can use the app, including commercially, and make changes. When distributing the combined application, comply with AGPLv3, including providing its corresponding source and preserving the applicable notices/licences. AGPLv3 also has requirements for modified versions offered for remote network interaction. MIT permission for our original files does not remove JUCE's terms or make the complete JUCE-based application permissively licensed.
 

@@ -1,1 +1,9 @@
-{"$schema":"https://agent-plugins.org/schemas/1.0.0/plugin.schema.json","name":"field-studio","version":"0.1.0","description":"Control local Field Studio instruments with compact discovery and bounded Code Mode.","author":{"name":"Field Studio Project"}}
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "opvyn",
+  "version": "0.1.0",
+  "description": "Control local OPVYN instruments with compact discovery and bounded Code Mode.",
+  "author": {
+    "name": "OPVYN Project"
+  }
+}

@@ -75,7 +75,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: hashFiles('LICENSE') != ''
         with:
-          name: Field-Studio-${{ runner.os }}-${{ matrix.architecture }}
+          name: OPVYN-${{ runner.os }}-${{ matrix.architecture }}
           if-no-files-found: error
           path: |
             dist/*.zip
@@ -136,7 +136,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
-          pattern: Field-Studio-*
+          pattern: OPVYN-*
           path: release-downloads
           merge-multiple: true
       - name: Verify all target downloads
@@ -154,7 +154,7 @@ jobs:
               exit 1
             fi
             gh release upload "$RELEASE_TAG" release-downloads/*.zip release-downloads/*.sha256 --clobber
-            gh release edit "$RELEASE_TAG" --draft=false --prerelease="$prerelease" --title "Field Studio $RELEASE_TAG" --notes-file docs/RELEASE_NOTES.md
+            gh release edit "$RELEASE_TAG" --draft=false --prerelease="$prerelease" --title "OPVYN $RELEASE_TAG" --notes-file docs/RELEASE_NOTES.md
           else
-            gh release create "$RELEASE_TAG" release-downloads/*.zip release-downloads/*.sha256 --verify-tag --prerelease="$prerelease" --title "Field Studio $RELEASE_TAG" --notes-file docs/RELEASE_NOTES.md
+            gh release create "$RELEASE_TAG" release-downloads/*.zip release-downloads/*.sha256 --verify-tag --prerelease="$prerelease" --title "OPVYN $RELEASE_TAG" --notes-file docs/RELEASE_NOTES.md
           fi
