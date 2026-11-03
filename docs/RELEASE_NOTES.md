@@ -1,6 +1,17 @@
-# Unreleased — OPVYN rename
+# OPVYN 0.4.3 — First OPVYN release
 
 Field Studio is now **OPVYN**. Application/plugin display names, panel branding, help, capture-device labels, installation instructions, download packaging and repository links use the new name. Existing projects, presets, MIDI profiles, parameter IDs, plugin manufacturer/product codes, bundle ID and MCP endpoint/API paths are retained. Earlier releases below retain their historical names. See docs/RENAMING.md before replacing an installed plugin.
+
+
+- Native standalone and VST3 downloads for Windows x64, Linux x86_64 and macOS universal (Intel + Apple Silicon), with AU on macOS.
+- New OPVYN product/bundle names, panel branding, capture labels, README screenshot, controller/MCP documentation and installation instructions.
+- Packaging selects only OPVYN products, excluding stale Field Studio bundles from incremental builds.
+- Includes the recording LCD/motion, MIDI recording/timeline control and LFO improvements from 0.4.0–0.4.2.
+- Linux standalone/VST3 build and package verification passed for the rename; generated VST3 processor/controller IDs matched the previous bundles. This version bump adds no audio behaviour changes. Cross-platform binaries publish only after all existing CI and package gates pass.
+
+**Upgrading:** replace the old Field Studio plugin bundle rather than installing both names in scanned plugin folders; the plugin identity is intentionally retained. Rescan/restart your DAW. Existing `.field` projects, user presets and controller profiles remain supported. Standalone device preferences may need selecting again under the new app name. See [rename and upgrade notes](docs/RENAMING.md).
+
+Downloads remain unsigned; no signing certificates are configured. Original code is MIT licensed; combined JUCE binaries are AGPLv3 with matching complete source and checksums. This release is stable/non-prerelease; it does not claim complete OP-1 field parity or physical-device/DAW certification.
 
 ---
 

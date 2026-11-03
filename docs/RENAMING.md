@@ -10,7 +10,7 @@ OPVYN is the new name of this independent, open-source instrument inspired by th
 - Download folders/archive prefix: `OPVYN-`.
 - New MCP manifest/server display name: `opvyn`.
 
-Earlier tagged releases retain the original branding and filenames. Renaming the repository does not rebuild or replace those downloads. Current source and future build artifacts use OPVYN.
+Tagged releases through 0.4.2 retain the original branding and filenames. Version 0.4.3 is the first OPVYN release. Renaming the repository does not rebuild or replace those downloads. Current source and future build artifacts use OPVYN.
 
 ## Existing projects, presets and controllers
 

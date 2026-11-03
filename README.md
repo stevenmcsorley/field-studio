@@ -2,13 +2,13 @@
 
 An open-source synthesizer, sampler and four-track stereo tape instrument inspired by the Teenage Engineering OP–1 field workflow. Builds a standalone application and VST3 from the same C++ audio engine; macOS also builds AU.
 
-**[Downloads](https://github.com/stevenmcsorley/opvyn/releases)** · [VST3 setup](#vst3-and-daw-workflow) · [Recent features and screenshots](#recent-improvements) · [Controller mapping](#controller-mapping)
+**[OPVYN 0.4.3 downloads](https://github.com/stevenmcsorley/opvyn/releases)** · [VST3 setup](#vst3-and-daw-workflow) · [Recent features and screenshots](#recent-improvements) · [Controller mapping](#controller-mapping)
 
 ![OPVYN running on Linux, showing the CWO cow effect, four coloured encoders and two-octave keyboard](docs/screenshots/opvyn.png)
 
 This is an independently written recreation. **Exact feature, visual and sonic parity has not been established.** No manufacturer DSP, firmware, factory samples, fonts, logos or extracted artwork are bundled. See [the parity ledger](docs/PARITY.md) for concrete differences and [research findings](docs/research/FIRMWARE_FINDINGS.md) for what the firmware inspection actually established.
 
-**OPVYN was previously called Field Studio.** Existing `.field` projects, presets, MIDI profiles and plugin identifiers are retained. Earlier downloads and screenshots may carry the previous name; current source builds use OPVYN. See [rename and upgrade notes](docs/RENAMING.md).
+**OPVYN was previously called Field Studio.** Existing `.field` projects, presets, MIDI profiles and plugin identifiers are retained. Earlier downloads and screenshots may carry the previous name; version 0.4.3 and current source builds use OPVYN. See [rename and upgrade notes](docs/RENAMING.md).
 
 ## What you can make
 
@@ -160,7 +160,7 @@ Right-click a knob and choose **MIDI learn**, then move a control on your Faderf
 
 ## Downloads
 
-[Release downloads](https://github.com/stevenmcsorley/opvyn/releases) target Windows, macOS and Linux. Earlier tagged releases retain the Field Studio name and bundle filenames; the installation paths below describe OPVYN source builds and future downloads. Publication is gated on automated build, test and package checks. The pipeline packages Windows x64 standalone/VST3, macOS universal standalone/VST3/AU and Linux x86_64 standalone/VST3, with checksums and complete corresponding source. See [release notes](docs/RELEASE_NOTES.md) and [build/release status](docs/BUILD_STATUS.md). Binaries are unsigned portable builds.
+[Release downloads](https://github.com/stevenmcsorley/opvyn/releases) target Windows, macOS and Linux. Earlier tagged releases retain the Field Studio name and bundle filenames; the installation paths below describe OPVYN 0.4.3 and later. Publication is gated on automated build, test and package checks. The pipeline packages Windows x64 standalone/VST3, macOS universal standalone/VST3/AU and Linux x86_64 standalone/VST3, with checksums and complete corresponding source. See [release notes](docs/RELEASE_NOTES.md) and [build/release status](docs/BUILD_STATUS.md). Binaries are unsigned portable builds.
 
 ## Run the Linux build
 
